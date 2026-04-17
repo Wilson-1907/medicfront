@@ -1,11 +1,12 @@
 # Vercel Frontend Deployment
 
-This folder is a Vercel edge proxy for the Render backend.
+This folder is a Vercel edge proxy for the Render backend (no standalone frontend page).
 
 ## Purpose
 
 - Make `medicfront` domain show the real hospital console
 - Proxy all requests to Render backend (`medicback`)
+- Opening `https://medicfront-...vercel.app` should load the backend console directly
 
 ## Deploy Steps
 
