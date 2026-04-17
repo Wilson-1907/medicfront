@@ -95,6 +95,14 @@ function renderDashboard() {
 function renderPatients() {
   const wrap = document.createElement("div");
   const card = createCard("Patients");
+  const removedMsg = new URLSearchParams(window.location.search).get("removed");
+  if (removedMsg) {
+    const alert = document.createElement("div");
+    alert.className = "alert alert-success";
+    alert.textContent = removedMsg;
+    card.appendChild(alert);
+  }
+
   const input = document.createElement("input");
   input.placeholder = "Search by name/MRN/ID";
   const btn = document.createElement("button");
@@ -108,12 +116,25 @@ function renderPatients() {
   row.append(input, btn);
   card.appendChild(row);
 
+  const actions = document.createElement("div");
+  actions.style.margin = "10px 0 12px";
+  const reg = document.createElement("button");
+  reg.className = "btn";
+  reg.textContent = "+ Register patient";
+  reg.onclick = async () => {
+    state.tab = "register";
+    render();
+    await loadCurrentTab();
+  };
+  actions.appendChild(reg);
+  card.appendChild(actions);
+
   const t = document.createElement("table");
-  t.innerHTML = `<thead><tr><th>ID</th><th>Name</th><th>Channel</th><th>Status</th></tr></thead>`;
+  t.innerHTML = `<thead><tr><th>ID</th><th>Name</th><th>Channel</th><th>Status</th><th></th></tr></thead>`;
   const tb = document.createElement("tbody");
   state.patients.forEach((p) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.id}</td><td>${p.full_name}</td><td>${p.primary_channel || "-"}</td><td>${p.status}</td>`;
+    tr.innerHTML = `<td>${p.id}</td><td>${p.full_name}</td><td>${p.primary_channel || "-"}</td><td>${p.status}</td><td><a href="${API}/patient_view.php?id=${p.id}" target="_blank" rel="noopener noreferrer">Open</a></td>`;
     tb.appendChild(tr);
   });
   t.appendChild(tb);

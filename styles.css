@@ -104,3 +104,13 @@ input, select, textarea {
 .ok {
   color: #0f6b40;
 }
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.alert-success {
+  background: #dff3e7;
+  color: #0f6b40;
+  border: 1px solid #b7e4c7;
+}
