@@ -17,6 +17,6 @@ This folder is a separate frontend deployment target for Vercel.
 
 Point frontend links/API calls to your Render backend:
 
-- `https://YOUR-RENDER-APP.onrender.com`
+- `https://medicback.onrender.com`
 
 Important: Africa's Talking webhook callbacks must remain on the Render backend, not Vercel static hosting.
