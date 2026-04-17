@@ -240,16 +240,42 @@ function renderMessageCenter() {
 
   const out = createCard("Recent outbound");
   const t = document.createElement("table");
-  t.innerHTML = `<thead><tr><th>Time</th><th>Patient</th><th>Type</th><th>Status</th><th>Error</th></tr></thead>`;
+  t.innerHTML = `<thead><tr><th>Time</th><th>Patient</th><th>Channel</th><th>Type</th><th>Status</th><th>Message Sent</th><th>Error</th></tr></thead>`;
   const tb = document.createElement("tbody");
   state.messageCenter.outbound.forEach((m) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${m.created_at}</td><td>${m.full_name}</td><td>${m.message_type}</td><td>${m.status}</td><td>${m.error_detail || ""}</td>`;
+    tr.innerHTML = `<td>${m.created_at}</td><td>${m.full_name}</td><td>${m.channel}</td><td>${m.message_type}</td><td>${m.status}</td><td class="message-cell">${m.body || ""}</td><td>${m.error_detail || ""}</td>`;
     tb.appendChild(tr);
   });
   t.appendChild(tb);
   out.appendChild(t);
   wrap.appendChild(out);
+
+  const inbound = createCard("Incoming user messages");
+  const tin = document.createElement("table");
+  tin.innerHTML = `<thead><tr><th>Time</th><th>Patient</th><th>Channel</th><th>From</th><th>User Message</th></tr></thead>`;
+  const tbin = document.createElement("tbody");
+  (state.messageCenter.inbound || []).forEach((m) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${m.received_at}</td><td>${m.full_name || "Unknown"}</td><td>${m.channel}</td><td>${m.from_address}</td><td class="message-cell">${m.body || ""}</td>`;
+    tbin.appendChild(tr);
+  });
+  tin.appendChild(tbin);
+  inbound.appendChild(tin);
+  wrap.appendChild(inbound);
+
+  const esc = createCard("Escalations");
+  const te = document.createElement("table");
+  te.innerHTML = `<thead><tr><th>Time</th><th>Patient</th><th>Status</th><th>Urgency</th><th>Reason</th></tr></thead>`;
+  const tbe = document.createElement("tbody");
+  (state.messageCenter.escalations || []).forEach((e) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${e.created_at}</td><td>${e.full_name}</td><td>${e.status}</td><td>${e.urgency}</td><td class="message-cell">${e.reason}</td>`;
+    tbe.appendChild(tr);
+  });
+  te.appendChild(tbe);
+  esc.appendChild(te);
+  wrap.appendChild(esc);
   return wrap;
 }
 

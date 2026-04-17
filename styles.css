@@ -66,6 +66,10 @@ th, td {
   padding: 8px;
   vertical-align: top;
 }
+.message-cell {
+  white-space: pre-wrap;
+  max-width: 520px;
+}
 label {
   display: block;
   margin-bottom: 4px;
