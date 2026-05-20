@@ -1,5 +1,6 @@
 const cfg = window.PHV_CONFIG || {};
 const API = (cfg.BACKEND_BASE_URL || "").replace(/\/$/, "");
+const MOCK_MODE = cfg.MOCK_MODE !== false;
 
 // Language translations
 const translations = {
@@ -19,7 +20,13 @@ const translations = {
     recentlyRegistered: "Recently Registered Patients",
     viewAll: "View all patients",
     ready: "Ready",
-    loading: "Loading..."
+    loading: "Loading...",
+    savePatient: "Save Patient",
+    cancel: "Cancel",
+    search: "Search",
+    registerNew: "Register New Patient",
+    scheduleNew: "Schedule New Appointment",
+    rescheduleAppointment: "Reschedule Appointment"
   },
   sw: {
     dashboard: "Dashibodi",
@@ -37,7 +44,13 @@ const translations = {
     recentlyRegistered: "Wagonjwa Waliosajiliwa Hivi Karibuni",
     viewAll: "Angalia wagonjwa wote",
     ready: "Tayari",
-    loading: "Inapakia..."
+    loading: "Inapakia...",
+    savePatient: "Hifadhi Mgonjwa",
+    cancel: "Ghairi",
+    search: "Tafuta",
+    registerNew: "Sajili Mgonjwa Mpya",
+    scheduleNew: "Panga Miadi Mpya",
+    rescheduleAppointment: "Badilisha Miadi"
   }
 };
 
@@ -47,12 +60,18 @@ function t(key) {
   return translations[currentLanguage][key] || key;
 }
 
-function toggleLanguage() {
+window.toggleLanguage = function() {
   currentLanguage = currentLanguage === 'en' ? 'sw' : 'en';
   localStorage.setItem('language', currentLanguage);
   render();
   loadCurrentTab();
-}
+};
+
+window.switchTab = function(tab) {
+  state.tab = tab;
+  render();
+  loadCurrentTab();
+};
 
 const state = {
   tab: "dashboard",
@@ -65,11 +84,149 @@ const root = document.getElementById("app");
 const statusEl = document.getElementById("status");
 
 function setStatus(msg, cls = "muted") {
-  statusEl.className = cls;
-  statusEl.textContent = msg;
+  if (statusEl) {
+    statusEl.className = cls;
+    statusEl.textContent = msg;
+  }
 }
 
+// Mock data for demonstration
+const mockData = {
+  getDashboard: () => ({
+    ok: true,
+    stats: {
+      patients: 248,
+      appointments_today: 12,
+      upcoming: 45
+    },
+    appointments: [
+      {
+        id: 1,
+        scheduled_start: new Date(Date.now() + 3600000).toISOString(),
+        scheduled_end: new Date(Date.now() + 7200000).toISOString(),
+        status: "confirmed",
+        department: "Cardiology",
+        provider_name: "Dr. James Mwangi",
+        location: "Room 204",
+        reason: "Heart checkup",
+        patient_id: 101,
+        full_name: "John Kamau",
+        phone: "+254712345678",
+        preferred_language: "en",
+        primary_channel: "sms"
+      },
+      {
+        id: 2,
+        scheduled_start: new Date(Date.now() + 86400000).toISOString(),
+        scheduled_end: new Date(Date.now() + 90000000).toISOString(),
+        status: "proposed",
+        department: "Pediatrics",
+        provider_name: "Dr. Mary Wanjiku",
+        location: "Room 112",
+        reason: "Child vaccination",
+        patient_id: 102,
+        full_name: "Aisha Mohammed",
+        phone: "+254723456789",
+        preferred_language: "sw",
+        primary_channel: "whatsapp"
+      },
+      {
+        id: 3,
+        scheduled_start: new Date(Date.now() + 172800000).toISOString(),
+        scheduled_end: new Date(Date.now() + 176400000).toISOString(),
+        status: "confirmed",
+        department: "Maternity",
+        provider_name: "Dr. Susan Kimani",
+        location: "Ward 3",
+        reason: "Prenatal checkup",
+        patient_id: 103,
+        full_name: "Grace Nduta",
+        phone: "+254734567890",
+        preferred_language: "en",
+        primary_channel: "sms"
+      }
+    ],
+    recent: [
+      { id: 104, full_name: "Peter Ochieng", status: "active", registration_at: new Date().toISOString(), preferred_language: "sw" },
+      { id: 105, full_name: "Lucy Wambui", status: "active", registration_at: new Date(Date.now() - 86400000).toISOString(), preferred_language: "en" },
+      { id: 106, full_name: "Mohamed Ali", status: "active", registration_at: new Date(Date.now() - 172800000).toISOString(), preferred_language: "sw" }
+    ]
+  }),
+  
+  getPatients: (query = "") => {
+    const allPatients = [
+      { id: 101, full_name: "John Kamau", phone: "+254712345678", preferred_language: "en", primary_channel: "sms", status: "active", external_mrn: "MRN001" },
+      { id: 102, full_name: "Aisha Mohammed", phone: "+254723456789", preferred_language: "sw", primary_channel: "whatsapp", status: "active", external_mrn: "MRN002" },
+      { id: 103, full_name: "Grace Nduta", phone: "+254734567890", preferred_language: "en", primary_channel: "sms", status: "active", external_mrn: "MRN003" },
+      { id: 104, full_name: "Peter Ochieng", phone: "+254745678901", preferred_language: "sw", primary_channel: "whatsapp", status: "active", external_mrn: "MRN004" },
+      { id: 105, full_name: "Lucy Wambui", phone: "+254756789012", preferred_language: "en", primary_channel: "sms", status: "inactive", external_mrn: "MRN005" }
+    ];
+    
+    if (query) {
+      const q = query.toLowerCase();
+      return allPatients.filter(p => 
+        p.full_name.toLowerCase().includes(q) || 
+        p.external_mrn.toLowerCase().includes(q) || 
+        p.id.toString().includes(q)
+      );
+    }
+    return allPatients;
+  },
+  
+  savePatient: (data) => {
+    console.log("Patient saved:", data);
+    const message = data.preferred_language === 'sw' 
+      ? "Mgonjwa amesajiliwa kikamilifu! Ujumbe wa karibu utatumwa kwa Kiswahili."
+      : "Patient registered successfully! Welcome message will be sent in English.";
+    return { ok: true, message: message };
+  },
+  
+  saveAppointment: (data) => {
+    console.log("Appointment saved:", data);
+    return { ok: true, message: "Appointment scheduled successfully!" };
+  },
+  
+  rescheduleAppointment: (data) => {
+    console.log("Appointment rescheduled:", data);
+    return { ok: true, message: "Appointment rescheduled successfully!" };
+  },
+  
+  getMessageCenter: () => ({
+    ok: true,
+    stats: {
+      outbound_24h: 156,
+      failed_24h: 3,
+      inbound_24h: 89,
+      open_escalations: 2
+    },
+    outbound: [
+      { created_at: new Date().toISOString(), full_name: "John Kamau", channel: "sms", message_type: "appointment_reminder", status: "sent", body: "Your appointment is tomorrow at 10:00 AM" },
+      { created_at: new Date().toISOString(), full_name: "Aisha Mohammed", channel: "whatsapp", message_type: "welcome", status: "sent", body: "Karibu Hospitali ya PHV!" }
+    ],
+    inbound: [
+      { received_at: new Date().toISOString(), full_name: "John Kamau", channel: "sms", from_address: "+254712345678", body: "I confirm my appointment" }
+    ],
+    escalations: [
+      { created_at: new Date().toISOString(), full_name: "Grace Nduta", status: "open", urgency: "high", reason: "Missed critical appointment" }
+    ]
+  })
+};
+
 async function apiGet(path) {
+  if (MOCK_MODE) {
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    
+    if (path.includes("/api/dashboard.php")) return mockData.getDashboard();
+    if (path.includes("/api/patients.php")) {
+      const urlParams = new URLSearchParams(path.split('?')[1]);
+      const query = urlParams.get('q') || '';
+      const items = mockData.getPatients(query);
+      return { ok: true, items };
+    }
+    if (path.includes("/api/message_center.php")) return mockData.getMessageCenter();
+    return { ok: true };
+  }
+  
   const r = await fetch(`${API}${path}`);
   const j = await r.json();
   if (!j.ok) throw new Error(j.error || "Request failed");
@@ -77,6 +234,17 @@ async function apiGet(path) {
 }
 
 async function apiPost(path, body) {
+  if (MOCK_MODE) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    if (path.includes("/api/patients.php")) return mockData.savePatient(body);
+    if (path.includes("/api/appointments.php")) {
+      if (body.action === "reschedule") return mockData.rescheduleAppointment(body);
+      return mockData.saveAppointment(body);
+    }
+    return { ok: true };
+  }
+  
   const r = await fetch(`${API}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -124,11 +292,22 @@ function getLanguageBadge(lang) {
   return `<span class="lang-badge">${langNames[lang] || '🏳️ Unknown'}</span>`;
 }
 
+function getStatusBadge(status) {
+  const statusColors = {
+    'confirmed': 'badge-success',
+    'proposed': 'badge-warning',
+    'cancelled': 'badge-danger',
+    'completed': 'badge-info',
+    'active': 'badge-success'
+  };
+  const colorClass = statusColors[status.toLowerCase()] || 'badge-secondary';
+  return `<span class="badge ${colorClass}">${status}</span>`;
+}
+
 function renderDashboard() {
   const wrap = document.createElement("div");
   if (!state.dashboard) return wrap;
 
-  // Stats Grid
   const statsHtml = `
     <div class="stats-grid">
       <div class="stat-card">
@@ -157,7 +336,7 @@ function renderDashboard() {
   
   const statsDiv = document.createElement("div");
   statsDiv.className = "card fade-in";
-  statsDiv.innerHTML = `<h2>${t('overview')}</h2>${statsHtml}`;
+  statsDiv.innerHTML = `<h2>📊 ${t('overview')}</h2>${statsHtml}`;
   wrap.appendChild(statsDiv);
 
   // Appointments Section
@@ -168,7 +347,7 @@ function renderDashboard() {
     
     const grouped = {};
     state.dashboard.appointments.forEach(apt => {
-      const date = apt.scheduled_start.split(' ')[0];
+      const date = apt.scheduled_start.split('T')[0];
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(apt);
     });
@@ -265,17 +444,6 @@ function renderDashboard() {
   return wrap;
 }
 
-function getStatusBadge(status) {
-  const statusColors = {
-    'confirmed': 'badge-success',
-    'proposed': 'badge-warning',
-    'cancelled': 'badge-danger',
-    'completed': 'badge-info'
-  };
-  const colorClass = statusColors[status.toLowerCase()] || 'badge-secondary';
-  return `<span class="badge ${colorClass}">${status}</span>`;
-}
-
 function renderPatients() {
   const wrap = document.createElement("div");
   wrap.className = "fade-in";
@@ -289,9 +457,9 @@ function renderPatients() {
   searchSection.innerHTML = `
     <div class="search-bar">
       <input type="text" id="patientSearch" placeholder="🔍 Search by name, MRN, or ID..." class="search-input">
-      <button id="searchBtn" class="btn-primary">🔍 Search</button>
+      <button id="searchBtn" class="btn-primary">🔍 ${t('search')}</button>
     </div>
-    <button id="registerBtn" class="btn-secondary">+ ${t('register')}</button>
+    <button id="registerBtn" class="btn-secondary">+ ${t('registerNew')}</button>
   `;
   card.appendChild(searchSection);
 
@@ -306,7 +474,6 @@ function renderPatients() {
         <th>Language</th>
         <th>Channel</th>
         <th>Status</th>
-        <th>Actions</th>
       </tr>
     </thead>
     <tbody id="patientsTableBody"></tbody>
@@ -317,7 +484,7 @@ function renderPatients() {
   function renderPatientsList(patients) {
     tbody.innerHTML = "";
     if (patients.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-table">No patients found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-table">No patients found</td></tr>';
       return;
     }
     
@@ -330,7 +497,6 @@ function renderPatients() {
         <td>${getLanguageBadge(p.preferred_language || 'en')}</td>
         <td><span class="channel-badge">${p.primary_channel || '-'}</span></td>
         <td>${getStatusBadge(p.status || 'active')}</td>
-        <td><a href="${API}/patient_view.php?id=${p.id}" class="view-link" target="_blank">View →</a></td>
       `;
       tbody.appendChild(tr);
     });
@@ -368,7 +534,7 @@ function renderRegister() {
   
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<h2>📝 ${t('register')}</h2>`;
+  card.innerHTML = `<h2>📝 ${t('registerNew')}</h2>`;
   
   const form = document.createElement("form");
   form.className = "register-form";
@@ -392,7 +558,7 @@ function renderRegister() {
           <option value="en">🇬🇧 English</option>
           <option value="sw">🇹🇿 Kiswahili</option>
         </select>
-        <small class="field-note">System will send messages in selected language</small>
+        <small class="field-note">⚠️ System will send ALL messages in selected language</small>
       </div>
       <div class="form-field">
         <label>MRN (Optional)</label>
@@ -417,8 +583,8 @@ function renderRegister() {
       </label>
     </div>
     <div class="form-actions">
-      <button type="submit" class="btn-primary">💾 Save Patient</button>
-      <button type="button" class="btn-secondary" onclick="switchTab('patients')">Cancel</button>
+      <button type="submit" class="btn-primary">💾 ${t('savePatient')}</button>
+      <button type="button" class="btn-secondary" onclick="switchTab('patients')">${t('cancel')}</button>
     </div>
   `;
   
@@ -428,8 +594,11 @@ function renderRegister() {
     const body = Object.fromEntries(fd.entries());
     body.opt_in = fd.get("opt_in") ? 1 : 0;
     try {
-      await apiPost("/api/patients.php", body);
-      setStatus(currentLanguage === 'en' ? "✅ Patient registered successfully!" : "✅ Mgonjwa amesajiliwa kikamilifu!", "ok");
+      const result = await apiPost("/api/patients.php", body);
+      const successMsg = body.preferred_language === 'sw' 
+        ? "✅ Mgonjwa amesajiliwa kikamilifu! Ujumbe wa karibu utatumwa kwa Kiswahili."
+        : "✅ Patient registered successfully! Welcome message will be sent in English.";
+      setStatus(successMsg, "ok");
       form.reset();
       setTimeout(() => switchTab('patients'), 1500);
     } catch (err) {
@@ -448,7 +617,7 @@ function renderAppointments() {
 
   const addCard = document.createElement("div");
   addCard.className = "card";
-  addCard.innerHTML = `<h2>➕ Schedule New Appointment</h2>`;
+  addCard.innerHTML = `<h2>➕ ${t('scheduleNew')}</h2>`;
   
   const addForm = document.createElement("form");
   addForm.className = "appointment-form";
@@ -483,7 +652,7 @@ function renderAppointments() {
       <label>Reason for Visit *</label>
       <textarea name="reason" required rows="3" placeholder="Brief description of the appointment reason..."></textarea>
     </div>
-    <button type="submit" class="btn-primary">📅 Schedule Appointment</button>
+    <button type="submit" class="btn-primary">📅 ${t('scheduleAppointment')}</button>
   `;
   
   addForm.onsubmit = async (e) => {
@@ -504,7 +673,7 @@ function renderAppointments() {
 
   const reCard = document.createElement("div");
   reCard.className = "card";
-  reCard.innerHTML = `<h2>🔄 Reschedule Existing Appointment</h2>`;
+  reCard.innerHTML = `<h2>🔄 ${t('rescheduleAppointment')}</h2>`;
   
   const reForm = document.createElement("form");
   reForm.className = "appointment-form";
@@ -527,7 +696,7 @@ function renderAppointments() {
       <label>Reason for Rescheduling *</label>
       <textarea name="reason" required rows="3" placeholder="Why is this appointment being rescheduled?"></textarea>
     </div>
-    <button type="submit" class="btn-primary">🔄 Reschedule Appointment</button>
+    <button type="submit" class="btn-primary">🔄 ${t('rescheduleAppointment')}</button>
   `;
   
   reForm.onsubmit = async (e) => {
@@ -573,4 +742,122 @@ function renderMessageCenter() {
       </div>
       <div class="stat-mini">
         <div class="stat-mini-value">${state.messageCenter.stats.open_escalations}</div>
-        <div class
+        <div class="stat-mini-label">⚠️ Open Escalations</div>
+      </div>
+    </div>
+  `;
+  wrap.appendChild(statsCard);
+  
+  const outCard = document.createElement("div");
+  outCard.className = "card";
+  outCard.innerHTML = `<h2>📤 Recent Outbound Messages</h2>`;
+  outCard.innerHTML += renderMessageTable(state.messageCenter.outbound, 'outbound');
+  wrap.appendChild(outCard);
+  
+  const inCard = document.createElement("div");
+  inCard.className = "card";
+  inCard.innerHTML = `<h2>📥 Incoming Messages</h2>`;
+  inCard.innerHTML += renderMessageTable(state.messageCenter.inbound || [], 'inbound');
+  wrap.appendChild(inCard);
+  
+  return wrap;
+}
+
+function renderMessageTable(data, type) {
+  if (!data.length) {
+    return '<div class="empty-state"><p>No data available</p></div>';
+  }
+  
+  let headers = '';
+  if (type === 'outbound') {
+    headers = '<th>Time</th><th>Patient</th><th>Channel</th><th>Type</th><th>Status</th><th>Message</th>';
+  } else if (type === 'inbound') {
+    headers = '<th>Time</th><th>Patient</th><th>Channel</th><th>From</th><th>Message</th>';
+  } else {
+    headers = '<th>Time</th><th>Patient</th><th>Status</th><th>Urgency</th><th>Reason</th>';
+  }
+  
+  let tableHtml = `<table class="data-table"><thead><tr>${headers}</tr></thead><tbody>`;
+  
+  data.slice(0, 10).forEach(item => {
+    tableHtml += '<tr>';
+    if (type === 'outbound') {
+      tableHtml += `<td>${formatDateTime(item.created_at)}</td><td>${item.full_name || ''}</td><td>${item.channel || ''}</td><td>${item.message_type || ''}</td><td>${getStatusBadge(item.status)}</td><td class="message-cell">${item.body || ''}</td>`;
+    } else if (type === 'inbound') {
+      tableHtml += `<td>${formatDateTime(item.received_at)}</td><td>${item.full_name || 'Unknown'}</td><td>${item.channel || ''}</td><td>${item.from_address || ''}</td><td class="message-cell">${item.body || ''}</td>`;
+    }
+    tableHtml += '</tr>';
+  });
+  
+  tableHtml += '</tbody></table>';
+  return tableHtml;
+}
+
+function formatDateTime(dateString) {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  return date.toLocaleString(currentLanguage === 'en' ? 'en-US' : 'sw-KE');
+}
+
+function render() {
+  if (!root) return;
+  root.innerHTML = "";
+  const nav = document.getElementById("nav");
+  if (nav) {
+    nav.innerHTML = "";
+    nav.append(
+      navButton("dashboard", "dashboard"),
+      navButton("patients", "patients"),
+      navButton("register", "register"),
+      navButton("appointments", "appointments"),
+      navButton("messages", "messages")
+    );
+  }
+
+  if (state.tab === "dashboard") root.appendChild(renderDashboard());
+  if (state.tab === "patients") root.appendChild(renderPatients());
+  if (state.tab === "register") root.appendChild(renderRegister());
+  if (state.tab === "appointments") root.appendChild(renderAppointments());
+  if (state.tab === "messages") root.appendChild(renderMessageCenter());
+}
+
+async function loadDashboard() {
+  if (MOCK_MODE) {
+    state.dashboard = await apiGet("/api/dashboard.php");
+  } else {
+    state.dashboard = await apiGet("/api/dashboard.php");
+  }
+}
+
+async function loadPatients(q = "") {
+  if (MOCK_MODE) {
+    const result = await apiGet(`/api/patients.php?q=${encodeURIComponent(q)}`);
+    state.patients = result.items;
+  } else {
+    state.patients = (await apiGet(`/api/patients.php?q=${encodeURIComponent(q)}`)).items;
+  }
+}
+
+async function loadMessageCenter() {
+  state.messageCenter = await apiGet("/api/message_center.php");
+}
+
+async function loadCurrentTab() {
+  try {
+    setStatus(t('loading'), "muted");
+    if (state.tab === "dashboard") await loadDashboard();
+    if (state.tab === "patients") await loadPatients();
+    if (state.tab === "messages") await loadMessageCenter();
+    setStatus(t('ready'), "ok");
+    render();
+  } catch (err) {
+    setStatus(err.message, "error");
+  }
+}
+
+async function start() {
+  render();
+  await loadCurrentTab();
+}
+
+start();
