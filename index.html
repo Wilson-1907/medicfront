@@ -1,48 +1,20 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Nyeri level 4 Hospital - Smart Healthcare Management System</title>
-  <link rel="stylesheet" href="./styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Nyeri Level 4 Hospital | Enterprise Healthcare Management System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100;14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800;14..32,900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-wrapper">
-    <header class="topbar">
-      <div class="inner">
-        <div class="logo-section">
-          <div class="logo-icon">🏥</div>
-          <div class="logo-text">
-            <strong>Nyeri level 4 Hospital</strong>
-            <span class="logo-subtitle">Smart Healthcare System</span>
-          </div>
-        </div>
-        <div id="nav" class="nav"></div>
-        <div class="header-right">
-          <div class="language-selector">
-            <button class="lang-btn" onclick="toggleLanguage()">🌐 EN/SW</button>
-          </div>
-          <div class="user-menu">
-            <div class="avatar">👨‍⚕️</div>
-          </div>
-        </div>
-      </div>
-    </header>
-    
-    <main class="container">
-      <div class="status-bar">
-        <p id="status" class="muted"></p>
-      </div>
-      <div id="app"></div>
-    </main>
-    
-    <footer class="footer">
-      <p>&copy; 2024 Nyeri level 4 Hospital. Providing quality healthcare with technology.</p>
-    </footer>
-  </div>
-  
-  <script src="./config.js"></script>
-  <script src="./app.js"></script>
+    <div id="app-root">
+        <!-- Dynamic content will be rendered here -->
+    </div>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
