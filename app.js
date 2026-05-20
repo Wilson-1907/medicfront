@@ -307,4 +307,595 @@
             const tabs = [
                 { id: 'dashboard', icon: 'fa-chart-line', label: 'nav_dashboard' },
                 { id: 'patients', icon: 'fa-users', label: 'nav_patients' },
-                { id:
+                { id: 'register', icon: 'fa-user-plus', label: 'nav_register' },
+                { id: 'appointments', icon: 'fa-calendar-alt', label: 'nav_appointments' },
+                { id: 'messages', icon: 'fa-envelope', label: 'nav_messages' }
+            ];
+            
+            nav.innerHTML = tabs.map(tab => `
+                <button class="nav-item ${state.currentTab === tab.id ? 'active' : ''}" data-tab="${tab.id}">
+                    <i class="fas ${tab.icon}"></i>
+                    <span>${t(tab.label)}</span>
+                </button>
+            `).join('');
+            
+            nav.querySelectorAll('.nav-item').forEach(btn => {
+                btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+            });
+        },
+        
+        switchTab(tabId) {
+            state.currentTab = tabId;
+            this.renderNav();
+            this.loadCurrentTab();
+        },
+        
+        renderDashboard() {
+            if (!state.dashboard) return '<div class="loading">Loading...</div>';
+            
+            return `
+                <div class="fade-in-up">
+                    <!-- Stats Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-value">${state.dashboard.stats.patients.toLocaleString()}</div>
+                            <div class="stat-label">${t('total_patients')}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📅</div>
+                            <div class="stat-value">${state.dashboard.stats.appointments_today}</div>
+                            <div class="stat-label">${t('today_appointments')}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⏰</div>
+                            <div class="stat-value">${state.dashboard.stats.upcoming}</div>
+                            <div class="stat-label">${t('upcoming_appointments')}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Appointments Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-calendar-check"></i>
+                                <span>${t('upcoming_appts')}</span>
+                            </div>
+                        </div>
+                        ${this.renderAppointmentsList()}
+                    </div>
+                    
+                    <!-- Recent Patients -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-user-clock"></i>
+                                <span>${t('recently_registered')}</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="window.components.switchTab('patients')">
+                                ${t('view_all')} <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                        ${this.renderRecentPatients()}
+                    </div>
+                </div>
+            `;
+        },
+        
+        renderAppointmentsList() {
+            if (!state.dashboard.appointments || state.dashboard.appointments.length === 0) {
+                return `
+                    <div class="empty-state">
+                        <div class="empty-icon">📅</div>
+                        <div class="empty-title">${t('no_appointments')}</div>
+                        <button class="btn btn-primary" onclick="window.components.switchTab('appointments')">
+                            + ${t('schedule_appointment')}
+                        </button>
+                    </div>
+                `;
+            }
+            
+            const grouped = {};
+            state.dashboard.appointments.forEach(apt => {
+                const date = apt.scheduled_start.split('T')[0];
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(apt);
+            });
+            
+            return `
+                <div class="appointments-timeline">
+                    ${Object.entries(grouped).map(([date, appointments]) => `
+                        <div class="date-group">
+                            <div class="date-header">
+                                <i class="fas fa-calendar-day date-icon"></i>
+                                <span class="date-text">${formatDate(date, 'full')}</span>
+                                <span class="appointment-badge">${appointments.length} appointment${appointments.length > 1 ? 's' : ''}</span>
+                            </div>
+                            ${appointments.map(apt => `
+                                <div class="appointment-item">
+                                    <div class="appointment-time">
+                                        <i class="far fa-clock"></i>
+                                        <span>${formatTime(apt.scheduled_start)}</span>
+                                    </div>
+                                    <div class="appointment-details">
+                                        <div class="patient-name">
+                                            ${apt.full_name}
+                                            <span class="badge ${apt.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">
+                                                ${apt.status}
+                                            </span>
+                                        </div>
+                                        <div class="appointment-meta">
+                                            ${apt.department ? `<span class="meta-tag"><i class="fas fa-hospital"></i> ${apt.department}</span>` : ''}
+                                            ${apt.provider_name ? `<span class="meta-tag"><i class="fas fa-user-md"></i> ${apt.provider_name}</span>` : ''}
+                                            ${apt.location ? `<span class="meta-tag"><i class="fas fa-map-marker-alt"></i> ${apt.location}</span>` : ''}
+                                            <span class="meta-tag"><i class="fas ${apt.primary_channel === 'whatsapp' ? 'fa-whatsapp' : 'fa-sms'}"></i> ${apt.primary_channel}</span>
+                                        </div>
+                                        ${apt.reason ? `<div class="appointment-reason"><i class="fas fa-notes-medical"></i> ${apt.reason}</div>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        },
+        
+        renderRecentPatients() {
+            if (!state.dashboard.recent || state.dashboard.recent.length === 0) {
+                return '<div class="empty-state">No recent patients</div>';
+            }
+            
+            return `
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+                    ${state.dashboard.recent.slice(0, 6).map(patient => `
+                        <div class="patient-card-small" style="display: flex; align-items: center; gap: 16px; padding: 16px; background: var(--gray-50); border-radius: 16px;">
+                            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary-500), var(--primary-700)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px;">
+                                👤
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 700; margin-bottom: 4px;">${patient.full_name}</div>
+                                <div style="display: flex; gap: 8px; font-size: 12px;">
+                                    <span class="badge badge-success">${patient.status}</span>
+                                    <span>${formatDate(patient.registration_at, 'date')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        },
+        
+        renderPatients() {
+            return `
+                <div class="card fade-in-up">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-users"></i>
+                            <span>${t('nav_patients')}</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="window.components.switchTab('register')">
+                            <i class="fas fa-user-plus"></i> ${t('register_new')}
+                        </button>
+                    </div>
+                    
+                    <div class="search-section">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="patientSearch" class="search-input" placeholder="${t('search_placeholder')}">
+                        </div>
+                        <button id="searchBtn" class="btn btn-primary">${t('search')}</button>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>${t('patient_name')}</th>
+                                    <th>${t('phone_number')}</th>
+                                    <th>Language</th>
+                                    <th>Channel</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patientsTableBody">
+                                ${this.renderPatientsTable()}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        },
+        
+        renderPatientsTable() {
+            if (!state.patients || state.patients.length === 0) {
+                return '<tr><td colspan="6" class="empty-state">No patients found</td></tr>';
+            }
+            
+            return state.patients.map(patient => `
+                <tr>
+                    <td><strong>#${patient.id}</strong></td>
+                    <td>${patient.full_name}</td>
+                    <td>${patient.phone || '-'}</td>
+                    <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
+                    <td><span class="badge badge-secondary">${patient.primary_channel}</span></td>
+                    <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status}</span></td>
+                </tr>
+            `).join('');
+        },
+        
+        renderRegister() {
+            return `
+                <div class="card fade-in-up">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-user-plus"></i>
+                            <span>${t('register_new')}</span>
+                        </div>
+                    </div>
+                    
+                    <form id="registerForm" class="form-container">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">${t('patient_name')} *</label>
+                                <input type="text" name="full_name" class="form-input" required placeholder="Enter full name">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Date of Birth</label>
+                                <input type="date" name="date_of_birth" class="form-input">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">${t('phone_number')} *</label>
+                                <input type="tel" name="phone" class="form-input" required placeholder="+254...">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">${t('select_language')} *</label>
+                                <select name="preferred_language" class="form-select" required>
+                                    <option value="en">🇬🇧 English</option>
+                                    <option value="sw">🇹🇿 Kiswahili</option>
+                                </select>
+                                <small style="color: var(--danger); font-size: 11px; margin-top: 4px; display: block;">
+                                    ⚠️ System will send ALL messages in selected language
+                                </small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">MRN (Optional)</label>
+                                <input type="text" name="external_mrn" class="form-input" placeholder="Medical Record Number">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">${t('select_channel')} *</label>
+                                <select name="contact_channel" class="form-select" required>
+                                    <option value="sms">📱 SMS</option>
+                                    <option value="whatsapp">💬 WhatsApp</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label class="form-label">Notes</label>
+                                <textarea name="notes" class="form-textarea" rows="3" placeholder="Any additional information..."></textarea>
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" name="opt_in" checked>
+                                    <span>✅ Receive appointment reminders and health tips</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="window.components.switchTab('patients')">
+                                ${t('cancel')}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> ${t('save')}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+        },
+        
+        renderAppointments() {
+            return `
+                <div class="fade-in-up">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>${t('schedule_new')}</span>
+                            </div>
+                        </div>
+                        
+                        <form id="appointmentForm">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Patient ID *</label>
+                                    <input type="number" name="patient_id" class="form-input" required placeholder="Enter patient ID">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Date & Time *</label>
+                                    <input type="datetime-local" name="scheduled_start" class="form-input" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Department</label>
+                                    <input type="text" name="department" class="form-input" placeholder="e.g., Cardiology">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Provider Name</label>
+                                    <input type="text" name="provider_name" class="form-input" placeholder="Doctor's name">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Location</label>
+                                    <input type="text" name="location" class="form-input" placeholder="Room number">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label class="form-label">Reason for Visit *</label>
+                                <textarea name="reason" class="form-textarea" required rows="3" placeholder="Describe the reason for appointment..."></textarea>
+                            </div>
+                            
+                            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-calendar-check"></i> ${t('schedule_appointment')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-exchange-alt"></i>
+                                <span>${t('reschedule')}</span>
+                            </div>
+                        </div>
+                        
+                        <form id="rescheduleForm">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Appointment ID *</label>
+                                    <input type="number" name="appointment_id" class="form-input" required placeholder="Enter appointment ID">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">New Date & Time *</label>
+                                    <input type="datetime-local" name="new_scheduled_start" class="form-input" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label class="form-label">Reason for Rescheduling *</label>
+                                <textarea name="reason" class="form-textarea" required rows="3" placeholder="Why is this appointment being rescheduled?"></textarea>
+                            </div>
+                            
+                            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-calendar-alt"></i> ${t('reschedule')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        },
+        
+        renderMessages() {
+            if (!state.messages) return '<div class="loading">Loading...</div>';
+            
+            return `
+                <div class="fade-in-up">
+                    <div class="stats-grid-small" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                        <div class="stat-mini" style="background: linear-gradient(135deg, var(--primary-50), var(--primary-100)); padding: 20px; border-radius: 16px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: 800; color: var(--primary-600);">${state.messages.stats.outbound_24h}</div>
+                            <div style="font-size: 12px; color: var(--gray-600);">📤 Outbound (24h)</div>
+                        </div>
+                        <div class="stat-mini" style="background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 20px; border-radius: 16px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: 800; color: #d97706;">${state.messages.stats.failed_24h}</div>
+                            <div style="font-size: 12px; color: var(--gray-600);">❌ Failed (24h)</div>
+                        </div>
+                        <div class="stat-mini" style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); padding: 20px; border-radius: 16px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: 800; color: var(--primary-600);">${state.messages.stats.inbound_24h}</div>
+                            <div style="font-size: 12px; color: var(--gray-600);">📥 Inbound (24h)</div>
+                        </div>
+                        <div class="stat-mini" style="background: linear-gradient(135deg, #fee2e2, #fecaca); padding: 20px; border-radius: 16px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: 800; color: #dc2626;">${state.messages.stats.open_escalations}</div>
+                            <div style="font-size: 12px; color: var(--gray-600);">⚠️ Escalations</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Recent Outbound Messages</span>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr><th>Time</th><th>Patient</th><th>Channel</th><th>Status</th><th>Message</th></tr>
+                                </thead>
+                                <tbody>
+                                    ${state.messages.outbound.map(msg => `
+                                        <tr>
+                                            <td>${formatDate(msg.created_at)}</td>
+                                            <td>${msg.full_name}</td>
+                                            <td>${msg.channel}</td>
+                                            <td><span class="badge badge-success">${msg.status}</span></td>
+                                            <td>${msg.body}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+        
+        async loadCurrentTab() {
+            const app = document.getElementById('app');
+            if (!app) return;
+            
+            state.isLoading = true;
+            app.innerHTML = '<div class="loading" style="text-align: center; padding: 60px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            
+            try {
+                if (state.currentTab === 'dashboard') {
+                    state.dashboard = await api.get('/api/dashboard.php');
+                    app.innerHTML = this.renderDashboard();
+                } else if (state.currentTab === 'patients') {
+                    const data = await api.get('/api/patients.php');
+                    state.patients = data.items;
+                    app.innerHTML = this.renderPatients();
+                    
+                    document.getElementById('searchBtn')?.addEventListener('click', async () => {
+                        const searchInput = document.getElementById('patientSearch');
+                        const query = searchInput?.value || '';
+                        const data = await api.get(`/api/patients.php?q=${encodeURIComponent(query)}`);
+                        state.patients = data.items;
+                        const tbody = document.getElementById('patientsTableBody');
+                        if (tbody) tbody.innerHTML = this.renderPatientsTable();
+                    });
+                } else if (state.currentTab === 'register') {
+                    app.innerHTML = this.renderRegister();
+                    const form = document.getElementById('registerForm');
+                    form?.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(form);
+                        const body = Object.fromEntries(formData.entries());
+                        body.opt_in = formData.get('opt_in') ? 1 : 0;
+                        const result = await api.post('/api/patients.php', body);
+                        showNotification(result.message, 'ok');
+                        setTimeout(() => this.switchTab('patients'), 1500);
+                    });
+                } else if (state.currentTab === 'appointments') {
+                    app.innerHTML = this.renderAppointments();
+                    
+                    document.getElementById('appointmentForm')?.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const body = Object.fromEntries(formData.entries());
+                        body.action = 'add';
+                        const result = await api.post('/api/appointments.php', body);
+                        showNotification('Appointment scheduled successfully!', 'ok');
+                        e.target.reset();
+                    });
+                    
+                    document.getElementById('rescheduleForm')?.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const body = Object.fromEntries(formData.entries());
+                        body.action = 'reschedule';
+                        const result = await api.post('/api/appointments.php', body);
+                        showNotification('Appointment rescheduled successfully!', 'ok');
+                        e.target.reset();
+                    });
+                } else if (state.currentTab === 'messages') {
+                    state.messages = await api.get('/api/message_center.php');
+                    app.innerHTML = this.renderMessages();
+                }
+                
+                showNotification(t('ready'), 'ok');
+            } catch (error) {
+                console.error('Error loading tab:', error);
+                app.innerHTML = `<div class="error-state" style="text-align: center; padding: 60px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger);"></i>
+                    <p>${t('error')}: ${error.message}</p>
+                </div>`;
+                showNotification(error.message, 'error');
+            } finally {
+                state.isLoading = false;
+            }
+        }
+    };
+    
+    // ============================================
+    // APPLICATION INITIALIZATION
+    // ============================================
+    function init() {
+        // Create app structure
+        const root = document.getElementById('app-root');
+        if (!root) return;
+        
+        root.innerHTML = `
+            <header class="top-nav">
+                <div class="nav-container">
+                    <div class="nav-content">
+                        <div class="logo" onclick="window.components.switchTab('dashboard')">
+                            <div class="logo-icon">🏥</div>
+                            <div>
+                                <div class="logo-text">Nyeri Level 4 Hospital</div>
+                                <div class="logo-subtitle">Enterprise Healthcare System</div>
+                            </div>
+                        </div>
+                        <div class="nav-menu"></div>
+                        <div class="header-actions">
+                            <button class="lang-toggle" id="langToggle">
+                                <i class="fas fa-globe"></i>
+                                <span>${currentLanguage === 'en' ? 'EN' : 'SW'}</span>
+                            </button>
+                            <div class="user-avatar" title="${currentUser.name}">
+                                ${currentUser.avatar}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <main class="main-container">
+                <div class="status-bar">
+                    <div class="status-message muted">
+                        <i class="fas fa-check-circle"></i>
+                        <span>${t('ready')}</span>
+                    </div>
+                </div>
+                <div id="app"></div>
+            </main>
+            
+            <footer class="footer">
+                <p>© 2024 Nyeri Level 4 Hospital. All rights reserved. | Enterprise Healthcare Management System v2.0</p>
+            </footer>
+        `;
+        
+        // Expose components globally
+        window.components = components;
+        window.components.switchTab = (tab) => {
+            state.currentTab = tab;
+            components.renderNav();
+            components.loadCurrentTab();
+        };
+        
+        // Language toggle
+        document.getElementById('langToggle')?.addEventListener('click', () => {
+            currentLanguage = currentLanguage === 'en' ? 'sw' : 'en';
+            localStorage.setItem('language', currentLanguage);
+            document.getElementById('langToggle').querySelector('span').textContent = currentLanguage.toUpperCase();
+            components.renderNav();
+            components.loadCurrentTab();
+            showNotification(`Language changed to ${currentLanguage === 'en' ? 'English' : 'Kiswahili'}`, 'ok');
+        });
+        
+        // Initialize
+        components.renderNav();
+        components.loadCurrentTab();
+    }
+    
+    // Start the application
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
