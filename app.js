@@ -1,6 +1,59 @@
 const cfg = window.PHV_CONFIG || {};
 const API = (cfg.BACKEND_BASE_URL || "").replace(/\/$/, "");
 
+// Language translations
+const translations = {
+  en: {
+    dashboard: "Dashboard",
+    patients: "Patients",
+    register: "Register",
+    appointments: "Appointments",
+    messages: "Messages",
+    overview: "Overview",
+    totalPatients: "Total Patients",
+    todayAppointments: "Today's Appointments",
+    upcomingAppointments: "Upcoming Appointments",
+    upcomingAppts: "Upcoming Appointments",
+    noAppointments: "No upcoming appointments scheduled",
+    scheduleAppointment: "Schedule Appointment",
+    recentlyRegistered: "Recently Registered Patients",
+    viewAll: "View all patients",
+    ready: "Ready",
+    loading: "Loading..."
+  },
+  sw: {
+    dashboard: "Dashibodi",
+    patients: "Wagonjwa",
+    register: "Sajili",
+    appointments: "Miadi",
+    messages: "Ujumbe",
+    overview: "Muhtasari",
+    totalPatients: "Jumla ya Wagonjwa",
+    todayAppointments: "Miadi ya Leo",
+    upcomingAppointments: "Miadi Ijayo",
+    upcomingAppts: "Miadi Ijayo",
+    noAppointments: "Hakuna miadi iliyopangwa",
+    scheduleAppointment: "Panga Miadi",
+    recentlyRegistered: "Wagonjwa Waliosajiliwa Hivi Karibuni",
+    viewAll: "Angalia wagonjwa wote",
+    ready: "Tayari",
+    loading: "Inapakia..."
+  }
+};
+
+let currentLanguage = localStorage.getItem('language') || 'en';
+
+function t(key) {
+  return translations[currentLanguage][key] || key;
+}
+
+function toggleLanguage() {
+  currentLanguage = currentLanguage === 'en' ? 'sw' : 'en';
+  localStorage.setItem('language', currentLanguage);
+  render();
+  loadCurrentTab();
+}
+
 const state = {
   tab: "dashboard",
   dashboard: null,
@@ -34,9 +87,9 @@ async function apiPost(path, body) {
   return j;
 }
 
-function navButton(id, label) {
+function navButton(id, labelKey) {
   const b = document.createElement("button");
-  b.textContent = label;
+  b.textContent = t(labelKey);
   b.className = state.tab === id ? "active" : "";
   b.onclick = async () => {
     state.tab = id;
@@ -46,19 +99,10 @@ function navButton(id, label) {
   return b;
 }
 
-function createCard(title, icon = "") {
-  const c = document.createElement("section");
-  c.className = "card";
-  const h = document.createElement("h2");
-  h.innerHTML = icon ? `${icon} ${title}` : title;
-  c.appendChild(h);
-  return c;
-}
-
 function formatDate(dateString) {
   if (!dateString) return "N/A";
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
+  return date.toLocaleDateString(currentLanguage === 'en' ? 'en-US' : 'sw-KE', { 
     weekday: 'short', 
     month: 'short', 
     day: 'numeric',
@@ -69,21 +113,15 @@ function formatDate(dateString) {
 function formatTime(dateString) {
   if (!dateString) return "N/A";
   const date = new Date(dateString);
-  return date.toLocaleTimeString('en-US', { 
+  return date.toLocaleTimeString(currentLanguage === 'en' ? 'en-US' : 'sw-KE', { 
     hour: '2-digit', 
     minute: '2-digit' 
   });
 }
 
-function getStatusBadge(status) {
-  const statusColors = {
-    'confirmed': 'badge-success',
-    'proposed': 'badge-warning',
-    'cancelled': 'badge-danger',
-    'completed': 'badge-info'
-  };
-  const colorClass = statusColors[status.toLowerCase()] || 'badge-secondary';
-  return `<span class="badge ${colorClass}">${status}</span>`;
+function getLanguageBadge(lang) {
+  const langNames = { en: '🇬🇧 English', sw: '🇹🇿 Kiswahili' };
+  return `<span class="lang-badge">${langNames[lang] || '🏳️ Unknown'}</span>`;
 }
 
 function renderDashboard() {
@@ -91,43 +129,46 @@ function renderDashboard() {
   if (!state.dashboard) return wrap;
 
   // Stats Grid
-  const statsGrid = createCard("Overview", "📊");
   const statsHtml = `
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon">👥</div>
         <div class="stat-content">
           <div class="stat-value">${state.dashboard.stats.patients}</div>
-          <div class="stat-label">Total Patients</div>
+          <div class="stat-label">${t('totalPatients')}</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📅</div>
         <div class="stat-content">
           <div class="stat-value">${state.dashboard.stats.appointments_today}</div>
-          <div class="stat-label">Today's Appointments</div>
+          <div class="stat-label">${t('todayAppointments')}</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">⏰</div>
         <div class="stat-content">
           <div class="stat-value">${state.dashboard.stats.upcoming}</div>
-          <div class="stat-label">Upcoming Appointments</div>
+          <div class="stat-label">${t('upcomingAppointments')}</div>
         </div>
       </div>
     </div>
   `;
-  statsGrid.innerHTML = statsHtml;
-  wrap.appendChild(statsGrid);
+  
+  const statsDiv = document.createElement("div");
+  statsDiv.className = "card fade-in";
+  statsDiv.innerHTML = `<h2>${t('overview')}</h2>${statsHtml}`;
+  wrap.appendChild(statsDiv);
 
-  // Appointments Section - MAIN FEATURE
+  // Appointments Section
   if (state.dashboard.appointments && state.dashboard.appointments.length > 0) {
-    const aptCard = createCard("📋 Upcoming Appointments", "📅");
+    const aptCard = document.createElement("div");
+    aptCard.className = "card fade-in";
+    aptCard.innerHTML = `<h2>📋 ${t('upcomingAppts')}</h2>`;
     
-    // Group appointments by date
     const grouped = {};
     state.dashboard.appointments.forEach(apt => {
-      const date = apt.appointment_date || apt.scheduled_start.split(' ')[0];
+      const date = apt.scheduled_start.split(' ')[0];
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(apt);
     });
@@ -145,6 +186,7 @@ function renderDashboard() {
       `;
       
       appointments.forEach(apt => {
+        const languageIcon = apt.preferred_language === 'sw' ? '🇹🇿' : '🇬🇧';
         appointmentsHtml += `
           <div class="appointment-item">
             <div class="appointment-time">
@@ -152,11 +194,12 @@ function renderDashboard() {
               <span class="time-text">${formatTime(apt.scheduled_start)}</span>
             </div>
             <div class="appointment-details">
-              <div class="patient-name">${apt.full_name}</div>
+              <div class="patient-name">${apt.full_name} ${languageIcon}</div>
               <div class="appointment-meta">
                 ${apt.department ? `<span class="meta-tag">🏥 ${apt.department}</span>` : ''}
                 ${apt.provider_name ? `<span class="meta-tag">👨‍⚕️ ${apt.provider_name}</span>` : ''}
                 ${apt.location ? `<span class="meta-tag">📍 ${apt.location}</span>` : ''}
+                <span class="meta-tag">📞 ${apt.primary_channel || 'sms'}</span>
               </div>
               ${apt.reason ? `<div class="appointment-reason">📝 ${apt.reason}</div>` : ''}
             </div>
@@ -176,24 +219,26 @@ function renderDashboard() {
     aptCard.innerHTML += appointmentsHtml;
     wrap.appendChild(aptCard);
   } else {
-    const noAptCard = createCard("📋 Upcoming Appointments", "📅");
-    noAptCard.innerHTML += `
+    const noAptCard = document.createElement("div");
+    noAptCard.className = "card fade-in";
+    noAptCard.innerHTML = `
+      <h2>📋 ${t('upcomingAppts')}</h2>
       <div class="empty-state">
         <div class="empty-icon">📅</div>
-        <p>No upcoming appointments scheduled</p>
-        <button class="btn-primary" onclick="document.querySelector('[data-tab=\'appointments\']')?.click()">Schedule Appointment</button>
+        <p>${t('noAppointments')}</p>
+        <button class="btn-primary" onclick="switchTab('appointments')">+ ${t('scheduleAppointment')}</button>
       </div>
     `;
     wrap.appendChild(noAptCard);
   }
 
-  // Recent Patients Section
+  // Recent Patients
   if (state.dashboard.recent && state.dashboard.recent.length > 0) {
-    const recentCard = createCard("👤 Recently Registered Patients", "👥");
-    let recentHtml = `
-      <div class="patients-grid">
-    `;
+    const recentCard = document.createElement("div");
+    recentCard.className = "card fade-in";
+    recentCard.innerHTML = `<h2>👤 ${t('recentlyRegistered')}</h2>`;
     
+    let recentHtml = '<div class="patients-grid">';
     state.dashboard.recent.slice(0, 6).forEach(patient => {
       recentHtml += `
         <div class="patient-card-small">
@@ -202,16 +247,16 @@ function renderDashboard() {
             <div class="patient-name">${patient.full_name}</div>
             <div class="patient-meta">
               <span class="meta-badge">${patient.status || 'Active'}</span>
+              ${getLanguageBadge(patient.preferred_language || 'en')}
               <span class="meta-date">${formatDate(patient.registration_at)}</span>
             </div>
           </div>
         </div>
       `;
     });
-    
     recentHtml += '</div>';
     if (state.dashboard.recent.length > 6) {
-      recentHtml += `<div class="view-all"><a href="#" onclick="switchTab('patients'); return false;">View all patients →</a></div>`;
+      recentHtml += `<div class="view-all"><a href="#" onclick="switchTab('patients'); return false;">${t('viewAll')} →</a></div>`;
     }
     recentCard.innerHTML += recentHtml;
     wrap.appendChild(recentCard);
@@ -220,18 +265,33 @@ function renderDashboard() {
   return wrap;
 }
 
+function getStatusBadge(status) {
+  const statusColors = {
+    'confirmed': 'badge-success',
+    'proposed': 'badge-warning',
+    'cancelled': 'badge-danger',
+    'completed': 'badge-info'
+  };
+  const colorClass = statusColors[status.toLowerCase()] || 'badge-secondary';
+  return `<span class="badge ${colorClass}">${status}</span>`;
+}
+
 function renderPatients() {
   const wrap = document.createElement("div");
-  const card = createCard("👥 Patient Management", "👥");
+  wrap.className = "fade-in";
+  
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h2>👥 ${t('patients')}</h2>`;
   
   const searchSection = document.createElement("div");
   searchSection.className = "search-section";
   searchSection.innerHTML = `
     <div class="search-bar">
-      <input type="text" id="patientSearch" placeholder="Search by name, MRN, or ID..." class="search-input">
+      <input type="text" id="patientSearch" placeholder="🔍 Search by name, MRN, or ID..." class="search-input">
       <button id="searchBtn" class="btn-primary">🔍 Search</button>
     </div>
-    <button id="registerBtn" class="btn-secondary">+ Register New Patient</button>
+    <button id="registerBtn" class="btn-secondary">+ ${t('register')}</button>
   `;
   card.appendChild(searchSection);
 
@@ -242,7 +302,8 @@ function renderPatients() {
       <tr>
         <th>ID</th>
         <th>Patient Name</th>
-        <th>Contact</th>
+        <th>Phone</th>
+        <th>Language</th>
         <th>Channel</th>
         <th>Status</th>
         <th>Actions</th>
@@ -256,7 +317,7 @@ function renderPatients() {
   function renderPatientsList(patients) {
     tbody.innerHTML = "";
     if (patients.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-table">No patients found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-table">No patients found</td></tr>';
       return;
     }
     
@@ -266,9 +327,10 @@ function renderPatients() {
         <td class="patient-id">#${p.id}</td>
         <td class="patient-name-cell">${p.full_name}</td>
         <td>${p.phone || '-'}</td>
+        <td>${getLanguageBadge(p.preferred_language || 'en')}</td>
         <td><span class="channel-badge">${p.primary_channel || '-'}</span></td>
         <td>${getStatusBadge(p.status || 'active')}</td>
-        <td><a href="${API}/patient_view.php?id=${p.id}" class="view-link" target="_blank">View Profile →</a></td>
+        <td><a href="${API}/patient_view.php?id=${p.id}" class="view-link" target="_blank">View →</a></td>
       `;
       tbody.appendChild(tr);
     });
@@ -277,7 +339,6 @@ function renderPatients() {
   renderPatientsList(state.patients);
   card.appendChild(table);
   
-  // Search functionality
   const searchInput = searchSection.querySelector("#patientSearch");
   const searchBtn = searchSection.querySelector("#searchBtn");
   const registerBtn = searchSection.querySelector("#registerBtn");
@@ -303,7 +364,12 @@ function renderPatients() {
 
 function renderRegister() {
   const wrap = document.createElement("div");
-  const card = createCard("📝 Register New Patient", "✏️");
+  wrap.className = "fade-in";
+  
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h2>📝 ${t('register')}</h2>`;
+  
   const form = document.createElement("form");
   form.className = "register-form";
   form.innerHTML = `
@@ -321,21 +387,22 @@ function renderRegister() {
         <input name="phone" placeholder="+254..." required />
       </div>
       <div class="form-field">
-        <label>Language</label>
-        <select name="preferred_language">
-          <option value="en">English</option>
-          <option value="sw">Kiswahili</option>
+        <label>Preferred Language *</label>
+        <select name="preferred_language" required>
+          <option value="en">🇬🇧 English</option>
+          <option value="sw">🇹🇿 Kiswahili</option>
         </select>
+        <small class="field-note">System will send messages in selected language</small>
       </div>
       <div class="form-field">
         <label>MRN (Optional)</label>
         <input name="external_mrn" placeholder="Medical Record Number" />
       </div>
       <div class="form-field">
-        <label>Contact Channel</label>
-        <select name="contact_channel">
-          <option value="sms">SMS</option>
-          <option value="whatsapp">WhatsApp</option>
+        <label>Contact Channel *</label>
+        <select name="contact_channel" required>
+          <option value="sms">📱 SMS</option>
+          <option value="whatsapp">💬 WhatsApp</option>
         </select>
       </div>
     </div>
@@ -346,7 +413,7 @@ function renderRegister() {
     <div class="form-field checkbox">
       <label>
         <input type="checkbox" name="opt_in" checked /> 
-        Opt-in to patient messaging
+        ✅ Opt-in to receive appointment reminders and health tips
       </label>
     </div>
     <div class="form-actions">
@@ -362,7 +429,7 @@ function renderRegister() {
     body.opt_in = fd.get("opt_in") ? 1 : 0;
     try {
       await apiPost("/api/patients.php", body);
-      setStatus("✅ Patient registered successfully!", "ok");
+      setStatus(currentLanguage === 'en' ? "✅ Patient registered successfully!" : "✅ Mgonjwa amesajiliwa kikamilifu!", "ok");
       form.reset();
       setTimeout(() => switchTab('patients'), 1500);
     } catch (err) {
@@ -377,9 +444,12 @@ function renderRegister() {
 
 function renderAppointments() {
   const wrap = document.createElement("div");
-  wrap.className = "appointments-page";
+  wrap.className = "fade-in appointments-page";
 
-  const addCard = createCard("➕ Schedule New Appointment", "📅");
+  const addCard = document.createElement("div");
+  addCard.className = "card";
+  addCard.innerHTML = `<h2>➕ Schedule New Appointment</h2>`;
+  
   const addForm = document.createElement("form");
   addForm.className = "appointment-form";
   addForm.innerHTML = `
@@ -432,7 +502,10 @@ function renderAppointments() {
   addCard.appendChild(addForm);
   wrap.appendChild(addCard);
 
-  const reCard = createCard("🔄 Reschedule Existing Appointment", "⏰");
+  const reCard = document.createElement("div");
+  reCard.className = "card";
+  reCard.innerHTML = `<h2>🔄 Reschedule Existing Appointment</h2>`;
+  
   const reForm = document.createElement("form");
   reForm.className = "appointment-form";
   reForm.innerHTML = `
@@ -478,10 +551,13 @@ function renderAppointments() {
 
 function renderMessageCenter() {
   const wrap = document.createElement("div");
+  wrap.className = "fade-in";
   if (!state.messageCenter) return wrap;
   
-  const stats = createCard("💬 Message Center Analytics", "📊");
-  const statsHtml = `
+  const statsCard = document.createElement("div");
+  statsCard.className = "card";
+  statsCard.innerHTML = `<h2>💬 Message Center Analytics</h2>`;
+  statsCard.innerHTML += `
     <div class="stats-grid-small">
       <div class="stat-mini">
         <div class="stat-mini-value">${state.messageCenter.stats.outbound_24h}</div>
@@ -497,111 +573,4 @@ function renderMessageCenter() {
       </div>
       <div class="stat-mini">
         <div class="stat-mini-value">${state.messageCenter.stats.open_escalations}</div>
-        <div class="stat-mini-label">⚠️ Open Escalations</div>
-      </div>
-    </div>
-  `;
-  stats.innerHTML += statsHtml;
-  wrap.appendChild(stats);
-
-  const out = createCard("📤 Recent Outbound Messages", "💬");
-  out.innerHTML += renderMessageTable(state.messageCenter.outbound, 'outbound');
-  wrap.appendChild(out);
-
-  const inbound = createCard("📥 Incoming Messages", "✉️");
-  inbound.innerHTML += renderMessageTable(state.messageCenter.inbound || [], 'inbound');
-  wrap.appendChild(inbound);
-
-  const esc = createCard("⚠️ Active Escalations", "🚨");
-  esc.innerHTML += renderMessageTable(state.messageCenter.escalations || [], 'escalation');
-  wrap.appendChild(esc);
-  
-  return wrap;
-}
-
-function renderMessageTable(data, type) {
-  if (!data.length) {
-    return '<div class="empty-state"><p>No data available</p></div>';
-  }
-  
-  let headers = '';
-  if (type === 'outbound') {
-    headers = '<th>Time</th><th>Patient</th><th>Channel</th><th>Type</th><th>Status</th><th>Message</th>';
-  } else if (type === 'inbound') {
-    headers = '<th>Time</th><th>Patient</th><th>Channel</th><th>From</th><th>Message</th>';
-  } else {
-    headers = '<th>Time</th><th>Patient</th><th>Status</th><th>Urgency</th><th>Reason</th>';
-  }
-  
-  let tableHtml = `<table class="data-table"><thead><tr>${headers}</tr></thead><tbody>`;
-  
-  data.slice(0, 10).forEach(item => {
-    tableHtml += '<tr>';
-    if (type === 'outbound') {
-      tableHtml += `<td>${item.created_at || ''}</td><td>${item.full_name || ''}</td><td>${item.channel || ''}</td><td>${item.message_type || ''}</td><td>${getStatusBadge(item.status)}</td><td class="message-cell">${item.body || ''}</td>`;
-    } else if (type === 'inbound') {
-      tableHtml += `<td>${item.received_at || ''}</td><td>${item.full_name || 'Unknown'}</td><td>${item.channel || ''}</td><td>${item.from_address || ''}</td><td class="message-cell">${item.body || ''}</td>`;
-    } else {
-      tableHtml += `<td>${item.created_at || ''}</td><td>${item.full_name || ''}</td><td>${item.status || ''}</td><td>${item.urgency || ''}</td><td class="message-cell">${item.reason || ''}</td>`;
-    }
-    tableHtml += '</tr>';
-  });
-  
-  tableHtml += '</tbody></table>';
-  return tableHtml;
-}
-
-function render() {
-  root.innerHTML = "";
-  const nav = document.getElementById("nav");
-  nav.innerHTML = "";
-  nav.append(
-    navButton("dashboard", "📊 Dashboard"),
-    navButton("patients", "👥 Patients"),
-    navButton("register", "✏️ Register"),
-    navButton("appointments", "📅 Appointments"),
-    navButton("messages", "💬 Messages")
-  );
-
-  if (state.tab === "dashboard") root.appendChild(renderDashboard());
-  if (state.tab === "patients") root.appendChild(renderPatients());
-  if (state.tab === "register") root.appendChild(renderRegister());
-  if (state.tab === "appointments") root.appendChild(renderAppointments());
-  if (state.tab === "messages") root.appendChild(renderMessageCenter());
-}
-
-async function loadDashboard() {
-  state.dashboard = await apiGet("/api/dashboard.php");
-}
-async function loadPatients(q = "") {
-  state.patients = (await apiGet(`/api/patients.php?q=${encodeURIComponent(q)}`)).items;
-}
-async function loadMessageCenter() {
-  state.messageCenter = await apiGet("/api/message_center.php");
-}
-
-async function loadCurrentTab() {
-  try {
-    setStatus("Loading...", "muted");
-    if (state.tab === "dashboard") await loadDashboard();
-    if (state.tab === "patients") await loadPatients();
-    if (state.tab === "messages") await loadMessageCenter();
-    setStatus("Ready", "ok");
-    render();
-  } catch (err) {
-    setStatus(err.message, "error");
-  }
-}
-
-window.switchTab = (tab) => {
-  state.tab = tab;
-  render();
-  loadCurrentTab();
-};
-
-async function start() {
-  render();
-  await loadCurrentTab();
-}
-
-start();
+        <div class
