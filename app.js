@@ -1,7 +1,7 @@
 // ============================================
 // NYERI LEVEL 4 HOSPITAL
 // Complete Healthcare Management System
-// Version: 2.0.0
+// Version: 2.1.0
 // ============================================
 
 (function() {
@@ -25,12 +25,14 @@
             nav_messages: "Messages",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
+            total_registered: "Total Registered",
             today_appointments: "Today's Appointments",
             upcoming_appointments: "Upcoming Appointments",
-            upcoming_appts: "Scheduled Appointments",
+            upcoming_appts: "Booked Appointments",
             no_appointments: "No appointments scheduled",
             schedule_appointment: "Schedule Appointment",
             recently_registered: "Recently Registered Patients",
+            booked_appointments: "Booked Appointments",
             view_all: "View All Patients",
             save: "Save",
             cancel: "Cancel",
@@ -49,7 +51,12 @@
             patient_name: "Patient Name",
             phone_number: "Phone Number",
             select_language: "Preferred Language",
-            select_channel: "Contact Channel"
+            select_channel: "Contact Channel",
+            registering: "Processing registration...",
+            processing: "Processing",
+            view_record: "View Record",
+            appt_with: "Appointment with",
+            appt_on: "on"
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -59,12 +66,14 @@
             nav_messages: "Ujumbe",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
+            total_registered: "Jumla Iliyosajiliwa",
             today_appointments: "Miadi ya Leo",
             upcoming_appointments: "Miadi Ijayo",
             upcoming_appts: "Miadi Iliyopangwa",
             no_appointments: "Hakuna miadi iliyopangwa",
             schedule_appointment: "Panga Miadi",
             recently_registered: "Wagonjwa Wapya",
+            booked_appointments: "Miadi Iliyobakwa",
             view_all: "Angalia Wote",
             save: "Hifadhi",
             cancel: "Ghairi",
@@ -83,7 +92,12 @@
             patient_name: "Jina la Mgonjwa",
             phone_number: "Nambari ya Simu",
             select_language: "Lugha Unayopendelea",
-            select_channel: "Njia ya Mawasiliano"
+            select_channel: "Njia ya Mawasiliano",
+            registering: "Inaprosesa usajili...",
+            processing: "Inaprosesa",
+            view_record: "Angalia Rekodi",
+            appt_with: "Miadi na",
+            appt_on: "tarehe"
         }
     };
     
@@ -100,7 +114,8 @@
         patients: [],
         appointments: [],
         messages: null,
-        isLoading: false
+        isLoading: false,
+        isRegistering: false
     };
     
     // ============================================
@@ -306,6 +321,20 @@
             `;
         },
         
+        renderLoadingOverlay() {
+            return `
+                <div class="loading-overlay">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>${t('registering')}</p>
+                        <div class="loading-progress">
+                            <div class="progress-bar"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+        
         renderConnectionError(error) {
             return `
                 <div class="card" style="text-align: center; padding: 60px 40px;">
@@ -313,7 +342,7 @@
                     <h2 style="color: var(--gray-800); margin-bottom: 10px;">${t('connection_error')}</h2>
                     <p style="color: var(--gray-600); margin-bottom: 20px;">${error.message}</p>
                     <button onclick="location.reload()" class="btn-primary">
-                        <i class="fas fa-sync-alt"></i> ${t('retry_connection') || 'Retry Connection'}
+                        <i class="fas fa-sync-alt"></i> Retry Connection
                     </button>
                     <button onclick="window.components.switchTab('dashboard')" class="btn-secondary" style="margin-left: 10px;">
                         <i class="fas fa-home"></i> Go to Dashboard
@@ -331,11 +360,20 @@
             
             return `
                 <div class="fade-in-up">
+                    <div class="dashboard-header">
+                        <h1><i class="fas fa-chart-line"></i> Healthcare Analytics Dashboard</h1>
+                    </div>
+                    
                     <div class="stats-grid">
                         <div class="stat-card" onclick="window.components.switchTab('patients')">
                             <div class="stat-icon">👥</div>
                             <div class="stat-value">${stats.patients?.toLocaleString() || 0}</div>
                             <div class="stat-label">${t('total_patients')}</div>
+                        </div>
+                        <div class="stat-card" onclick="window.components.switchTab('register')">
+                            <div class="stat-icon">📝</div>
+                            <div class="stat-value">${stats.registered_today || 0}</div>
+                            <div class="stat-label">${t('total_registered')} Today</div>
                         </div>
                         <div class="stat-card" onclick="window.components.switchTab('appointments')">
                             <div class="stat-icon">📅</div>
@@ -353,7 +391,7 @@
                         <div class="card-header">
                             <div class="card-title">
                                 <i class="fas fa-calendar-check"></i>
-                                <span>${t('upcoming_appts')}</span>
+                                <span>${t('booked_appointments')}</span>
                             </div>
                             <button class="btn-primary" onclick="window.components.switchTab('appointments')">
                                 <i class="fas fa-plus"></i> ${t('schedule_appointment')}
@@ -455,7 +493,7 @@
             return `
                 <div class="patients-grid">
                     ${recent.slice(0, 6).map(patient => `
-                        <div class="patient-card" onclick="window.open('${API_BASE_URL}/patient_view.php?id=${patient.id}', '_blank')">
+                        <div class="patient-card clickable" onclick="window.open('${API_BASE_URL}/patient_view.php?id=${patient.id}', '_blank')">
                             <div class="patient-avatar">👤</div>
                             <div class="patient-info">
                                 <div class="patient-name">${escapeHtml(patient.full_name)}</div>
@@ -538,16 +576,18 @@
             }
             
             return patients.map(patient => `
-                <tr>
+                <tr class="patient-row" onclick="window.open('${API_BASE_URL}/patient_view.php?id=${patient.id}', '_blank')">
                     <td><strong>#${patient.id}</strong></td>
                     <td>${escapeHtml(patient.full_name)}</td>
                     <td>${patient.phone || '-'}</td>
                     <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
-                    <td><a href="${API_BASE_URL}/patient_view.php?id=${patient.id}" class="btn-secondary" style="padding: 4px 12px; text-decoration: none; font-size: 0.7rem;" target="_blank">
-                        View <i class="fas fa-external-link-alt"></i>
-                    </a></td>
+                    <td onclick="event.stopPropagation();">
+                        <a href="${API_BASE_URL}/patient_view.php?id=${patient.id}" class="btn-secondary" style="padding: 4px 12px; text-decoration: none; font-size: 0.7rem;" target="_blank">
+                            ${t('view_record')} <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </td>
                 </tr>
             `).join('');
         },
@@ -620,7 +660,7 @@
                             <button type="button" class="btn-secondary" onclick="window.components.switchTab('patients')">
                                 ${t('cancel')}
                             </button>
-                            <button type="submit" class="btn-primary">
+                            <button type="submit" class="btn-primary" id="submitBtn">
                                 <i class="fas fa-save"></i> ${t('save')}
                             </button>
                         </div>
@@ -932,17 +972,40 @@
                     if (form) {
                         form.onsubmit = async (e) => {
                             e.preventDefault();
-                            const formData = new FormData(form);
-                            const body = Object.fromEntries(formData.entries());
-                            body.opt_in = formData.get('opt_in') ? 1 : 0;
+                            state.isRegistering = true;
+                            const submitBtn = document.getElementById('submitBtn');
+                            
+                            // Show loading overlay
+                            const formContainer = form.parentElement;
+                            formContainer.insertAdjacentHTML('beforeend', this.renderLoadingOverlay());
+                            submitBtn.disabled = true;
                             
                             try {
+                                const formData = new FormData(form);
+                                const body = Object.fromEntries(formData.entries());
+                                body.opt_in = formData.get('opt_in') ? 1 : 0;
+                                
+                                // Simulate processing delay for better UX
+                                await new Promise(resolve => setTimeout(resolve, 1500));
+                                
                                 const result = await api.post('/api/patients.php', body);
-                                showNotification(result.message || 'Patient registered successfully!', 'ok');
+                                showNotification(result.message || t('success'), 'ok');
                                 form.reset();
+                                
+                                // Remove loading overlay
+                                const overlay = document.querySelector('.loading-overlay');
+                                if (overlay) overlay.remove();
+                                submitBtn.disabled = false;
+                                
                                 setTimeout(() => this.switchTab('patients'), 1500);
                             } catch (err) {
+                                // Remove loading overlay
+                                const overlay = document.querySelector('.loading-overlay');
+                                if (overlay) overlay.remove();
+                                submitBtn.disabled = false;
                                 showNotification(err.message, 'error');
+                            } finally {
+                                state.isRegistering = false;
                             }
                         };
                     }
@@ -1044,7 +1107,7 @@
             </main>
             
             <footer class="footer">
-                <p>© 2024 Nyeri Level 4 Hospital | Enterprise Healthcare System v2.0 | Connected to ${API_BASE_URL}</p>
+                <p>© 2026 Nyeri Level 4 Hospital | Enterprise Healthcare System v2.1 | Connected to ${API_BASE_URL}</p>
             </footer>
         `;
         
