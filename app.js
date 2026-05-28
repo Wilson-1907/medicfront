@@ -1,6 +1,6 @@
 // ============================================
-// NYERI LEVEL 4 HOSPITAL
-// Complete Healthcare Management System
+// NYERI TOWN HEALTH CENTRE
+// Afya Rafiki - Smart Healthcare System
 // Version: 2.1.0
 // ============================================
 
@@ -1080,8 +1080,8 @@
                         <div class="logo" onclick="window.components.switchTab('dashboard')">
                             <div class="logo-icon">🏥</div>
                             <div>
-                                <div class="logo-text">Nyeri Level 4 Hospital</div>
-                                <div class="logo-subtitle">Smart Healthcare System</div>
+                                <div class="logo-text">Nyeri Town Health Centre</div>
+                                <div class="logo-subtitle">Afya Rafiki - Smart Healthcare</div>
                             </div>
                         </div>
                         <div class="nav-menu"></div>
@@ -1107,7 +1107,7 @@
             </main>
             
             <footer class="footer">
-                <p>© 2026 Nyeri Level 4 Hospital | Enterprise Healthcare System v2.1 | Connected to ${API_BASE_URL}</p>
+                <p>© 2026 Nyeri Town Health Centre | Afya Rafiki Healthcare System v2.1 | Connected to ${API_BASE_URL}</p>
             </footer>
         `;
         
