@@ -1,7 +1,7 @@
 // ============================================
 // NYERI TOWN HEALTH CENTRE
 // Afya Rafiki - Smart Healthcare System
-// Version: 2.1.0
+// Version: 2.2.0 - Enhanced UI
 // ============================================
 
 (function() {
@@ -321,14 +321,29 @@
             `;
         },
         
-        renderLoadingOverlay() {
+        renderLoadingOverlay(stage = 'registering') {
+            const stages = {
+                'registering': { icon: 'fa-user-check', message: t('registering'), progress: 33 },
+                'saving': { icon: 'fa-database', message: 'Saving to database...', progress: 66 },
+                'confirming': { icon: 'fa-check-circle', message: 'Confirming registration...', progress: 90 }
+            };
+            
+            const current = stages[stage] || stages['registering'];
+            
             return `
                 <div class="loading-overlay">
                     <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <p>${t('registering')}</p>
+                        <i class="fas ${current.icon} fa-pulse"></i>
+                        <p>${current.message}</p>
                         <div class="loading-progress">
-                            <div class="progress-bar"></div>
+                            <div class="progress-bar" style="width: ${current.progress}%"></div>
+                        </div>
+                        <div class="stage-indicator">
+                            <span class="stage ${stage === 'registering' ? 'active' : 'complete'}">1. Register</span>
+                            <span class="stage-divider">→</span>
+                            <span class="stage ${stage === 'saving' ? 'active' : stage === 'registering' ? '' : 'complete'}">2. Save</span>
+                            <span class="stage-divider">→</span>
+                            <span class="stage ${stage === 'confirming' ? 'active' : ''}">3. Confirm</span>
                         </div>
                     </div>
                 </div>
@@ -669,6 +684,113 @@
             `;
         },
         
+        renderBookedAppointments() {
+            return `
+                <div class="fade-in-up">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-calendar-check"></i>
+                                <span>${t('booked_appointments')}</span>
+                            </div>
+                            <div class="appointment-filters">
+                                <select id="appointmentFilter" class="form-select" style="width: auto; padding: 8px 12px;">
+                                    <option value="all">All Appointments</option>
+                                    <option value="today">Today</option>
+                                    <option value="upcoming">Upcoming</option>
+                                    <option value="past">Past</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="appointmentsContent">
+                            ${this.renderLoadingAppointments()}
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderLoadingAppointments() {
+            return `
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading appointments...</p>
+                </div>
+            `;
+        },
+
+        renderAppointmentsDetailList(appointments) {
+            if (!appointments || appointments.length === 0) {
+                return `
+                    <div class="empty-state">
+                        <div class="empty-icon">📅</div>
+                        <div class="empty-title">No appointments scheduled</div>
+                        <button class="btn-primary" onclick="window.components.switchTab('appointments')">
+                            + Schedule First Appointment
+                        </button>
+                    </div>
+                `;
+            }
+            
+            const grouped = {};
+            appointments.forEach(apt => {
+                const date = apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0];
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(apt);
+            });
+            
+            const sortedDates = Object.keys(grouped).sort();
+            
+            return `
+                <div class="appointments-detail-list">
+                    ${sortedDates.map(date => `
+                        <div class="appointment-date-section">
+                            <div class="appointment-date-header">
+                                <h3>${formatDate(date, 'full')}</h3>
+                                <span class="count-badge">${grouped[date].length} appointment${grouped[date].length !== 1 ? 's' : ''}</span>
+                            </div>
+                            
+                            <div class="appointment-cards">
+                                ${grouped[date].map((apt, idx) => `
+                                    <div class="appointment-card" data-id="${apt.id || idx}">
+                                        <div class="appointment-card-left">
+                                            <div class="appointment-patient-avatar">
+                                                ${(apt.full_name || 'Patient').charAt(0).toUpperCase()}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="appointment-card-middle">
+                                            <div class="appointment-patient-name">${escapeHtml(apt.full_name || 'Unknown Patient')}</div>
+                                            <div class="appointment-time-display">
+                                                <i class="fas fa-clock"></i>
+                                                <span>${formatTime(apt.scheduled_start)} - ${apt.scheduled_end ? formatTime(apt.scheduled_end) : 'TBA'}</span>
+                                            </div>
+                                            <div class="appointment-provider">
+                                                ${apt.provider_name ? `<span><i class="fas fa-user-md"></i> Dr. ${escapeHtml(apt.provider_name)}</span>` : ''}
+                                                ${apt.department ? `<span><i class="fas fa-hospital"></i> ${escapeHtml(apt.department)}</span>` : ''}
+                                            </div>
+                                            ${apt.reason ? `<div class="appointment-reason-text"><i class="fas fa-notes-medical"></i> <strong>Reason:</strong> ${escapeHtml(apt.reason)}</div>` : ''}
+                                            ${apt.location ? `<div class="appointment-location"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(apt.location)}</div>` : ''}
+                                        </div>
+                                        
+                                        <div class="appointment-card-right">
+                                            <span class="status-badge ${apt.status || 'pending'}">
+                                                ${apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1) : 'Pending'}
+                                            </span>
+                                            <button class="btn-action-small" onclick="window.components.viewAppointmentDetails(${apt.id || idx})">
+                                                <i class="fas fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        },
+        
         renderAppointments() {
             return `
                 <div class="fade-in-up">
@@ -895,36 +1017,146 @@
                         <div class="card-header">
                             <div class="card-title">
                                 <i class="fas fa-exclamation-triangle"></i>
-                                <span>Active Escalations</span>
+                                <span>Open Escalations</span>
                             </div>
                             <span class="badge badge-danger">${escalations.length} open</span>
                         </div>
-                        <div class="table-wrapper">
-                            <table class="messages-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 140px;">Time</th>
-                                        <th style="width: 150px;">Patient</th>
-                                        <th style="width: 100px;">Status</th>
-                                        <th style="width: 100px;">Urgency</th>
-                                        <th>Reason</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${escalations.map(esc => `
-                                        <tr>
-                                            <td><div class="message-time">${formatMessageTime(esc.created_at)}</div></td>
-                                            <td>${escapeHtml(esc.full_name)}</td>
-                                            <td><span class="status-badge ${esc.status}">${esc.status}</span></td>
-                                            <td><span class="urgency-badge ${esc.urgency}">${esc.urgency}</span></td>
-                                            <td class="message-content">${escapeHtml(esc.reason)}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
+                        <div id="escalationsContainer">
+                            ${this.renderEscalationsDetail(escalations)}
                         </div>
                     </div>
                     ` : ''}
+                </div>
+                <div id="escalationDetailsModal" class="modal hidden"></div>
+            `;
+        },
+
+        renderEscalationsDetail(escalations) {
+            if (!escalations || escalations.length === 0) {
+                return `
+                    <div class="empty-state">
+                        <div class="empty-icon">✅</div>
+                        <div class="empty-title">No open escalations</div>
+                        <p style="color: var(--gray-500); margin-bottom: 16px;">All patient requests are being handled</p>
+                    </div>
+                `;
+            }
+            
+            return `<div class="escalations-grid">
+                ${escalations.map((esc, idx) => `
+                    <div class="escalation-card" data-index="${idx}">
+                        <div class="escalation-header">
+                            <div class="escalation-patient-info">
+                                <div class="escalation-avatar">
+                                    ${(esc.full_name || 'Patient').charAt(0).toUpperCase()}
+                                </div>
+                                <div class="escalation-title-section">
+                                    <h4>${escapeHtml(esc.full_name || 'Unknown')}</h4>
+                                    <p class="escalation-id">ID: #${esc.patient_id || 'N/A'}</p>
+                                </div>
+                            </div>
+                            <div class="escalation-urgency ${esc.urgency || 'medium'}">
+                                ${esc.urgency ? esc.urgency.toUpperCase() : 'MEDIUM'}
+                            </div>
+                        </div>
+                        
+                        <div class="escalation-body">
+                            <div class="escalation-reason">
+                                <strong>Request Type:</strong>
+                                <p>${escapeHtml(esc.reason || 'General escalation')}</p>
+                            </div>
+                            
+                            <div class="escalation-meta">
+                                <div class="meta-item">
+                                    <i class="fas fa-clock"></i>
+                                    <div>
+                                        <span>Escalated</span>
+                                        <p>${formatMessageTime(esc.created_at)}</p>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="fas ${esc.status === 'open' ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
+                                    <div>
+                                        <span>Status</span>
+                                        <p class="status-${esc.status}">${esc.status ? esc.status.toUpperCase() : 'OPEN'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="escalation-footer">
+                            <button class="btn-action-expand" onclick="event.stopPropagation(); window.components.toggleEscalationDetails(${idx})">
+                                <i class="fas fa-chevron-down"></i> View Details
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+        },
+
+        renderEscalationDetailsModal(escalation) {
+            return `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Escalation Details</h2>
+                        <button class="close-btn" onclick="document.getElementById('escalationDetailsModal').classList.add('hidden')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="escalation-details">
+                        <div class="detail-section">
+                            <h3>Patient Information</h3>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="label">Full Name</span>
+                                    <span class="value">${escapeHtml(escalation.full_name || 'N/A')}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Patient ID</span>
+                                    <span class="value">${escalation.patient_id || 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Phone</span>
+                                    <span class="value">${escalation.phone || 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Contact Channel</span>
+                                    <span class="value">${escalation.channel ? escalation.channel.toUpperCase() : 'N/A'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h3>Escalation Details</h3>
+                            <div class="detail-grid">
+                                <div class="detail-item full-width">
+                                    <span class="label">Reason for Escalation</span>
+                                    <p class="value full-text">${escapeHtml(escalation.reason || 'Not specified')}</p>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Urgency Level</span>
+                                    <span class="value urgency-${escalation.urgency}">${escalation.urgency ? escalation.urgency.toUpperCase() : 'MEDIUM'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Current Status</span>
+                                    <span class="value status-${escalation.status}">${escalation.status ? escalation.status.toUpperCase() : 'OPEN'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Created At</span>
+                                    <span class="value">${formatDate(escalation.created_at, 'full')}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-actions">
+                            <button class="btn-primary" onclick="alert('Reply functionality coming soon')">
+                                <i class="fas fa-reply"></i> Send Reply
+                            </button>
+                            <button class="btn-secondary" onclick="alert('Resolve functionality coming soon')">
+                                <i class="fas fa-check"></i> Mark as Resolved
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `;
         },
@@ -975,7 +1207,6 @@
                             state.isRegistering = true;
                             const submitBtn = document.getElementById('submitBtn');
                             
-                            // Show loading overlay
                             const formContainer = form.parentElement;
                             formContainer.insertAdjacentHTML('beforeend', this.renderLoadingOverlay());
                             submitBtn.disabled = true;
@@ -985,21 +1216,18 @@
                                 const body = Object.fromEntries(formData.entries());
                                 body.opt_in = formData.get('opt_in') ? 1 : 0;
                                 
-                                // Simulate processing delay for better UX
                                 await new Promise(resolve => setTimeout(resolve, 1500));
                                 
                                 const result = await api.post('/api/patients.php', body);
                                 showNotification(result.message || t('success'), 'ok');
                                 form.reset();
                                 
-                                // Remove loading overlay
                                 const overlay = document.querySelector('.loading-overlay');
                                 if (overlay) overlay.remove();
                                 submitBtn.disabled = false;
                                 
                                 setTimeout(() => this.switchTab('patients'), 1500);
                             } catch (err) {
-                                // Remove loading overlay
                                 const overlay = document.querySelector('.loading-overlay');
                                 if (overlay) overlay.remove();
                                 submitBtn.disabled = false;
@@ -1011,48 +1239,59 @@
                     }
                 } 
                 else if (state.currentTab === 'appointments') {
-                    app.innerHTML = this.renderAppointments();
+                    app.innerHTML = this.renderBookedAppointments();
                     
-                    const appointmentForm = document.getElementById('appointmentForm');
-                    if (appointmentForm) {
-                        appointmentForm.onsubmit = async (e) => {
-                            e.preventDefault();
-                            const formData = new FormData(appointmentForm);
-                            const body = Object.fromEntries(formData.entries());
-                            body.action = 'add';
+                    (async () => {
+                        try {
+                            const response = await api.get('/api/appointments.php');
+                            state.appointments = response.items || [];
+                            const content = document.getElementById('appointmentsContent');
+                            if (content) content.innerHTML = this.renderAppointmentsDetailList(state.appointments);
                             
-                            try {
-                                const result = await api.post('/api/appointments.php', body);
-                                showNotification(result.message || 'Appointment scheduled!', 'ok');
-                                appointmentForm.reset();
-                            } catch (err) {
-                                showNotification(err.message, 'error');
+                            const filter = document.getElementById('appointmentFilter');
+                            if (filter) {
+                                filter.onchange = () => {
+                                    let filtered = state.appointments;
+                                    const today = new Date().toISOString().split('T')[0];
+                                    
+                                    if (filter.value === 'today') {
+                                        filtered = state.appointments.filter(apt => 
+                                            apt.scheduled_start?.split('T')[0] === today
+                                        );
+                                    } else if (filter.value === 'upcoming') {
+                                        filtered = state.appointments.filter(apt => 
+                                            apt.scheduled_start?.split('T')[0] >= today
+                                        );
+                                    } else if (filter.value === 'past') {
+                                        filtered = state.appointments.filter(apt => 
+                                            apt.scheduled_start?.split('T')[0] < today
+                                        );
+                                    }
+                                    
+                                    content.innerHTML = this.renderAppointmentsDetailList(filtered);
+                                };
                             }
-                        };
-                    }
-                    
-                    const rescheduleForm = document.getElementById('rescheduleForm');
-                    if (rescheduleForm) {
-                        rescheduleForm.onsubmit = async (e) => {
-                            e.preventDefault();
-                            const formData = new FormData(rescheduleForm);
-                            const body = Object.fromEntries(formData.entries());
-                            body.action = 'reschedule';
-                            
-                            try {
-                                const result = await api.post('/api/appointments.php', body);
-                                showNotification(result.message || 'Appointment rescheduled!', 'ok');
-                                rescheduleForm.reset();
-                            } catch (err) {
-                                showNotification(err.message, 'error');
-                            }
-                        };
-                    }
+                        } catch (err) {
+                            const content = document.getElementById('appointmentsContent');
+                            if (content) content.innerHTML = this.renderConnectionError(err);
+                        }
+                    })();
                 } 
                 else if (state.currentTab === 'messages') {
                     const response = await api.get('/api/message_center.php');
                     state.messages = response;
                     app.innerHTML = this.renderMessages();
+                    
+                    setTimeout(() => {
+                        const cards = document.querySelectorAll('.escalation-card');
+                        cards.forEach((card, idx) => {
+                            card.addEventListener('click', (e) => {
+                                if (!e.target.closest('.btn-action-expand')) {
+                                    this.toggleEscalationDetails(idx);
+                                }
+                            });
+                        });
+                    }, 100);
                 }
                 
                 showNotification(t('ready'), 'ok');
@@ -1063,6 +1302,22 @@
             } finally {
                 state.isLoading = false;
             }
+        },
+
+        toggleEscalationDetails(index) {
+            const modal = document.getElementById('escalationDetailsModal');
+            if (modal && state.messages && state.messages.escalations) {
+                const escalation = state.messages.escalations[index];
+                modal.innerHTML = this.renderEscalationDetailsModal(escalation);
+                modal.classList.remove('hidden');
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) modal.classList.add('hidden');
+                });
+            }
+        },
+
+        viewAppointmentDetails(id) {
+            alert(`View details for appointment ${id}`);
         }
     };
     
@@ -1107,7 +1362,7 @@
             </main>
             
             <footer class="footer">
-                <p>© 2026 Nyeri Town Health Centre | Afya Rafiki Healthcare System v2.1 | Connected to ${API_BASE_URL}</p>
+                <p>© 2026 Nyeri Town Health Centre | Afya Rafiki Healthcare System v2.2 | Connected to ${API_BASE_URL}</p>
             </footer>
         `;
         
