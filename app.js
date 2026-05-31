@@ -244,6 +244,81 @@ function renderAppointments() {
   return wrap;
 }
 
+function renderCustomMessageCard() {
+  const card = createCard("Send a custom message");
+  const help = document.createElement("p");
+  help.className = "muted";
+  help.textContent = "Send a specific message to one patient or broadcast to all active, opted-in patients.";
+  card.appendChild(help);
+
+  const note = document.createElement("div");
+  card.appendChild(note);
+
+  const form = document.createElement("form");
+  const options = (state.patients || [])
+    .map((p) => `<option value="${p.id}">${p.full_name} (#${p.id})</option>`)
+    .join("");
+  form.innerHTML = `
+    <label>Recipients
+      <select name="target">
+        <option value="one">A specific patient</option>
+        <option value="broadcast">All active, opted-in patients</option>
+      </select>
+    </label>
+    <label class="patient-picker">Patient
+      <select name="patient_id">
+        <option value="">Select patient...</option>
+        ${options}
+      </select>
+    </label>
+    <label>Message
+      <textarea name="message_text" rows="3" placeholder="Type the message to send..."></textarea>
+    </label>
+    <button type="submit">Send message</button>
+  `;
+
+  const targetSel = form.querySelector('select[name="target"]');
+  const picker = form.querySelector(".patient-picker");
+  const syncPicker = () => {
+    picker.style.display = targetSel.value === "broadcast" ? "none" : "";
+  };
+  targetSel.addEventListener("change", syncPicker);
+  syncPicker();
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const body = {
+      action: "send_custom",
+      target: fd.get("target"),
+      patient_id: Number(fd.get("patient_id") || 0),
+      message_text: (fd.get("message_text") || "").toString().trim()
+    };
+    if (!body.message_text) {
+      note.innerHTML = `<div class="error">Message text is required.</div>`;
+      return;
+    }
+    if (body.target !== "broadcast" && !body.patient_id) {
+      note.innerHTML = `<div class="error">Select a patient to message.</div>`;
+      return;
+    }
+    try {
+      note.innerHTML = `<div class="muted">Sending...</div>`;
+      const res = await apiPost("/api/message_center.php", body);
+      note.innerHTML = `<div class="ok">Sent to ${res.sent} patient(s).</div>`;
+      form.reset();
+      syncPicker();
+      await loadMessageCenter();
+      render();
+    } catch (err) {
+      note.innerHTML = `<div class="error">${err.message}</div>`;
+    }
+  };
+
+  card.appendChild(form);
+  return card;
+}
+
 function renderMessageCenter() {
   const wrap = document.createElement("div");
   if (!state.messageCenter) return wrap;
@@ -258,6 +333,8 @@ function renderMessageCenter() {
   `;
   stats.appendChild(grid);
   wrap.appendChild(stats);
+
+  wrap.appendChild(renderCustomMessageCard());
 
   const out = createCard("Recent outbound");
   const t = document.createElement("table");
@@ -327,6 +404,11 @@ async function loadPatients(q = "") {
 }
 async function loadMessageCenter() {
   state.messageCenter = await apiGet("/api/message_center.php");
+  try {
+    state.patients = (await apiGet("/api/patients.php?q=")).items;
+  } catch (err) {
+    /* patient list is optional for the custom-message picker */
+  }
 }
 
 async function loadCurrentTab() {
