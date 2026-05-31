@@ -1,4 +1,4 @@
-window.PHV_CONFIG = {
+window.HPV_CONFIG = {
   // Your actual backend URL
   BACKEND_BASE_URL: "https://medicback.onrender.com",
   
@@ -13,6 +13,6 @@ window.PHV_CONFIG = {
     MESSAGE_CENTER: "/api/message_center.php"
   },
   
-  APP_NAME: "Nyeri Level 4 Hospital",
+  APP_NAME: "Nyeri Level 4 Hospital — HPV Care",
   APP_VERSION: "2.0.0"
 };

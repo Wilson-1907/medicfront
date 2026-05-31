@@ -10,7 +10,7 @@
     // ============================================
     // CONFIGURATION
     // ============================================
-    const cfg = window.PHV_CONFIG || {};
+    const cfg = window.HPV_CONFIG || window.PHV_CONFIG || {};
     const API_BASE_URL = cfg.BACKEND_BASE_URL || "https://medicback.onrender.com";
     
     // ============================================
@@ -23,6 +23,8 @@
             nav_register: "Register",
             nav_appointments: "Appointments",
             nav_messages: "Messages",
+            open_escalations: "Open Escalations",
+            hpv_program: "HPV Patient Engagement",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
             total_registered: "Total Registered",
@@ -64,6 +66,8 @@
             nav_register: "Sajili",
             nav_appointments: "Miadi",
             nav_messages: "Ujumbe",
+            open_escalations: "Escalations Wazi",
+            hpv_program: "Ushirikiano wa Wagonjwa wa HPV",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
             total_registered: "Jumla Iliyosajiliwa",
@@ -319,8 +323,79 @@
         
         switchTab(tabId) {
             state.currentTab = tabId;
+            if (tabId === 'messages' && state._pendingEscalationOpen) {
+                state._scrollToEscalations = true;
+            }
             this.renderNav();
             this.loadCurrentTab();
+        },
+
+        getOpenEscalations() {
+            return state.messages?.escalations || [];
+        },
+
+        bindEscalationCards(root) {
+            const scope = root || document;
+            scope.querySelectorAll('.escalation-card').forEach((card) => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    const escId = Number(card.dataset.escId || 0);
+                    if (escId) this.toggleEscalationDetails(escId);
+                });
+            });
+        },
+
+        presentEscalations() {
+            const openEscalations = this.getOpenEscalations();
+            const openCount = state.messages?.stats?.open_escalations ?? openEscalations.length;
+            const modal = document.getElementById('escalationDetailsModal');
+
+            this.scrollToEscalations();
+
+            if (!modal) {
+                showNotification('Could not open escalations panel', 'error');
+                return;
+            }
+
+            if (openEscalations.length === 0) {
+                if (openCount > 0) {
+                    modal.innerHTML = `
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2>${openCount} Open Escalations</h2>
+                                <button class="close-btn" onclick="window.components.closeEscalationModal()"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="escalation-details">
+                                <p class="muted">The count shows ${openCount} open request(s), but details could not be loaded. Try refreshing the page.</p>
+                            </div>
+                        </div>`;
+                    modal.classList.remove('hidden');
+                } else {
+                    showNotification('No open escalations', 'ok');
+                }
+                return;
+            }
+
+            modal.innerHTML = `
+                <div class="modal-content modal-content-wide">
+                    <div class="modal-header">
+                        <h2><i class="fas fa-exclamation-triangle"></i> ${openEscalations.length} Open Escalation${openEscalations.length === 1 ? '' : 's'}</h2>
+                        <button class="close-btn" onclick="window.components.closeEscalationModal()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="escalations-panel" style="padding:20px 24px 28px;">
+                        ${this.renderEscalationsDetail(openEscalations)}
+                    </div>
+                </div>`;
+            modal.classList.remove('hidden');
+            modal.onclick = (e) => {
+                if (e.target === modal) this.closeEscalationModal();
+            };
+            this.bindEscalationCards(modal);
+        },
+
+        closeEscalationModal() {
+            const modal = document.getElementById('escalationDetailsModal');
+            if (modal) modal.classList.add('hidden');
         },
         
         renderLoading() {
@@ -386,8 +461,12 @@
             
             return `
                 <div class="fade-in-up">
-                    <div class="dashboard-header">
-                        <h1><i class="fas fa-chart-line"></i> Healthcare Analytics Dashboard</h1>
+                    <div class="page-hero">
+                        <div class="page-hero-content">
+                            <span class="page-hero-badge"><i class="fas fa-shield-virus"></i> ${t('hpv_program')}</span>
+                            <h1><i class="fas fa-chart-line"></i> Healthcare Analytics Dashboard</h1>
+                            <p class="page-hero-sub">Monitor HPV outreach, appointments, and patient engagement in real time.</p>
+                        </div>
                     </div>
                     
                     <div class="stats-grid">
@@ -410,6 +489,12 @@
                             <div class="stat-icon">⏰</div>
                             <div class="stat-value">${stats.upcoming || 0}</div>
                             <div class="stat-label">${t('upcoming_appointments')}</div>
+                        </div>
+                        <div class="stat-card stat-card-alert ${(stats.open_escalations || 0) > 0 ? 'has-alerts' : ''}" onclick="window.components.openEscalations()">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-value">${stats.open_escalations || 0}</div>
+                            <div class="stat-label">${t('open_escalations')}</div>
+                            ${(stats.open_escalations || 0) > 0 ? '<div class="stat-card-hint">Tap to review</div>' : ''}
                         </div>
                     </div>
                     
@@ -551,7 +636,15 @@
         
         renderPatients() {
             return `
-                <div class="card fade-in-up">
+                <div class="fade-in-up">
+                    <div class="page-hero page-hero-compact">
+                        <div class="page-hero-content">
+                            <span class="page-hero-badge"><i class="fas fa-users"></i> Patient Registry</span>
+                            <h1><i class="fas fa-id-card"></i> ${t('nav_patients')}</h1>
+                            <p class="page-hero-sub">Search, view, and manage HPV program participants.</p>
+                        </div>
+                    </div>
+                <div class="card">
                     <div class="card-header">
                         <div class="card-title">
                             <i class="fas fa-users"></i>
@@ -588,6 +681,7 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             `;
         },
@@ -728,7 +822,15 @@
         
         renderRegister() {
             return `
-                <div class="card fade-in-up">
+                <div class="fade-in-up">
+                    <div class="page-hero page-hero-compact">
+                        <div class="page-hero-content">
+                            <span class="page-hero-badge"><i class="fas fa-user-plus"></i> Enrollment</span>
+                            <h1><i class="fas fa-clipboard-list"></i> ${t('register_new')}</h1>
+                            <p class="page-hero-sub">Register patients for HPV screening, vaccination, and follow-up care.</p>
+                        </div>
+                    </div>
+                <div class="card">
                     <div class="card-header">
                         <div class="card-title">
                             <i class="fas fa-user-plus"></i>
@@ -800,12 +902,20 @@
                         </div>
                     </form>
                 </div>
+                </div>
             `;
         },
         
         renderAppointmentsPage() {
             return `
                 <div class="fade-in-up appointments-page">
+                    <div class="page-hero page-hero-compact">
+                        <div class="page-hero-content">
+                            <span class="page-hero-badge"><i class="fas fa-calendar-alt"></i> Scheduling</span>
+                            <h1><i class="fas fa-calendar-check"></i> ${t('nav_appointments')}</h1>
+                            <p class="page-hero-sub">Book HPV clinic visits, screening appointments, and follow-ups.</p>
+                        </div>
+                    </div>
                     <div class="card appointments-section">
                         <div class="card-header">
                             <div class="card-title">
@@ -852,7 +962,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Department</label>
-                                    <input type="text" name="department" class="form-input" placeholder="e.g., PHV Clinic">
+                                    <input type="text" name="department" class="form-input" placeholder="e.g., HPV Clinic">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Provider Name</label>
@@ -1070,10 +1180,20 @@
             const stats = state.messages.stats || {};
             const outbound = state.messages.outbound || [];
             const inbound = state.messages.inbound || [];
-            const escalations = state.messages.escalations || [];
+            const allEscalations = state.messages.escalations || [];
+            const openEscalations = allEscalations.filter(e => e.status === 'open' || e.status === 'triaged');
+            const openCount = stats.open_escalations ?? openEscalations.length;
             
             return `
                 <div class="fade-in-up">
+                    <div class="page-hero page-hero-compact">
+                        <div class="page-hero-content">
+                            <span class="page-hero-badge"><i class="fas fa-envelope-open-text"></i> Message Center</span>
+                            <h1><i class="fas fa-comments"></i> Patient Communications</h1>
+                            <p class="page-hero-sub">SMS, WhatsApp, AI replies, and escalation requests for the HPV program.</p>
+                        </div>
+                    </div>
+
                     <div class="stats-grid-mini">
                         <div class="stat-mini-card">
                             <div class="stat-mini-icon">📤</div>
@@ -1090,10 +1210,34 @@
                             <div class="stat-mini-value">${stats.inbound_24h || 0}</div>
                             <div class="stat-mini-label">Inbound (24h)</div>
                         </div>
-                        <div class="stat-mini-card danger">
+                        <div class="stat-mini-card danger clickable-stat" onclick="window.components.openEscalations()" title="View open escalation details">
                             <div class="stat-mini-icon">⚠️</div>
-                            <div class="stat-mini-value">${stats.open_escalations || 0}</div>
-                            <div class="stat-mini-label">Open Escalations</div>
+                            <div class="stat-mini-value">${openCount}</div>
+                            <div class="stat-mini-label">${t('open_escalations')}</div>
+                            ${openCount > 0 ? '<div class="stat-mini-hint">Click to view</div>' : ''}
+                        </div>
+                    </div>
+
+                    ${openCount > 0 ? `
+                    <div class="alert-banner danger">
+                        <i class="fas fa-bell"></i>
+                        <div>
+                            <strong>${openCount} patient request${openCount === 1 ? '' : 's'} need attention</strong>
+                            <p>Review open escalations below — patients may have asked to speak with a health specialist.</p>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="window.components.openEscalations()">View now</button>
+                    </div>` : ''}
+
+                    <div class="card escalations-section" id="escalationsSection">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>${t('open_escalations')}</span>
+                            </div>
+                            <span class="badge ${openCount > 0 ? 'badge-danger' : 'badge-success'}">${openCount} open</span>
+                        </div>
+                        <div id="escalationsContainer" class="escalations-panel">
+                            ${this.renderEscalationsDetail(openEscalations)}
                         </div>
                     </div>
 
@@ -1104,26 +1248,26 @@
                                 <span>Send Custom Message</span>
                             </div>
                         </div>
-                        <div style="padding:16px;">
-                            <p class="muted" style="margin-top:0;">Send a specific message to one patient or broadcast to all active, opted-in patients.</p>
+                        <div class="card-body">
+                            <p class="muted">Send a specific message to one patient or broadcast to all active, opted-in patients.</p>
                             <div id="customMsgNote"></div>
-                            <div class="form-group" style="margin-bottom:12px;">
-                                <label>Recipients</label>
-                                <select id="cmTarget" class="form-control" style="width:100%;padding:10px;border:1px solid #d0d5dd;border-radius:8px;">
+                            <div class="form-group">
+                                <label class="form-label">Recipients</label>
+                                <select id="cmTarget" class="form-select">
                                     <option value="one">A specific patient</option>
                                     <option value="broadcast">All active, opted-in patients</option>
                                 </select>
                             </div>
-                            <div class="form-group" id="cmPatientGroup" style="margin-bottom:12px;">
-                                <label>Patient</label>
-                                <select id="cmPatient" class="form-control" style="width:100%;padding:10px;border:1px solid #d0d5dd;border-radius:8px;">
+                            <div class="form-group" id="cmPatientGroup">
+                                <label class="form-label">Patient</label>
+                                <select id="cmPatient" class="form-select">
                                     <option value="">Select patient...</option>
                                     ${(state.patients || []).map(p => `<option value="${p.id}">${escapeHtml(p.full_name || '')} (#${p.id})</option>`).join('')}
                                 </select>
                             </div>
-                            <div class="form-group" style="margin-bottom:12px;">
-                                <label>Message</label>
-                                <textarea id="cmText" class="form-control" rows="3" placeholder="Type the message to send..." style="width:100%;padding:10px;border:1px solid #d0d5dd;border-radius:8px;"></textarea>
+                            <div class="form-group">
+                                <label class="form-label">Message</label>
+                                <textarea id="cmText" class="form-textarea" rows="3" placeholder="Type the message to send..."></textarea>
                             </div>
                             <button class="btn-primary" id="cmSendBtn"><i class="fas fa-paper-plane"></i> Send Message</button>
                         </div>
@@ -1217,23 +1361,7 @@
                             </table>
                         </div>
                     </div>
-                    
-                    ${escalations.length > 0 ? `
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <span>Open Escalations</span>
-                            </div>
-                            <span class="badge badge-danger">${escalations.length} open</span>
-                        </div>
-                        <div id="escalationsContainer">
-                            ${this.renderEscalationsDetail(escalations)}
-                        </div>
-                    </div>
-                    ` : ''}
                 </div>
-                <div id="escalationDetailsModal" class="modal hidden"></div>
             `;
         },
 
@@ -1249,8 +1377,8 @@
             }
             
             return `<div class="escalations-grid">
-                ${escalations.map((esc, idx) => `
-                    <div class="escalation-card" data-index="${idx}">
+                ${escalations.map((esc) => `
+                    <div class="escalation-card" data-esc-id="${esc.id}">
                         <div class="escalation-header">
                             <div class="escalation-patient-info">
                                 <div class="escalation-avatar">
@@ -1258,7 +1386,7 @@
                                 </div>
                                 <div class="escalation-title-section">
                                     <h4>${escapeHtml(esc.full_name || 'Unknown')}</h4>
-                                    <p class="escalation-id">ID: #${esc.patient_id || 'N/A'}</p>
+                                    <p class="escalation-id">Patient #${esc.patient_id || 'N/A'} · ${esc.phone ? escapeHtml(esc.phone) : 'No phone'}</p>
                                 </div>
                             </div>
                             <div class="escalation-urgency ${esc.urgency || 'medium'}">
@@ -1268,7 +1396,7 @@
                         
                         <div class="escalation-body">
                             <div class="escalation-reason">
-                                <strong>Request Type:</strong>
+                                <strong>Reason</strong>
                                 <p>${escapeHtml(esc.reason || 'General escalation')}</p>
                             </div>
                             ${esc.doctor_call_requested_at ? `
@@ -1286,7 +1414,14 @@
                                     </div>
                                 </div>
                                 <div class="meta-item">
-                                    <i class="fas ${esc.status === 'open' ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
+                                    <i class="fas fa-${esc.channel === 'whatsapp' ? 'comment' : 'sms'}"></i>
+                                    <div>
+                                        <span>Channel</span>
+                                        <p>${esc.channel ? esc.channel.toUpperCase() : 'SMS'}</p>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="fas ${esc.status === 'open' ? 'fa-exclamation-circle' : 'fa-hourglass-half'}"></i>
                                     <div>
                                         <span>Status</span>
                                         <p class="status-${esc.status}">${esc.status ? esc.status.toUpperCase() : 'OPEN'}</p>
@@ -1296,8 +1431,11 @@
                         </div>
                         
                         <div class="escalation-footer">
-                            <button class="btn-action-expand" onclick="event.stopPropagation(); window.components.toggleEscalationDetails(${idx})">
-                                <i class="fas fa-chevron-down"></i> View Details
+                            <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${esc.patient_id || 0})">
+                                <i class="fas fa-user"></i> Patient
+                            </button>
+                            <button class="btn-primary btn-sm" onclick="event.stopPropagation(); window.components.toggleEscalationDetails(${esc.id})">
+                                <i class="fas fa-eye"></i> View Details
                             </button>
                         </div>
                     </div>
@@ -1310,7 +1448,7 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h2>Escalation Details</h2>
-                        <button class="close-btn" onclick="document.getElementById('escalationDetailsModal').classList.add('hidden')">
+                        <button class="close-btn" onclick="window.components.closeEscalationModal()">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
@@ -1382,7 +1520,7 @@
                             <button class="btn-primary" onclick="window.components.viewPatient(${escalation.patient_id || 0})">
                                 <i class="fas fa-user"></i> View Patient Record
                             </button>
-                            <button class="btn-secondary" onclick="document.getElementById('escalationDetailsModal').classList.add('hidden')">
+                            <button class="btn-secondary" onclick="window.components.closeEscalationModal()">
                                 <i class="fas fa-times"></i> Close
                             </button>
                         </div>
@@ -1556,15 +1694,13 @@
                     this.setupCustomMessageForm();
                     
                     setTimeout(() => {
-                        const cards = document.querySelectorAll('.escalation-card');
-                        cards.forEach((card, idx) => {
-                            card.addEventListener('click', (e) => {
-                                if (!e.target.closest('.btn-action-expand')) {
-                                    this.toggleEscalationDetails(idx);
-                                }
-                            });
-                        });
-                    }, 100);
+                        this.bindEscalationCards();
+                        if (state._scrollToEscalations || state._pendingEscalationOpen) {
+                            state._scrollToEscalations = false;
+                            state._pendingEscalationOpen = false;
+                            this.presentEscalations();
+                        }
+                    }, 150);
                 }
                 
                 showNotification(t('ready'), 'ok');
@@ -1621,16 +1757,48 @@
             };
         },
 
-        toggleEscalationDetails(index) {
-            const modal = document.getElementById('escalationDetailsModal');
-            if (modal && state.messages && state.messages.escalations) {
-                const escalation = state.messages.escalations[index];
-                modal.innerHTML = this.renderEscalationDetailsModal(escalation);
-                modal.classList.remove('hidden');
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) modal.classList.add('hidden');
-                });
+        openEscalations() {
+            if (state.currentTab === 'messages' && state.messages && !state.isLoading) {
+                this.presentEscalations();
+                return;
             }
+            state._pendingEscalationOpen = true;
+            state._scrollToEscalations = true;
+            if (state.currentTab !== 'messages') {
+                this.switchTab('messages');
+            } else {
+                this.loadCurrentTab();
+            }
+        },
+
+        scrollToEscalations() {
+            const tryScroll = (attempts) => {
+                const section = document.getElementById('escalationsSection');
+                if (section) {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    section.classList.add('highlight-pulse');
+                    setTimeout(() => section.classList.remove('highlight-pulse'), 1200);
+                    return;
+                }
+                if (attempts > 0) setTimeout(() => tryScroll(attempts - 1), 200);
+            };
+            tryScroll(15);
+        },
+
+        toggleEscalationDetails(escId) {
+            const modal = document.getElementById('escalationDetailsModal');
+            const escalations = state.messages?.escalations || [];
+            const escalation = escalations.find(e => Number(e.id) === Number(escId));
+            if (!modal) return;
+            if (!escalation) {
+                showNotification('Escalation not found — try refreshing', 'error');
+                return;
+            }
+            modal.innerHTML = this.renderEscalationDetailsModal(escalation);
+            modal.classList.remove('hidden');
+            modal.onclick = (e) => {
+                if (e.target === modal) this.closeEscalationModal();
+            };
         },
 
         viewAppointmentDetails(id) {
@@ -1666,8 +1834,8 @@
                         <div class="logo" onclick="window.components.switchTab('dashboard')">
                             <div class="logo-icon">🏥</div>
                             <div>
-                                <div class="logo-text">Nyeri Town Health Centre</div>
-                                <div class="logo-subtitle">Afya Rafiki - Smart Healthcare</div>
+                                <div class="logo-text">${cfg.APP_NAME || 'Nyeri Level 4 Hospital'}</div>
+                                <div class="logo-subtitle">HPV Patient Engagement Console</div>
                             </div>
                         </div>
                         <div class="nav-menu"></div>
@@ -1692,17 +1860,27 @@
                 <div id="app"></div>
             </main>
             
+            <div id="escalationDetailsModal" class="modal hidden"></div>
+            
             <footer class="footer">
-                <p>© 2026 Nyeri Town Health Centre | Afya Rafiki Healthcare System v2.2 | Connected to ${API_BASE_URL}</p>
+                <p>© 2026 ${cfg.APP_NAME || 'Nyeri Level 4 Hospital'} | HPV Patient Engagement v2.3 | Connected to ${API_BASE_URL}</p>
             </footer>
         `;
         
         window.components = components;
         window.components.switchTab = (tab) => {
             state.currentTab = tab;
+            if (tab === 'messages' && state._pendingEscalationOpen) {
+                state._scrollToEscalations = true;
+            }
             components.renderNav();
             components.loadCurrentTab();
         };
+        window.components.openEscalations = () => components.openEscalations();
+        window.components.scrollToEscalations = () => components.scrollToEscalations();
+        window.components.toggleEscalationDetails = (id) => components.toggleEscalationDetails(id);
+        window.components.closeEscalationModal = () => components.closeEscalationModal();
+        window.components.presentEscalations = () => components.presentEscalations();
         
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {
