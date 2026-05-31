@@ -114,6 +114,8 @@
         patients: [],
         appointments: [],
         messages: null,
+        patientDetail: null,
+        selectedPatientId: null,
         isLoading: false,
         isRegistering: false
     };
@@ -174,6 +176,15 @@
             month: 'short',
             day: 'numeric'
         });
+    }
+    
+    function formatMessageType(type) {
+        if (type === 'ai_reply') return 'AI';
+        if (type === 'escalation_notice') return 'Escalation';
+        if (type === 'appointment_reminder') return 'Appointment';
+        if (type === 'education_menu') return 'Menu';
+        if (type === 'welcome') return 'Welcome';
+        return type || 'Message';
     }
     
     function escapeHtml(text) {
@@ -463,7 +474,7 @@
                                 <span class="appointment-badge">${appointments.length} appointment${appointments.length > 1 ? 's' : ''}</span>
                             </div>
                             ${appointments.map(apt => `
-                                <div class="appointment-item">
+                                <div class="appointment-item clickable" onclick="window.components.viewPatient(${apt.patient_id})" style="cursor:pointer;">
                                     <div class="appointment-time">
                                         <i class="far fa-clock"></i>
                                         <span>${formatTime(apt.scheduled_start)}</span>
@@ -508,7 +519,7 @@
             return `
                 <div class="patients-grid">
                     ${recent.slice(0, 6).map(patient => `
-                        <div class="patient-card clickable" onclick="window.open('${API_BASE_URL}/patient_view.php?id=${patient.id}', '_blank')">
+                        <div class="patient-card clickable" onclick="window.components.viewPatient(${patient.id})">
                             <div class="patient-avatar">👤</div>
                             <div class="patient-info">
                                 <div class="patient-name">${escapeHtml(patient.full_name)}</div>
@@ -591,7 +602,7 @@
             }
             
             return patients.map(patient => `
-                <tr class="patient-row" onclick="window.open('${API_BASE_URL}/patient_view.php?id=${patient.id}', '_blank')">
+                <tr class="patient-row clickable" onclick="window.components.viewPatient(${patient.id})">
                     <td><strong>#${patient.id}</strong></td>
                     <td>${escapeHtml(patient.full_name)}</td>
                     <td>${patient.phone || '-'}</td>
@@ -599,12 +610,120 @@
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
                     <td onclick="event.stopPropagation();">
-                        <a href="${API_BASE_URL}/patient_view.php?id=${patient.id}" class="btn-secondary" style="padding: 4px 12px; text-decoration: none; font-size: 0.7rem;" target="_blank">
-                            ${t('view_record')} <i class="fas fa-external-link-alt"></i>
-                        </a>
+                        <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;" onclick="window.components.viewPatient(${patient.id})">
+                            ${t('view_record')} <i class="fas fa-chevron-right"></i>
+                        </button>
                     </td>
                 </tr>
             `).join('');
+        },
+
+        renderPatientDetail() {
+            const p = state.patientDetail;
+            if (!p) return this.renderLoading();
+
+            const contacts = p.contacts || [];
+            const appointments = p.appointments || [];
+            const escalations = p.escalations || [];
+            const dcr = p.doctor_call_request;
+
+            return `
+                <div class="fade-in-up">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <button type="button" class="btn-secondary" style="margin-right:12px;padding:6px 12px;" onclick="window.components.switchTab('patients')">
+                                    <i class="fas fa-arrow-left"></i> Back
+                                </button>
+                                <i class="fas fa-user"></i>
+                                <span>${escapeHtml(p.full_name)}</span>
+                            </div>
+                            <span class="badge ${p.status === 'active' ? 'badge-success' : 'badge-danger'}">${p.status || 'active'}</span>
+                        </div>
+                        <div class="detail-grid" style="padding:16px;">
+                            <div class="detail-item"><span class="label">Patient ID</span><span class="value">#${p.id}</span></div>
+                            <div class="detail-item"><span class="label">Language</span><span class="value">${p.preferred_language === 'sw' ? 'Kiswahili' : 'English'}</span></div>
+                            <div class="detail-item"><span class="label">Date of Birth</span><span class="value">${p.date_of_birth || 'N/A'}</span></div>
+                            <div class="detail-item"><span class="label">MRN</span><span class="value">${escapeHtml(p.external_mrn || 'N/A')}</span></div>
+                            <div class="detail-item"><span class="label">Registered</span><span class="value">${formatDate(p.registration_at, 'full')}</span></div>
+                            <div class="detail-item full-width"><span class="label">Notes</span><span class="value">${escapeHtml(p.notes || 'None')}</span></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:1rem;">
+                        <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
+                        <div style="padding:16px;">
+                            ${contacts.length === 0 ? '<p class="muted">No contact on file.</p>' : contacts.map(c => `
+                                <div class="meta-tag" style="margin-bottom:8px;">
+                                    <i class="fas fa-${c.channel === 'whatsapp' ? 'comment' : 'sms'}"></i>
+                                    ${c.channel.toUpperCase()}: ${escapeHtml(c.address)}
+                                    ${c.opted_in ? '<span class="badge badge-success">Opted in</span>' : '<span class="badge badge-danger">Opted out</span>'}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    ${dcr ? `
+                    <div class="card" style="margin-top:1rem;border-left:4px solid var(--warning);">
+                        <div class="card-header"><div class="card-title"><i class="fas fa-user-md"></i> Health Specialist Request</div></div>
+                        <div style="padding:16px;">
+                            <p><strong>Status:</strong> ${(dcr.status || 'pending').toUpperCase()}</p>
+                            <p><strong>Requested:</strong> ${formatDate(dcr.requested_at, 'full')} ${formatTime(dcr.requested_at)}</p>
+                            <p>${escapeHtml(dcr.reason || '')}</p>
+                        </div>
+                    </div>` : ''}
+
+                    <div class="card" style="margin-top:1rem;">
+                        <div class="card-header">
+                            <div class="card-title"><i class="fas fa-calendar"></i> Appointments</div>
+                            <button class="btn-primary" onclick="window.components.scheduleForPatient(${p.id})">
+                                <i class="fas fa-plus"></i> Schedule
+                            </button>
+                        </div>
+                        <div style="padding:16px;">
+                            ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.map(a => `
+                                <div class="appointment-item" style="margin-bottom:12px;">
+                                    <strong>${formatDate(a.scheduled_start, 'full')} ${formatTime(a.scheduled_start)}</strong>
+                                    <span class="badge ${a.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${a.status}</span>
+                                    ${a.department ? `<div>${escapeHtml(a.department)}</div>` : ''}
+                                    ${a.reason ? `<div class="muted">${escapeHtml(a.reason)}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    ${escalations.length > 0 ? `
+                    <div class="card" style="margin-top:1rem;">
+                        <div class="card-header"><div class="card-title"><i class="fas fa-exclamation-triangle"></i> Escalations</div></div>
+                        <div style="padding:16px;">
+                            ${escalations.map(e => `
+                                <div style="margin-bottom:10px;padding:10px;background:var(--gray-50);border-radius:8px;">
+                                    <strong>${(e.urgency || 'routine').toUpperCase()}</strong> — ${(e.status || 'open').toUpperCase()}
+                                    <div>${escapeHtml(e.reason || '')}</div>
+                                    <div class="muted">${formatDate(e.created_at, 'full')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>` : ''}
+                </div>
+            `;
+        },
+
+        async viewPatient(id) {
+            state.selectedPatientId = id;
+            state.currentTab = 'patient';
+            this.renderNav();
+            await this.loadCurrentTab();
+        },
+
+        scheduleForPatient(patientId) {
+            state.selectedPatientId = patientId;
+            state.currentTab = 'appointments';
+            this.renderNav();
+            this.loadCurrentTab().then(() => {
+                const sel = document.getElementById('apptPatientSelect');
+                if (sel) sel.value = String(patientId);
+            });
         },
         
         renderRegister() {
@@ -684,10 +803,10 @@
             `;
         },
         
-        renderBookedAppointments() {
+        renderAppointmentsPage() {
             return `
-                <div class="fade-in-up">
-                    <div class="card">
+                <div class="fade-in-up appointments-page">
+                    <div class="card appointments-section">
                         <div class="card-header">
                             <div class="card-title">
                                 <i class="fas fa-calendar-check"></i>
@@ -702,13 +821,65 @@
                                 </select>
                             </div>
                         </div>
-                        
                         <div id="appointmentsContent">
                             ${this.renderLoadingAppointments()}
                         </div>
                     </div>
+
+                    <div class="card appointments-section" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>${t('schedule_new')}</span>
+                            </div>
+                        </div>
+                        <form id="appointmentForm" class="form-container">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Patient *</label>
+                                    <select name="patient_id" id="apptPatientSelect" class="form-select" required>
+                                        <option value="">Select patient...</option>
+                                        ${(state.patients || []).map(p => `<option value="${p.id}">${escapeHtml(p.full_name)} (#${p.id})</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Date & Time *</label>
+                                    <input type="datetime-local" name="scheduled_start" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">End Time</label>
+                                    <input type="datetime-local" name="scheduled_end" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Department</label>
+                                    <input type="text" name="department" class="form-input" placeholder="e.g., PHV Clinic">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Provider Name</label>
+                                    <input type="text" name="provider_name" class="form-input" placeholder="Doctor's name">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Location</label>
+                                    <input type="text" name="location" class="form-input" placeholder="Room / ward">
+                                </div>
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">Reason for Visit *</label>
+                                <textarea name="reason" class="form-textarea" required rows="3"></textarea>
+                            </div>
+                            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                                <button type="submit" class="btn-primary">
+                                    <i class="fas fa-calendar-check"></i> ${t('schedule_appointment')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             `;
+        },
+
+        renderBookedAppointments() {
+            return this.renderAppointmentsPage();
         },
 
         renderLoadingAppointments() {
@@ -778,7 +949,10 @@
                                             <span class="status-badge ${apt.status || 'pending'}">
                                                 ${apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1) : 'Pending'}
                                             </span>
-                                            <button class="btn-action-small" onclick="window.components.viewAppointmentDetails(${apt.id || idx})">
+                                            <button class="btn-action-small" onclick="event.stopPropagation(); window.components.viewPatient(${apt.patient_id})" title="View patient">
+                                                <i class="fas fa-user"></i>
+                                            </button>
+                                            <button class="btn-action-small" onclick="event.stopPropagation(); window.components.viewAppointmentDetails(${apt.id || idx})" title="Appointment details">
                                                 <i class="fas fa-chevron-right"></i>
                                             </button>
                                         </div>
@@ -985,7 +1159,7 @@
                                             <td><span class="channel-badge ${msg.channel === 'whatsapp' ? 'whatsapp' : 'sms'}">
                                                 <i class="fab ${msg.channel === 'whatsapp' ? 'fa-whatsapp' : 'fa-sms'}"></i> ${msg.channel}
                                             </span></td>
-                                            <td><span class="message-type">${escapeHtml(msg.message_type || 'general')}</span></td>
+                                            <td><span class="message-type">${escapeHtml(formatMessageType(msg.message_type))}</span></td>
                                             <td><span class="status-badge ${msg.status}">
                                                 <i class="fas ${msg.status === 'sent' ? 'fa-check-circle' : msg.status === 'failed' ? 'fa-exclamation-circle' : 'fa-clock'}"></i>
                                                 ${msg.status}
@@ -1097,6 +1271,11 @@
                                 <strong>Request Type:</strong>
                                 <p>${escapeHtml(esc.reason || 'General escalation')}</p>
                             </div>
+                            ${esc.doctor_call_requested_at ? `
+                            <div class="escalation-doctor-call">
+                                <span class="badge badge-warning"><i class="fas fa-user-md"></i> Health specialist requested</span>
+                                <p class="muted">Requested: ${formatDate(esc.doctor_call_requested_at, 'full')} ${formatTime(esc.doctor_call_requested_at)}</p>
+                            </div>` : ''}
                             
                             <div class="escalation-meta">
                                 <div class="meta-item">
@@ -1175,17 +1354,36 @@
                                 </div>
                                 <div class="detail-item">
                                     <span class="label">Created At</span>
-                                    <span class="value">${formatDate(escalation.created_at, 'full')}</span>
+                                    <span class="value">${formatDate(escalation.created_at, 'full')} ${formatTime(escalation.created_at)}</span>
                                 </div>
                             </div>
                         </div>
+
+                        ${escalation.doctor_call_requested_at ? `
+                        <div class="detail-section">
+                            <h3><i class="fas fa-user-md"></i> Health Specialist Request</h3>
+                            <div class="detail-grid">
+                                <div class="detail-item full-width">
+                                    <span class="label">Patient asked to speak with a health specialist</span>
+                                    <p class="value full-text">${escapeHtml(escalation.doctor_call_reason || escalation.reason || 'Direct doctor contact requested')}</p>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Request Status</span>
+                                    <span class="value status-${escalation.doctor_call_status || 'pending'}">${(escalation.doctor_call_status || 'pending').toUpperCase()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Requested At</span>
+                                    <span class="value">${formatDate(escalation.doctor_call_requested_at, 'full')} ${formatTime(escalation.doctor_call_requested_at)}</span>
+                                </div>
+                            </div>
+                        </div>` : ''}
                         
                         <div class="detail-actions">
-                            <button class="btn-primary" onclick="alert('Reply functionality coming soon')">
-                                <i class="fas fa-reply"></i> Send Reply
+                            <button class="btn-primary" onclick="window.components.viewPatient(${escalation.patient_id || 0})">
+                                <i class="fas fa-user"></i> View Patient Record
                             </button>
-                            <button class="btn-secondary" onclick="alert('Resolve functionality coming soon')">
-                                <i class="fas fa-check"></i> Mark as Resolved
+                            <button class="btn-secondary" onclick="document.getElementById('escalationDetailsModal').classList.add('hidden')">
+                                <i class="fas fa-times"></i> Close
                             </button>
                         </div>
                     </div>
@@ -1270,8 +1468,21 @@
                         };
                     }
                 } 
+                else if (state.currentTab === 'patient') {
+                    if (!state.selectedPatientId) {
+                        this.switchTab('patients');
+                        return;
+                    }
+                    const response = await api.get(`/api/patients.php?id=${state.selectedPatientId}`);
+                    state.patientDetail = response.patient;
+                    app.innerHTML = this.renderPatientDetail();
+                }
                 else if (state.currentTab === 'appointments') {
-                    app.innerHTML = this.renderBookedAppointments();
+                    try {
+                        const pr = await api.get('/api/patients.php');
+                        state.patients = pr.items || [];
+                    } catch (e) { /* optional */ }
+                    app.innerHTML = this.renderAppointmentsPage();
                     
                     (async () => {
                         try {
@@ -1288,15 +1499,15 @@
                                     
                                     if (filter.value === 'today') {
                                         filtered = state.appointments.filter(apt => 
-                                            apt.scheduled_start?.split('T')[0] === today
+                                            (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) === today
                                         );
                                     } else if (filter.value === 'upcoming') {
                                         filtered = state.appointments.filter(apt => 
-                                            apt.scheduled_start?.split('T')[0] >= today
+                                            (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) >= today
                                         );
                                     } else if (filter.value === 'past') {
                                         filtered = state.appointments.filter(apt => 
-                                            apt.scheduled_start?.split('T')[0] < today
+                                            (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) < today
                                         );
                                     }
                                     
@@ -1308,6 +1519,31 @@
                             if (content) content.innerHTML = this.renderConnectionError(err);
                         }
                     })();
+
+                    const apptForm = document.getElementById('appointmentForm');
+                    if (apptForm) {
+                        if (state.selectedPatientId) {
+                            const sel = document.getElementById('apptPatientSelect');
+                            if (sel) sel.value = String(state.selectedPatientId);
+                        }
+                        apptForm.onsubmit = async (e) => {
+                            e.preventDefault();
+                            const fd = new FormData(apptForm);
+                            const body = Object.fromEntries(fd.entries());
+                            body.action = 'add';
+                            try {
+                                await api.post('/api/appointments.php', body);
+                                showNotification(t('success'), 'ok');
+                                apptForm.reset();
+                                const response = await api.get('/api/appointments.php');
+                                state.appointments = response.items || [];
+                                const content = document.getElementById('appointmentsContent');
+                                if (content) content.innerHTML = this.renderAppointmentsDetailList(state.appointments);
+                            } catch (err) {
+                                showNotification(err.message, 'error');
+                            }
+                        };
+                    }
                 } 
                 else if (state.currentTab === 'messages') {
                     const response = await api.get('/api/message_center.php');
@@ -1398,7 +1634,21 @@
         },
 
         viewAppointmentDetails(id) {
-            alert(`View details for appointment ${id}`);
+            const apt = (state.appointments || []).find(a => Number(a.id) === Number(id));
+            if (!apt) {
+                showNotification('Appointment not found', 'error');
+                return;
+            }
+            const lines = [
+                `Patient: ${apt.full_name || apt.patient_id}`,
+                `Date: ${formatDate(apt.scheduled_start, 'full')} ${formatTime(apt.scheduled_start)}`,
+                apt.department ? `Department: ${apt.department}` : '',
+                apt.provider_name ? `Provider: ${apt.provider_name}` : '',
+                apt.location ? `Location: ${apt.location}` : '',
+                apt.reason ? `Reason: ${apt.reason}` : '',
+                `Status: ${apt.status || 'pending'}`
+            ].filter(Boolean).join('\n');
+            alert(lines);
         }
     };
     
