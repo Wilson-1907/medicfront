@@ -185,6 +185,7 @@
     function formatMessageType(type) {
         if (type === 'ai_reply') return 'AI';
         if (type === 'escalation_notice') return 'Escalation';
+        if (type === 'engagement_boost') return 'Health Tip';
         if (type === 'appointment_reminder') return 'Appointment';
         if (type === 'education_menu') return 'Menu';
         if (type === 'welcome') return 'Welcome';
@@ -916,27 +917,32 @@
                             <p class="page-hero-sub">Book HPV clinic visits, screening appointments, and follow-ups.</p>
                         </div>
                     </div>
-                    <div class="card appointments-section">
-                        <div class="card-header">
+                    <div class="card appointments-section appointments-booked-card">
+                        <div class="card-header appointments-booked-header">
                             <div class="card-title">
                                 <i class="fas fa-calendar-check"></i>
                                 <span>${t('booked_appointments')}</span>
                             </div>
-                            <div class="appointment-filters">
-                                <select id="appointmentFilter" class="form-select" style="width: auto; padding: 8px 12px;">
-                                    <option value="all">All Appointments</option>
+                            <div class="appointment-toolbar">
+                                <div class="appointment-search-wrap">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" id="appointmentSearch" class="appointment-search" placeholder="Search patient, department...">
+                                </div>
+                                <select id="appointmentFilter" class="form-select appointment-filter-select">
+                                    <option value="all">All</option>
                                     <option value="today">Today</option>
-                                    <option value="upcoming">Upcoming</option>
+                                    <option value="upcoming" selected>Upcoming</option>
                                     <option value="past">Past</option>
                                 </select>
                             </div>
                         </div>
+                        <div id="appointmentsStats" class="appointments-stats-bar"></div>
                         <div id="appointmentsContent">
                             ${this.renderLoadingAppointments()}
                         </div>
                     </div>
 
-                    <div class="card appointments-section" style="margin-top: 1.5rem;">
+                    <div class="card appointments-section appointments-form-card">
                         <div class="card-header">
                             <div class="card-title">
                                 <i class="fas fa-plus-circle"></i>
@@ -1001,177 +1007,152 @@
             `;
         },
 
+        renderAppointmentsStats(appointments) {
+            const today = new Date().toISOString().split('T')[0];
+            const todayCount = appointments.filter(a => (a.scheduled_start?.split('T')[0] || a.scheduled_start?.split(' ')[0]) === today).length;
+            const upcomingCount = appointments.filter(a => (a.scheduled_start?.split('T')[0] || a.scheduled_start?.split(' ')[0]) >= today).length;
+            const confirmed = appointments.filter(a => a.status === 'confirmed').length;
+            return `
+                <div class="appt-stat-pill"><i class="fas fa-list"></i><strong>${appointments.length}</strong> shown</div>
+                <div class="appt-stat-pill highlight"><i class="fas fa-sun"></i><strong>${todayCount}</strong> today</div>
+                <div class="appt-stat-pill"><i class="fas fa-forward"></i><strong>${upcomingCount}</strong> upcoming</div>
+                <div class="appt-stat-pill success"><i class="fas fa-check-circle"></i><strong>${confirmed}</strong> confirmed</div>
+            `;
+        },
+
+        renderReminderBadges(apt) {
+            if (apt.status === 'completed' || apt.status === 'cancelled') return '';
+            const badges = [];
+            if (apt.reminder_7d_sent_at) badges.push('<span class="reminder-chip sent" title="7-day reminder sent"><i class="fas fa-bell"></i> 7d</span>');
+            else badges.push('<span class="reminder-chip pending" title="7-day reminder pending"><i class="far fa-bell"></i> 7d</span>');
+            if (apt.reminder_3d_sent_at) badges.push('<span class="reminder-chip sent" title="3-day reminder sent"><i class="fas fa-bell"></i> 3d</span>');
+            else badges.push('<span class="reminder-chip pending" title="3-day reminder pending"><i class="far fa-bell"></i> 3d</span>');
+            if (apt.reminder_night_sent_at) badges.push('<span class="reminder-chip sent" title="Night-before reminder sent"><i class="fas fa-moon"></i> Eve</span>');
+            else badges.push('<span class="reminder-chip pending" title="Night-before reminder pending"><i class="far fa-moon"></i> Eve</span>');
+            return `<div class="reminder-chips">${badges.join('')}</div>`;
+        },
+
         renderAppointmentsDetailList(appointments) {
             if (!appointments || appointments.length === 0) {
                 return `
-                    <div class="empty-state">
+                    <div class="empty-state appointments-empty">
                         <div class="empty-icon">📅</div>
-                        <div class="empty-title">No appointments scheduled</div>
-                        <button class="btn-primary" onclick="window.components.switchTab('appointments')">
-                            + Schedule First Appointment
-                        </button>
+                        <div class="empty-title">No appointments in this view</div>
+                        <p class="muted">Try another filter or schedule a new visit below.</p>
                     </div>
                 `;
             }
-            
+
             const grouped = {};
             appointments.forEach(apt => {
                 const date = apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0];
                 if (!grouped[date]) grouped[date] = [];
                 grouped[date].push(apt);
             });
-            
+
             const sortedDates = Object.keys(grouped).sort();
-            
+            const today = new Date().toISOString().split('T')[0];
+
             return `
-                <div class="appointments-detail-list">
-                    ${sortedDates.map(date => `
-                        <div class="appointment-date-section">
-                            <div class="appointment-date-header">
-                                <h3>${formatDate(date, 'full')}</h3>
-                                <span class="count-badge">${grouped[date].length} appointment${grouped[date].length !== 1 ? 's' : ''}</span>
+                <div class="appointments-timeline-view">
+                    ${sortedDates.map(date => {
+                        const isToday = date === today;
+                        const isPast = date < today;
+                        return `
+                        <section class="appt-day-block ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}">
+                            <div class="appt-day-marker">
+                                <div class="appt-day-dot"></div>
+                                <div class="appt-day-line"></div>
                             </div>
-                            
-                            <div class="appointment-cards">
-                                ${grouped[date].map((apt, idx) => `
-                                    <div class="appointment-card" data-id="${apt.id || idx}">
-                                        <div class="appointment-card-left">
-                                            <div class="appointment-patient-avatar">
-                                                ${(apt.full_name || 'Patient').charAt(0).toUpperCase()}
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="appointment-card-middle">
-                                            <div class="appointment-patient-name">${escapeHtml(apt.full_name || 'Unknown Patient')}</div>
-                                            <div class="appointment-time-display">
-                                                <i class="fas fa-clock"></i>
-                                                <span>${formatTime(apt.scheduled_start)} - ${apt.scheduled_end ? formatTime(apt.scheduled_end) : 'TBA'}</span>
-                                            </div>
-                                            <div class="appointment-provider">
-                                                ${apt.provider_name ? `<span><i class="fas fa-user-md"></i> Dr. ${escapeHtml(apt.provider_name)}</span>` : ''}
-                                                ${apt.department ? `<span><i class="fas fa-hospital"></i> ${escapeHtml(apt.department)}</span>` : ''}
-                                            </div>
-                                            ${apt.reason ? `<div class="appointment-reason-text"><i class="fas fa-notes-medical"></i> <strong>Reason:</strong> ${escapeHtml(apt.reason)}</div>` : ''}
-                                            ${apt.location ? `<div class="appointment-location"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(apt.location)}</div>` : ''}
-                                        </div>
-                                        
-                                        <div class="appointment-card-right">
-                                            <span class="status-badge ${apt.status || 'pending'}">
-                                                ${apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1) : 'Pending'}
-                                            </span>
-                                            <button class="btn-action-small" onclick="event.stopPropagation(); window.components.viewPatient(${apt.patient_id})" title="View patient">
-                                                <i class="fas fa-user"></i>
-                                            </button>
-                                            <button class="btn-action-small" onclick="event.stopPropagation(); window.components.viewAppointmentDetails(${apt.id || idx})" title="Appointment details">
-                                                <i class="fas fa-chevron-right"></i>
-                                            </button>
-                                        </div>
+                            <div class="appt-day-content">
+                                <header class="appt-day-header">
+                                    <div>
+                                        <h3>${formatDate(date, 'full')}</h3>
+                                        ${isToday ? '<span class="today-tag">Today</span>' : ''}
                                     </div>
-                                `).join('')}
+                                    <span class="count-badge">${grouped[date].length} visit${grouped[date].length !== 1 ? 's' : ''}</span>
+                                </header>
+                                <div class="appointment-cards-grid">
+                                    ${grouped[date].map(apt => `
+                                        <article class="appointment-card-v2 status-${apt.status || 'proposed'}" onclick="window.components.viewPatient(${apt.patient_id})">
+                                            <div class="appt-card-top">
+                                                <div class="appointment-patient-avatar">${(apt.full_name || 'P').charAt(0).toUpperCase()}</div>
+                                                <div class="appt-card-headline">
+                                                    <h4>${escapeHtml(apt.full_name || 'Unknown Patient')}</h4>
+                                                    <span class="appt-id">#${apt.patient_id}</span>
+                                                </div>
+                                                <span class="status-badge ${apt.status || 'proposed'}">${(apt.status || 'proposed').replace('_', ' ')}</span>
+                                            </div>
+                                            <div class="appt-time-row">
+                                                <i class="fas fa-clock"></i>
+                                                <strong>${formatTime(apt.scheduled_start)}</strong>
+                                                ${apt.scheduled_end ? `<span class="appt-end">→ ${formatTime(apt.scheduled_end)}</span>` : ''}
+                                            </div>
+                                            <div class="appt-meta-tags">
+                                                ${apt.department ? `<span><i class="fas fa-hospital"></i> ${escapeHtml(apt.department)}</span>` : ''}
+                                                ${apt.provider_name ? `<span><i class="fas fa-user-md"></i> ${escapeHtml(apt.provider_name)}</span>` : ''}
+                                                ${apt.location ? `<span><i class="fas fa-map-marker-alt"></i> ${escapeHtml(apt.location)}</span>` : ''}
+                                                ${apt.contact_channel ? `<span class="channel-tag ${apt.contact_channel}"><i class="fab fa-${apt.contact_channel === 'whatsapp' ? 'whatsapp' : 'sms'}"></i> ${apt.contact_channel}</span>` : ''}
+                                            </div>
+                                            ${apt.reason ? `<p class="appt-reason"><i class="fas fa-notes-medical"></i> ${escapeHtml(apt.reason)}</p>` : ''}
+                                            ${this.renderReminderBadges(apt)}
+                                            <div class="appt-card-actions" onclick="event.stopPropagation()">
+                                                <button class="btn-secondary btn-sm" onclick="window.components.viewPatient(${apt.patient_id})"><i class="fas fa-user"></i> Patient</button>
+                                                <button class="btn-primary btn-sm" onclick="window.components.viewAppointmentDetails(${apt.id})"><i class="fas fa-info-circle"></i> Details</button>
+                                            </div>
+                                        </article>
+                                    `).join('')}
+                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        </section>`;
+                    }).join('')}
                 </div>
             `;
         },
         
-        renderAppointments() {
-            return `
-                <div class="fade-in-up">
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fas fa-plus-circle"></i>
-                                <span>${t('schedule_new')}</span>
-                            </div>
-                        </div>
-                        
-                        <form id="appointmentForm" class="form-container">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label class="form-label">Patient ID *</label>
-                                    <input type="number" name="patient_id" class="form-input" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Date & Time *</label>
-                                    <input type="datetime-local" name="scheduled_start" class="form-input" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">End Time</label>
-                                    <input type="datetime-local" name="scheduled_end" class="form-input">
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Department</label>
-                                    <input type="text" name="department" class="form-input" placeholder="e.g., Cardiology">
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Provider Name</label>
-                                    <input type="text" name="provider_name" class="form-input" placeholder="Doctor's name">
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Location</label>
-                                    <input type="text" name="location" class="form-input" placeholder="Room number">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group full-width">
-                                <label class="form-label">Reason for Visit *</label>
-                                <textarea name="reason" class="form-textarea" required rows="3"></textarea>
-                            </div>
-                            
-                            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                                <button type="submit" class="btn-primary">
-                                    <i class="fas fa-calendar-check"></i> ${t('schedule_appointment')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fas fa-exchange-alt"></i>
-                                <span>${t('reschedule')}</span>
-                            </div>
-                        </div>
-                        
-                        <form id="rescheduleForm" class="form-container">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label class="form-label">Appointment ID *</label>
-                                    <input type="number" name="appointment_id" class="form-input" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">New Date & Time *</label>
-                                    <input type="datetime-local" name="new_scheduled_start" class="form-input" required>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">New End Time</label>
-                                    <input type="datetime-local" name="new_scheduled_end" class="form-input">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group full-width">
-                                <label class="form-label">Reason for Rescheduling *</label>
-                                <textarea name="reason" class="form-textarea" required rows="3"></textarea>
-                            </div>
-                            
-                            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                                <button type="submit" class="btn-primary">
-                                    <i class="fas fa-calendar-alt"></i> ${t('reschedule')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
+        filterAppointmentsList() {
+            const filter = document.getElementById('appointmentFilter');
+            const search = document.getElementById('appointmentSearch');
+            const content = document.getElementById('appointmentsContent');
+            const statsBar = document.getElementById('appointmentsStats');
+            if (!content) return;
+
+            let filtered = state.appointments || [];
+            const today = new Date().toISOString().split('T')[0];
+            const q = (search?.value || '').trim().toLowerCase();
+
+            if (filter?.value === 'today') {
+                filtered = filtered.filter(apt =>
+                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) === today
+                );
+            } else if (filter?.value === 'upcoming') {
+                filtered = filtered.filter(apt =>
+                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) >= today
+                );
+            } else if (filter?.value === 'past') {
+                filtered = filtered.filter(apt =>
+                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) < today
+                );
+            }
+
+            if (q) {
+                filtered = filtered.filter(apt =>
+                    (apt.full_name || '').toLowerCase().includes(q) ||
+                    (apt.department || '').toLowerCase().includes(q) ||
+                    (apt.provider_name || '').toLowerCase().includes(q) ||
+                    String(apt.patient_id || '').includes(q)
+                );
+            }
+
+            if (statsBar) statsBar.innerHTML = this.renderAppointmentsStats(filtered);
+            content.innerHTML = this.renderAppointmentsDetailList(filtered);
+        },
+
+        setupAppointmentsFilters() {
+            const filter = document.getElementById('appointmentFilter');
+            const search = document.getElementById('appointmentSearch');
+            if (filter) filter.onchange = () => this.filterAppointmentsList();
+            if (search) search.oninput = () => this.filterAppointmentsList();
         },
         
         renderMessages() {
@@ -1626,32 +1607,8 @@
                         try {
                             const response = await api.get('/api/appointments.php');
                             state.appointments = response.items || [];
-                            const content = document.getElementById('appointmentsContent');
-                            if (content) content.innerHTML = this.renderAppointmentsDetailList(state.appointments);
-                            
-                            const filter = document.getElementById('appointmentFilter');
-                            if (filter) {
-                                filter.onchange = () => {
-                                    let filtered = state.appointments;
-                                    const today = new Date().toISOString().split('T')[0];
-                                    
-                                    if (filter.value === 'today') {
-                                        filtered = state.appointments.filter(apt => 
-                                            (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) === today
-                                        );
-                                    } else if (filter.value === 'upcoming') {
-                                        filtered = state.appointments.filter(apt => 
-                                            (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) >= today
-                                        );
-                                    } else if (filter.value === 'past') {
-                                        filtered = state.appointments.filter(apt => 
-                                            (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) < today
-                                        );
-                                    }
-                                    
-                                    content.innerHTML = this.renderAppointmentsDetailList(filtered);
-                                };
-                            }
+                            this.filterAppointmentsList();
+                            this.setupAppointmentsFilters();
                         } catch (err) {
                             const content = document.getElementById('appointmentsContent');
                             if (content) content.innerHTML = this.renderConnectionError(err);
@@ -1676,7 +1633,7 @@
                                 const response = await api.get('/api/appointments.php');
                                 state.appointments = response.items || [];
                                 const content = document.getElementById('appointmentsContent');
-                                if (content) content.innerHTML = this.renderAppointmentsDetailList(state.appointments);
+                                if (content) this.filterAppointmentsList();
                             } catch (err) {
                                 showNotification(err.message, 'error');
                             }
