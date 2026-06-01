@@ -64,9 +64,17 @@
             wipe_all_data: "Erase all database data",
             wipe_all_hint: "Deletes every row in all tables. Schema stays. Cannot be undone.",
             wipe_password_prompt: "Enter administrator password:",
+            wipe_password_confirm_label: "Re-enter administrator password to confirm:",
+            wipe_modal_title: "Erase all database data",
+            wipe_modal_step1: "Enter the admin password to continue.",
+            wipe_modal_step2: "Enter the same password again to confirm permanent deletion.",
+            wipe_password_mismatch: "Passwords do not match.",
+            wipe_confirm_btn: "Confirm erase",
+            wipe_continue: "Continue",
+            wipe_back: "Back",
             wipe_confirm: "This will permanently delete ALL patients, appointments, messages, and escalations. Continue?",
             wipe_success: "Database cleared successfully.",
-            wipe_wrong_password: "Wrong password.",
+            wipe_wrong_password: "Wrong administrator password.",
             wiping: "Erasing all data...",
             hpv_result_title: "HPV screening result",
             hpv_result_hint: "Record the lab result, then confirm to notify the patient and start guidance.",
@@ -125,9 +133,17 @@
             wipe_all_data: "Futa data yote kwenye hifadhidata",
             wipe_all_hint: "Hufuta kila rekodi kwenye jedwali zote. Muundo wa jedwali hubaki. Haiwezi kutenduliwa.",
             wipe_password_prompt: "Weka nenosiri la msimamizi:",
+            wipe_password_confirm_label: "Weka tena nenosiri la msimamizi kuthibitisha:",
+            wipe_modal_title: "Futa data yote kwenye hifadhidata",
+            wipe_modal_step1: "Weka nenosiri la msimamizi ili kuendelea.",
+            wipe_modal_step2: "Weka tena nenosiri lile lile kuthibitisha kufuta kabisa.",
+            wipe_password_mismatch: "Nenosiri halilingani.",
+            wipe_confirm_btn: "Thibitisha kufuta",
+            wipe_continue: "Endelea",
+            wipe_back: "Rudi",
             wipe_confirm: "Hii itafuta kabisa wagonjwa, miadi, ujumbe, na escalations zote. Endelea?",
             wipe_success: "Hifadhidata imefutwa kikamilifu.",
-            wipe_wrong_password: "Nenosiri si sahihi.",
+            wipe_wrong_password: "Nenosiri la msimamizi si sahihi.",
             wiping: "Inafuta data yote...",
             hpv_result_title: "Matokeo ya uchunguzi wa HPV",
             hpv_result_hint: "Weka matokeo ya maabara, kisha thibitisha kumjulisha mgonjwa na kuanza mwongozo.",
@@ -606,36 +622,144 @@
                         </div>
                     </div>
                     <p class="muted admin-danger-hint">${t('wipe_all_hint')}</p>
-                    <button type="button" class="btn-danger" onclick="window.components.wipeAllDatabase()">
+                    <button type="button" class="btn-danger" onclick="window.components.openWipeDataModal()">
                         <i class="fas fa-trash-alt"></i> ${t('wipe_all_data')}
                     </button>
                 </div>
             `;
         },
-        
-        async wipeAllDatabase() {
-            const password = window.prompt(t('wipe_password_prompt'));
-            if (password === null || password === '') {
+
+        openWipeDataModal() {
+            state._wipeStep = 1;
+            state._wipePassword = '';
+            const modal = document.getElementById('wipeDataModal');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            modal.innerHTML = this.renderWipeDataModalContent();
+            const first = modal.querySelector('#wipePasswordInput');
+            if (first) first.focus();
+        },
+
+        closeWipeDataModal() {
+            state._wipeStep = 1;
+            state._wipePassword = '';
+            const modal = document.getElementById('wipeDataModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.innerHTML = '';
+            }
+        },
+
+        renderWipeDataModalContent() {
+            const step = state._wipeStep || 1;
+            if (step === 1) {
+                return `
+                    <div class="modal-content wipe-modal-content">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-exclamation-triangle" style="color:#b91c1c"></i> ${t('wipe_modal_title')}</h2>
+                            <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="wipe-modal-body">
+                            <p class="muted">${t('wipe_all_hint')}</p>
+                            <p>${t('wipe_modal_step1')}</p>
+                            <label class="form-label" for="wipePasswordInput">${t('wipe_password_prompt')}</label>
+                            <input type="password" id="wipePasswordInput" class="form-input" autocomplete="off"
+                                   placeholder="Administrator password" onkeydown="if(event.key==='Enter')window.components.wipeDataStepContinue()">
+                        </div>
+                        <div class="wipe-modal-actions">
+                            <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()">${t('cancel')}</button>
+                            <button type="button" class="btn-primary" onclick="window.components.wipeDataStepContinue()">${t('wipe_continue')}</button>
+                        </div>
+                    </div>`;
+            }
+            return `
+                <div class="modal-content wipe-modal-content">
+                    <div class="modal-header">
+                        <h2><i class="fas fa-trash-alt" style="color:#b91c1c"></i> ${t('wipe_confirm_btn')}</h2>
+                        <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="wipe-modal-body">
+                        <p>${t('wipe_modal_step2')}</p>
+                        <label class="form-label" for="wipePasswordConfirmInput">${t('wipe_password_confirm_label')}</label>
+                        <input type="password" id="wipePasswordConfirmInput" class="form-input" autocomplete="off"
+                               placeholder="Administrator password" onkeydown="if(event.key==='Enter')window.components.submitWipeDataErase()">
+                        <p id="wipeModalError" class="wipe-modal-error hidden"></p>
+                    </div>
+                    <div class="wipe-modal-actions">
+                        <button type="button" class="btn-secondary" onclick="window.components.wipeDataGoBack()">${t('cancel')}</button>
+                        <button type="button" class="btn-danger" id="wipeConfirmEraseBtn" onclick="window.components.submitWipeDataErase()">
+                            <i class="fas fa-trash-alt"></i> ${t('wipe_confirm_btn')}
+                        </button>
+                    </div>
+                </div>`;
+        },
+
+        wipeDataStepContinue() {
+            const input = document.getElementById('wipePasswordInput');
+            const password = input ? input.value : '';
+            if (!password) {
+                showNotification(t('wipe_password_prompt'), 'error');
                 return;
             }
-            if (!window.confirm(t('wipe_confirm'))) {
+            state._wipePassword = password;
+            state._wipeStep = 2;
+            const modal = document.getElementById('wipeDataModal');
+            if (!modal) return;
+            modal.innerHTML = this.renderWipeDataModalContent();
+            const confirmInput = document.getElementById('wipePasswordConfirmInput');
+            if (confirmInput) confirmInput.focus();
+        },
+
+        wipeDataGoBack() {
+            state._wipeStep = 1;
+            const modal = document.getElementById('wipeDataModal');
+            if (!modal) return;
+            modal.innerHTML = this.renderWipeDataModalContent();
+            const first = document.getElementById('wipePasswordInput');
+            if (first) {
+                first.value = state._wipePassword || '';
+                first.focus();
+            }
+        },
+
+        showWipeModalError(message) {
+            const el = document.getElementById('wipeModalError');
+            if (!el) return;
+            el.textContent = message;
+            el.classList.remove('hidden');
+        },
+
+        async submitWipeDataErase() {
+            const confirmInput = document.getElementById('wipePasswordConfirmInput');
+            const confirmPassword = confirmInput ? confirmInput.value : '';
+            const errEl = document.getElementById('wipeModalError');
+            if (errEl) errEl.classList.add('hidden');
+
+            if (confirmPassword !== state._wipePassword) {
+                this.showWipeModalError(t('wipe_password_mismatch'));
                 return;
             }
+
+            const btn = document.getElementById('wipeConfirmEraseBtn');
+            if (btn) btn.disabled = true;
             showNotification(t('wiping'), 'info');
+
             try {
                 const response = await fetch(`${API_BASE_URL}/api/clear_data.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify({ password, confirm: true }),
+                    body: JSON.stringify({ password: confirmPassword, confirm: true }),
                 });
                 const data = await response.json().catch(() => ({}));
                 if (response.status === 401 || data.error === 'Invalid password') {
-                    showNotification(t('wipe_wrong_password'), 'error');
+                    this.showWipeModalError(t('wipe_wrong_password'));
+                    if (btn) btn.disabled = false;
                     return;
                 }
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || `HTTP ${response.status}`);
                 }
+                this.closeWipeDataModal();
                 state.dashboard = null;
                 state.patients = null;
                 state.appointments = null;
@@ -644,7 +768,8 @@
                 await this.loadCurrentTab();
             } catch (err) {
                 console.error(err);
-                showNotification(err.message || t('server_error'), 'error');
+                this.showWipeModalError(err.message || t('server_error'));
+                if (btn) btn.disabled = false;
             }
         },
         
@@ -2030,6 +2155,7 @@
             </main>
             
             <div id="escalationDetailsModal" class="modal hidden"></div>
+            <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
             <footer class="footer">
                 <p>© 2026 ${cfg.APP_NAME || 'Nyeri Level 4 Hospital'} | HPV Patient Engagement v2.3 | Connected to ${API_BASE_URL}</p>
@@ -2050,7 +2176,11 @@
         window.components.toggleEscalationDetails = (id) => components.toggleEscalationDetails(id);
         window.components.closeEscalationModal = () => components.closeEscalationModal();
         window.components.presentEscalations = () => components.presentEscalations();
-        window.components.wipeAllDatabase = () => components.wipeAllDatabase();
+        window.components.openWipeDataModal = () => components.openWipeDataModal();
+        window.components.closeWipeDataModal = () => components.closeWipeDataModal();
+        window.components.wipeDataStepContinue = () => components.wipeDataStepContinue();
+        window.components.wipeDataGoBack = () => components.wipeDataGoBack();
+        window.components.submitWipeDataErase = () => components.submitWipeDataErase();
         window.components.setHpvResult = (id, r) => components.setHpvResult(id, r);
         window.components.confirmHpvResult = (id) => components.confirmHpvResult(id);
         
