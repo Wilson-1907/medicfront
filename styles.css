@@ -1449,6 +1449,29 @@ body {
 .modal-header h2 { font-size: 1.25rem; font-weight: 800; }
 .close-btn { background: var(--gray-100); border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; }
 .escalation-details { padding: 24px 28px; }
+.escalation-call-reason {
+    background: var(--primary-50, #eff6ff); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
+    border-left: 4px solid var(--primary-500);
+}
+.escalation-call-reason.is-waiting {
+    background: #fffbeb; border-left-color: var(--warning, #f59e0b);
+}
+.escalation-call-reason strong { display: block; font-size: 0.75rem; text-transform: uppercase; color: var(--primary-800); margin-bottom: 6px; }
+.escalation-call-reason p { margin: 0; line-height: 1.5; color: var(--gray-800); }
+.escalation-phone-row { margin-bottom: 12px; font-size: 0.9rem; }
+.escalation-phone-row strong { display: block; font-size: 0.7rem; text-transform: uppercase; color: var(--gray-500); margin-bottom: 4px; }
+.phone-link { color: var(--primary-700); font-weight: 700; text-decoration: none; font-size: 1.05rem; }
+.phone-link:hover { text-decoration: underline; }
+.call-reason-hero {
+    background: linear-gradient(135deg, var(--primary-50, #eff6ff), #fff);
+    border: 1px solid var(--primary-200, #bfdbfe); border-radius: 16px;
+    padding: 20px 22px; margin-bottom: 24px;
+}
+.call-reason-hero.is-waiting { background: linear-gradient(135deg, #fffbeb, #fff); border-color: #fcd34d; }
+.call-reason-hero .label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--primary-800); margin-bottom: 8px; }
+.call-reason-text { font-size: 1.05rem; line-height: 1.55; margin: 0; color: var(--gray-900); font-weight: 500; }
+.escalation-detail-modal { max-width: 560px; }
+.inbound-snippet { background: var(--gray-50); padding: 12px 14px; border-radius: 10px; }
 .detail-section { margin-bottom: 24px; }
 .detail-section h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--primary-700); margin-bottom: 12px; }
 .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }

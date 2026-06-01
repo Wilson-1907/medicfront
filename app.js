@@ -250,6 +250,56 @@
         div.textContent = text;
         return div.innerHTML;
     }
+
+    function isGenericDoctorReason(text) {
+        if (!text) return true;
+        const s = String(text).trim();
+        return /^Patient requested direct provider contact via /i.test(s)
+            || s === '__AWAITING_PATIENT_REASON__'
+            || /^Health specialist requested — waiting/i.test(s);
+    }
+
+    function getPatientCallReason(esc) {
+        if (esc.patient_stated_reason) {
+            return String(esc.patient_stated_reason).trim();
+        }
+        const dcr = String(esc.doctor_call_reason || '').trim();
+        const main = String(esc.reason || '').trim();
+        const fromDcr = dcr.replace(/^Patient wants to speak with a health specialist:\s*/i, '').trim();
+        if (fromDcr && !isGenericDoctorReason(fromDcr)) return fromDcr;
+        const fromMain = main.replace(/^Patient wants to speak with a health specialist:\s*/i, '').trim();
+        if (fromMain && !isGenericDoctorReason(fromMain)) return fromMain;
+        const inbound = String(esc.last_inbound_body || '').trim();
+        if (inbound && !/^(DOCTOR|DAKTARI|5)$/i.test(inbound)) return inbound;
+        return null;
+    }
+
+    function getCallReasonDisplay(esc) {
+        if (esc.awaiting_doctor_reason) {
+            return {
+                text: 'We asked the patient by SMS to reply with why they want to speak with a health specialist. Waiting for their message.',
+                waiting: true
+            };
+        }
+        const reason = getPatientCallReason(esc);
+        if (reason) {
+            return { text: reason, waiting: false };
+        }
+        if (esc.doctor_call_requested_at || /health specialist/i.test(esc.reason || '')) {
+            return {
+                text: 'Patient asked to speak with a health specialist. They were sent a message asking why — no detailed reply yet.',
+                waiting: true
+            };
+        }
+        return { text: esc.reason || 'Not specified', waiting: false };
+    }
+
+    function formatPhoneLink(phone) {
+        if (!phone) return '<span class="muted">No phone on file</span>';
+        const safe = escapeHtml(phone);
+        const tel = String(phone).replace(/[^\d+]/g, '');
+        return `<a href="tel:${tel}" class="phone-link">${safe}</a>`;
+    }
     
     function normalizeKenyaPhone(local) {
         let d = String(local || '').replace(/\D/g, '');
@@ -414,7 +464,15 @@
         },
 
         getOpenEscalations() {
-            return state.messages?.escalations || [];
+            const list = state.messages?.escalations || [];
+            return list.filter(e => e.status === 'open' || e.status === 'triaged');
+        },
+
+        findEscalationById(escId) {
+            const id = Number(escId);
+            const fromMessages = (state.messages?.escalations || []).find(e => Number(e.id) === id);
+            if (fromMessages) return fromMessages;
+            return (state._escalationCache || []).find(e => Number(e.id) === id) || null;
         },
 
         bindEscalationCards(root) {
@@ -478,7 +536,10 @@
 
         closeEscalationModal() {
             const modal = document.getElementById('escalationDetailsModal');
-            if (modal) modal.classList.add('hidden');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.setAttribute('aria-hidden', 'true');
+            }
         },
         
         renderLoading() {
@@ -1012,7 +1073,12 @@
                         <div style="padding:16px;">
                             <p><strong>Status:</strong> ${(dcr.status || 'pending').toUpperCase()}</p>
                             <p><strong>Requested:</strong> ${formatDate(dcr.requested_at, 'full')} ${formatTime(dcr.requested_at)}</p>
-                            <p>${escapeHtml(dcr.reason || '')}</p>
+                            <p><strong>Why they want to talk:</strong></p>
+                            <p class="call-reason-text">${escapeHtml(
+                                (dcr.reason && !isGenericDoctorReason(dcr.reason))
+                                    ? dcr.reason.replace(/^Patient wants to speak with a health specialist:\s*/i, '')
+                                    : 'Waiting for patient to reply by SMS with their reason.'
+                            )}</p>
                         </div>
                     </div>` : ''}
 
@@ -1703,10 +1769,18 @@
                         </div>
                         
                         <div class="escalation-body">
-                            <div class="escalation-reason">
-                                <strong>Reason</strong>
-                                <p>${escapeHtml(esc.reason || 'General escalation')}</p>
+                            ${(() => {
+                                const call = getCallReasonDisplay(esc);
+                                return `
+                            <div class="escalation-call-reason ${call.waiting ? 'is-waiting' : ''}">
+                                <strong><i class="fas fa-comment-medical"></i> Why they want to talk</strong>
+                                <p>${escapeHtml(call.text)}</p>
                             </div>
+                            <div class="escalation-phone-row">
+                                <strong><i class="fas fa-phone"></i> Phone</strong>
+                                ${formatPhoneLink(esc.phone)}
+                            </div>`;
+                            })()}
                             ${esc.doctor_call_requested_at ? `
                             <div class="escalation-doctor-call">
                                 <span class="badge badge-warning"><i class="fas fa-user-md"></i> Health specialist requested</span>
@@ -1752,83 +1826,77 @@
         },
 
         renderEscalationDetailsModal(escalation) {
+            const call = getCallReasonDisplay(escalation);
+            const lastInbound = escalation.last_inbound_body
+                && !/^(DOCTOR|DAKTARI|5)$/i.test(String(escalation.last_inbound_body).trim());
             return `
-                <div class="modal-content">
+                <div class="modal-content escalation-detail-modal">
                     <div class="modal-header">
-                        <h2>Escalation Details</h2>
-                        <button class="close-btn" onclick="window.components.closeEscalationModal()">
+                        <h2><i class="fas fa-user-md"></i> ${escapeHtml(escalation.full_name || 'Patient request')}</h2>
+                        <button type="button" class="close-btn" onclick="window.components.closeEscalationModal()" aria-label="Close">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
                     <div class="escalation-details">
+                        <div class="call-reason-hero ${call.waiting ? 'is-waiting' : ''}">
+                            <span class="label">Why they want to speak with a health specialist</span>
+                            <p class="call-reason-text">${escapeHtml(call.text)}</p>
+                            ${call.waiting ? '<p class="muted" style="margin:8px 0 0">Tip: the patient should receive an SMS asking them to reply with their reason in their own words.</p>' : ''}
+                        </div>
+
                         <div class="detail-section">
-                            <h3>Patient Information</h3>
+                            <h3>Contact</h3>
                             <div class="detail-grid">
                                 <div class="detail-item">
-                                    <span class="label">Full Name</span>
-                                    <span class="value">${escapeHtml(escalation.full_name || 'N/A')}</span>
+                                    <span class="label">Phone (tap to call)</span>
+                                    <span class="value phone-value">${formatPhoneLink(escalation.phone)}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Channel</span>
+                                    <span class="value">${escalation.channel ? escalation.channel.toUpperCase() : 'SMS'}</span>
                                 </div>
                                 <div class="detail-item">
                                     <span class="label">Patient ID</span>
-                                    <span class="value">${escalation.patient_id || 'N/A'}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Phone</span>
-                                    <span class="value">${escalation.phone || 'N/A'}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Contact Channel</span>
-                                    <span class="value">${escalation.channel ? escalation.channel.toUpperCase() : 'N/A'}</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="detail-section">
-                            <h3>Escalation Details</h3>
-                            <div class="detail-grid">
-                                <div class="detail-item full-width">
-                                    <span class="label">Reason for Escalation</span>
-                                    <p class="value full-text">${escapeHtml(escalation.reason || 'Not specified')}</p>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Urgency Level</span>
-                                    <span class="value urgency-${escalation.urgency}">${escalation.urgency ? escalation.urgency.toUpperCase() : 'MEDIUM'}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Current Status</span>
-                                    <span class="value status-${escalation.status}">${escalation.status ? escalation.status.toUpperCase() : 'OPEN'}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Created At</span>
-                                    <span class="value">${formatDate(escalation.created_at, 'full')} ${formatTime(escalation.created_at)}</span>
+                                    <span class="value">#${escalation.patient_id || 'N/A'}</span>
                                 </div>
                             </div>
                         </div>
 
-                        ${escalation.doctor_call_requested_at ? `
+                        ${lastInbound ? `
                         <div class="detail-section">
-                            <h3><i class="fas fa-user-md"></i> Health Specialist Request</h3>
-                            <div class="detail-grid">
-                                <div class="detail-item full-width">
-                                    <span class="label">Patient asked to speak with a health specialist</span>
-                                    <p class="value full-text">${escapeHtml(escalation.doctor_call_reason || escalation.reason || 'Direct doctor contact requested')}</p>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Request Status</span>
-                                    <span class="value status-${escalation.doctor_call_status || 'pending'}">${(escalation.doctor_call_status || 'pending').toUpperCase()}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">Requested At</span>
-                                    <span class="value">${formatDate(escalation.doctor_call_requested_at, 'full')} ${formatTime(escalation.doctor_call_requested_at)}</span>
-                                </div>
-                            </div>
+                            <h3>Latest message from patient</h3>
+                            <p class="value full-text inbound-snippet">${escapeHtml(escalation.last_inbound_body)}</p>
+                            ${escalation.last_inbound_at ? `<p class="muted">${formatDate(escalation.last_inbound_at, 'full')} ${formatTime(escalation.last_inbound_at)}</p>` : ''}
                         </div>` : ''}
+
+                        <div class="detail-section">
+                            <h3>Escalation</h3>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="label">Urgency</span>
+                                    <span class="value urgency-${escalation.urgency}">${escalation.urgency ? escalation.urgency.toUpperCase() : 'SAME_DAY'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Status</span>
+                                    <span class="value status-${escalation.status}">${escalation.status ? escalation.status.toUpperCase() : 'OPEN'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Opened</span>
+                                    <span class="value">${formatDate(escalation.created_at, 'full')} ${formatTime(escalation.created_at)}</span>
+                                </div>
+                                ${escalation.doctor_call_requested_at ? `
+                                <div class="detail-item">
+                                    <span class="label">Call request</span>
+                                    <span class="value">${formatDate(escalation.doctor_call_requested_at, 'full')} ${formatTime(escalation.doctor_call_requested_at)}</span>
+                                </div>` : ''}
+                            </div>
+                        </div>
                         
                         <div class="detail-actions">
-                            <button class="btn-primary" onclick="window.components.viewPatient(${escalation.patient_id || 0})">
+                            <button type="button" class="btn-primary" onclick="window.components.viewPatient(${escalation.patient_id || 0}); window.components.closeEscalationModal();">
                                 <i class="fas fa-user"></i> View Patient Record
                             </button>
-                            <button class="btn-secondary" onclick="window.components.closeEscalationModal()">
+                            <button type="button" class="btn-secondary" onclick="window.components.closeEscalationModal()">
                                 <i class="fas fa-times"></i> Close
                             </button>
                         </div>
@@ -2078,17 +2146,38 @@
             tryScroll(15);
         },
 
-        toggleEscalationDetails(escId) {
+        async toggleEscalationDetails(escId) {
             const modal = document.getElementById('escalationDetailsModal');
-            const escalations = state.messages?.escalations || [];
-            const escalation = escalations.find(e => Number(e.id) === Number(escId));
-            if (!modal) return;
+            if (!modal) {
+                showNotification('Could not open details', 'error');
+                return;
+            }
+
+            let escalation = this.findEscalationById(escId);
+            if (!escalation) {
+                try {
+                    const res = await api.get(`/api/escalation.php?id=${encodeURIComponent(escId)}`);
+                    escalation = res.escalation;
+                    if (escalation) {
+                        state._escalationCache = state._escalationCache || [];
+                        const idx = state._escalationCache.findIndex(e => Number(e.id) === Number(escId));
+                        if (idx >= 0) state._escalationCache[idx] = escalation;
+                        else state._escalationCache.push(escalation);
+                    }
+                } catch (err) {
+                    showNotification(err.message || 'Could not load escalation', 'error');
+                    return;
+                }
+            }
+
             if (!escalation) {
                 showNotification('Escalation not found — try refreshing', 'error');
                 return;
             }
+
             modal.innerHTML = this.renderEscalationDetailsModal(escalation);
             modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
             modal.onclick = (e) => {
                 if (e.target === modal) this.closeEscalationModal();
             };
@@ -2153,7 +2242,7 @@
                 <div id="app"></div>
             </main>
             
-            <div id="escalationDetailsModal" class="modal hidden"></div>
+            <div id="escalationDetailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="escalationModalTitle"></div>
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
             <footer class="footer">
