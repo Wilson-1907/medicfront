@@ -1027,8 +1027,8 @@
             else badges.push('<span class="reminder-chip pending" title="7-day reminder pending"><i class="far fa-bell"></i> 7d</span>');
             if (apt.reminder_3d_sent_at) badges.push('<span class="reminder-chip sent" title="3-day reminder sent"><i class="fas fa-bell"></i> 3d</span>');
             else badges.push('<span class="reminder-chip pending" title="3-day reminder pending"><i class="far fa-bell"></i> 3d</span>');
-            if (apt.reminder_night_sent_at) badges.push('<span class="reminder-chip sent" title="Night-before reminder sent"><i class="fas fa-moon"></i> Eve</span>');
-            else badges.push('<span class="reminder-chip pending" title="Night-before reminder pending"><i class="far fa-moon"></i> Eve</span>');
+            if (apt.reminder_night_sent_at) badges.push('<span class="reminder-chip sent" title="1-day / night-before reminder sent"><i class="fas fa-moon"></i> 1d</span>');
+            else badges.push('<span class="reminder-chip pending" title="1-day / night-before reminder pending"><i class="far fa-moon"></i> 1d</span>');
             return `<div class="reminder-chips">${badges.join('')}</div>`;
         },
 
