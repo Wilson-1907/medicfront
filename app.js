@@ -1053,16 +1053,14 @@
         },
 
         renderHpvResultCard(p) {
+            const workflowOff = p.hpv_workflow_enabled === false
+                || (p.hpv_workflow_enabled === undefined && p.hpv_screening_result == null && !p.hpv_result_recorded_at);
+            if (workflowOff) {
+                return '';
+            }
             const status = (p.hpv_screening_result || 'pending').toUpperCase();
             const recorded = p.hpv_result_recorded_at;
             const confirmed = p.hpv_result_confirmed_at;
-            const workflow = p.hpv_screening_result !== undefined && p.hpv_screening_result !== null;
-            if (!workflow) {
-                return `
-                    <div class="card hpv-result-card" style="margin-top:1rem;">
-                        <p class="muted">HPV result workflow: run database migration <code>sql/2026_05_31_hpv_result_workflow.sql</code> on the server.</p>
-                    </div>`;
-            }
             let statusLine = `<span class="badge badge-warning">${status}</span>`;
             if (confirmed) {
                 statusLine += ` <span class="badge badge-success">${t('hpv_confirmed')}</span> <span class="muted">${formatDate(confirmed, 'full')}</span>`;
