@@ -1483,6 +1483,54 @@ body {
 .detail-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 .muted { color: var(--gray-500); font-size: 0.85rem; }
 
+/* HPV result card on patient record */
+.hpv-result-card {
+    border-left: 4px solid var(--primary-500);
+    overflow: hidden;
+}
+.hpv-result-card.hpv-card-positive { border-left-color: #d97706; }
+.hpv-result-card.hpv-card-negative { border-left-color: #059669; }
+.hpv-result-card.hpv-card-pending { border-left-color: var(--primary-500); }
+.hpv-result-body { padding: 16px 20px 20px; }
+.hpv-result-intro { margin: 0 0 16px; }
+.hpv-step-block {
+    padding: 14px 16px; margin-bottom: 14px;
+    background: var(--gray-50); border-radius: 12px;
+    border: 1px solid var(--gray-200);
+}
+.hpv-step-block.hpv-step-active {
+    background: #ecfdf5; border-color: #6ee7b7;
+}
+.hpv-step-title {
+    margin: 0 0 10px; font-size: 0.8rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-700);
+}
+.hpv-record-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hpv-record-actions .hpv-selected {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
+}
+.hpv-recorded-note { margin: 0 0 12px; font-size: 0.9rem; color: var(--gray-700); }
+.hpv-confirm-btn {
+    margin-top: 12px; background: #198754 !important; border-color: #198754 !important;
+    color: #fff !important; font-weight: 700; padding: 12px 20px;
+}
+.hpv-confirm-disabled { margin: 12px 0 0; font-size: 0.85rem; }
+.hpv-confirmed-banner {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 18px; border-radius: 12px;
+    background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+    border: 1px solid #86efac; margin-bottom: 14px;
+}
+.hpv-card-positive .hpv-confirmed-banner {
+    background: linear-gradient(135deg, #fffbeb, #fff7ed);
+    border-color: #fcd34d;
+}
+.hpv-confirmed-banner i { color: #059669; font-size: 1.5rem; margin-top: 2px; }
+.hpv-card-positive .hpv-confirmed-banner i { color: #d97706; }
+.hpv-confirmed-banner p { margin: 0; line-height: 1.55; font-weight: 500; color: var(--gray-800); }
+.hpv-result-badge-line { margin: 0; }
+.hpv-result-badge-lg { font-size: 0.85rem; padding: 8px 14px; }
+
 /* Appointments page — timeline & booked cards */
 .appointments-booked-card { overflow: hidden; }
 .appointments-booked-header { flex-wrap: wrap; gap: 16px; }
