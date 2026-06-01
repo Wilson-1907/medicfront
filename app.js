@@ -686,7 +686,8 @@
                         <p id="wipeModalError" class="wipe-modal-error hidden"></p>
                     </div>
                     <div class="wipe-modal-actions">
-                        <button type="button" class="btn-secondary" onclick="window.components.wipeDataGoBack()">${t('cancel')}</button>
+                        <button type="button" class="btn-secondary" onclick="window.components.wipeDataGoBack()">${t('wipe_back')}</button>
+                        <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()">${t('cancel')}</button>
                         <button type="button" class="btn-danger" id="wipeConfirmEraseBtn" onclick="window.components.submitWipeDataErase()">
                             <i class="fas fa-trash-alt"></i> ${t('wipe_confirm_btn')}
                         </button>
@@ -1116,7 +1117,7 @@
                 });
                 showNotification(
                     data.counseling_started
-                        ? 'Result sent and guidance started.'
+                        ? 'Result sent. Follow-up messages will go out gently over the next hours and days (not all at once).'
                         : 'Result sent to patient.',
                     'ok'
                 );
