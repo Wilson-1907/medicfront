@@ -52,6 +52,7 @@
             search_placeholder: "Search by name, MRN, or ID...",
             patient_name: "Patient Name",
             phone_number: "Phone Number",
+            phone_local_hint: "Enter 9 digits (e.g. 712345678)",
             select_language: "Preferred Language",
             select_channel: "Contact Channel",
             registering: "Processing registration...",
@@ -103,6 +104,7 @@
             search_placeholder: "Tafuta kwa jina, MRN, au ID...",
             patient_name: "Jina la Mgonjwa",
             phone_number: "Nambari ya Simu",
+            phone_local_hint: "Weka tarakimu 9 (mf. 712345678)",
             select_language: "Lugha Unayopendelea",
             select_channel: "Njia ya Mawasiliano",
             registering: "Inaprosesa usajili...",
@@ -215,6 +217,36 @@
         return div.innerHTML;
     }
     
+    function normalizeKenyaPhone(local) {
+        let d = String(local || '').replace(/\D/g, '');
+        if (d.startsWith('254')) {
+            d = d.slice(3);
+        }
+        if (d.startsWith('0')) {
+            d = d.slice(1);
+        }
+        if (d.length !== 9) {
+            return '';
+        }
+        return '+254' + d;
+    }
+
+    function setupPhoneLocalInput(input) {
+        if (!input) {
+            return;
+        }
+        input.addEventListener('input', () => {
+            let d = input.value.replace(/\D/g, '');
+            if (d.startsWith('254')) {
+                d = d.slice(3);
+            }
+            if (d.startsWith('0')) {
+                d = d.slice(1);
+            }
+            input.value = d.slice(0, 9);
+        });
+    }
+
     function showNotification(message, type = 'info') {
         const statusMessage = document.querySelector('.status-message');
         if (statusMessage) {
@@ -923,7 +955,13 @@
                             
                             <div class="form-group">
                                 <label class="form-label">${t('phone_number')} *</label>
-                                <input type="tel" name="phone" class="form-input" required placeholder="+254...">
+                                <div class="phone-input-group">
+                                    <span class="phone-prefix" aria-hidden="true">+254</span>
+                                    <input type="tel" name="phone_local" id="phoneLocal" class="form-input phone-local-input"
+                                           required maxlength="9" inputmode="numeric" pattern="[0-9]{9}"
+                                           placeholder="712345678" autocomplete="tel-national">
+                                </div>
+                                <small class="form-hint-muted">${t('phone_local_hint')}</small>
                             </div>
                             
                             <div class="form-group">
@@ -1621,6 +1659,7 @@
                     app.innerHTML = this.renderRegister();
                     const form = document.getElementById('registerForm');
                     if (form) {
+                        setupPhoneLocalInput(document.getElementById('phoneLocal'));
                         form.onsubmit = async (e) => {
                             e.preventDefault();
                             state.isRegistering = true;
@@ -1634,6 +1673,14 @@
                                 const formData = new FormData(form);
                                 const body = Object.fromEntries(formData.entries());
                                 body.opt_in = formData.get('opt_in') ? 1 : 0;
+                                const phone = normalizeKenyaPhone(body.phone_local);
+                                if (!phone) {
+                                    throw new Error(currentLanguage === 'sw'
+                                        ? 'Weka tarakimu 9 baada ya +254 (mf. 712345678)'
+                                        : 'Enter 9 digits after +254 (e.g. 712345678)');
+                                }
+                                body.phone = phone;
+                                delete body.phone_local;
                                 
                                 await new Promise(resolve => setTimeout(resolve, 1500));
                                 
