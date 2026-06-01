@@ -103,7 +103,10 @@
             patient_called_success: "Marked as called. Open escalation cleared.",
             status_called: "Called",
             specialist_called_on: "Hospital confirmed they called this patient on {date}.",
-            specialist_request_open: "Patient requested a call from a health specialist."
+            specialist_request_open: "Patient requested a call from a health specialist.",
+            call_patient_btn: "Call patient",
+            call_patient_sub: "Opens your phone dialler with their number and marks this request complete.",
+            use_call_button_above: "Use the Call patient button in the Contact section above."
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -191,9 +194,18 @@
             patient_called_success: "Imewekwa alipigiwa simu. Escalation imefungwa.",
             status_called: "Amepigiwa simu",
             specialist_called_on: "Hospitali imethibitisha kumpigia mgonjwa simu {date}.",
-            specialist_request_open: "Mgonjwa ameomba kuzungumza na mhudumu wa afya."
+            specialist_request_open: "Mgonjwa ameomba kuzungumza na mhudumu wa afya.",
+            call_patient_btn: "Mpigie mgonjwa",
+            call_patient_sub: "Hufungua simu yako na nambari yake na kuweka ombi kama limekamilika.",
+            use_call_button_above: "Tumia kitufe cha Mpigie mgonjwa kwenye sehemu ya Mawasiliano hapo juu."
         }
     };
+
+    function getPatientPrimaryPhone(p) {
+        const contacts = p?.contacts || [];
+        const primary = contacts.find((c) => c.is_primary) || contacts[0];
+        return primary?.address ? String(primary.address).trim() : '';
+    }
 
     function isOpenEscalationStatus(status) {
         const s = (status || '').toLowerCase();
@@ -483,7 +495,7 @@
             }
         },
         
-        async post(url, body, retry = true) {
+        async post(url, body, retry = false) {
             try {
                 const data = await this.request(url, {
                     method: 'POST',
@@ -508,6 +520,52 @@
     // UI COMPONENTS
     // ============================================
     const components = {
+        setupActionDelegation() {
+            if (components._delegationBound) {
+                return;
+            }
+            components._delegationBound = true;
+            document.addEventListener('click', (e) => {
+                const el = e.target.closest('[data-action]');
+                if (!el || el.disabled) {
+                    return;
+                }
+                const action = el.getAttribute('data-action');
+                const patientId = Number(el.getAttribute('data-patient-id') || 0);
+                const escalationId = Number(el.getAttribute('data-escalation-id') || 0);
+                const result = el.getAttribute('data-result') || '';
+                const phone = el.getAttribute('data-phone') || '';
+
+                if (action === 'hpv-record-positive' && patientId) {
+                    e.preventDefault();
+                    components.setHpvResult(patientId, 'positive');
+                } else if (action === 'hpv-record-negative' && patientId) {
+                    e.preventDefault();
+                    components.setHpvResult(patientId, 'negative');
+                } else if (action === 'hpv-confirm' && patientId) {
+                    e.preventDefault();
+                    components.confirmHpvResult(patientId, result);
+                } else if (action === 'call-patient' && patientId) {
+                    e.preventDefault();
+                    components.callPatientAndMarkDone(patientId, escalationId, phone);
+                }
+            });
+        },
+
+        async reloadPatientDetail(patientId) {
+            const id = Number(patientId || state.selectedPatientId || 0);
+            if (id < 1) {
+                return;
+            }
+            const response = await api.get(`/api/patients.php?id=${id}`);
+            state.patientDetail = response.patient;
+            state.selectedPatientId = id;
+            const app = document.getElementById('app');
+            if (app && state.currentTab === 'patient') {
+                app.innerHTML = this.renderPatientDetail();
+            }
+        },
+
         renderNav() {
             const nav = document.querySelector('.nav-menu');
             if (!nav) return;
@@ -1125,8 +1183,13 @@
 
             const contacts = p.contacts || [];
             const appointments = p.appointments || [];
-            const escalations = p.escalations || [];
             const dcr = p.doctor_call_request;
+            const phone = getPatientPrimaryPhone(p);
+            const openEscalationId = (p.escalations || []).find((e) => isOpenEscalationStatus(e.status))?.id || 0;
+            const showCallBtn = phone && (
+                isSpecialistCallPending(dcr)
+                || (p.escalations || []).some((e) => isOpenEscalationStatus(e.status))
+            );
 
             return `
                 <div class="fade-in-up">
@@ -1153,7 +1216,7 @@
 
                     ${this.renderHpvResultCard(p)}
 
-                    <div class="card" style="margin-top:1rem;">
+                    <div class="card contact-card" style="margin-top:1rem;">
                         <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
                         <div style="padding:16px;">
                             ${contacts.length === 0 ? '<p class="muted">No contact on file.</p>' : contacts.map(c => `
@@ -1163,10 +1226,20 @@
                                     ${c.opted_in ? '<span class="badge badge-success">Opted in</span>' : '<span class="badge badge-danger">Opted out</span>'}
                                 </div>
                             `).join('')}
+                            ${phone ? `
+                            <a href="tel:${String(phone).replace(/[^\d+]/g, '')}" class="btn-call-patient"
+                               data-action="call-patient"
+                               data-patient-id="${p.id}"
+                               data-escalation-id="${openEscalationId}"
+                               data-phone="${String(phone).replace(/[^\d+]/g, '')}">
+                                <i class="fas fa-phone-alt"></i> ${t('call_patient_btn')} — ${escapeHtml(phone)}
+                            </a>
+                            ${showCallBtn ? `<p class="muted call-patient-hint">${t('call_patient_sub')}</p>` : ''}
+                            ` : ''}
                         </div>
                     </div>
 
-                    ${this.renderHealthSpecialistCard(p, dcr)}
+                    ${this.renderHealthSpecialistCard(p, dcr, showCallBtn)}
 
                     <div class="card" style="margin-top:1rem;">
                         <div class="card-header">
@@ -1187,32 +1260,11 @@
                         </div>
                     </div>
 
-                    ${(() => {
-                        const openEsc = escalations.filter(e => isOpenEscalationStatus(e.status));
-                        if (openEsc.length === 0) return '';
-                        return `
-                    <div class="card" style="margin-top:1rem;">
-                        <div class="card-header"><div class="card-title"><i class="fas fa-exclamation-triangle"></i> Open escalations</div></div>
-                        <div style="padding:16px;">
-                            ${openEsc.map(e => `
-                                <div style="margin-bottom:12px;padding:12px;background:var(--gray-50);border-radius:8px;">
-                                    <strong>${(e.urgency || 'routine').toUpperCase()}</strong>
-                                    <div>${escapeHtml(e.reason || '')}</div>
-                                    <div class="muted">${formatDate(e.created_at, 'full')}</div>
-                                    <button type="button" class="btn-primary btn-sm" style="margin-top:10px"
-                                        onclick="window.components.markSpecialistCalled(${p.id}, ${e.id})">
-                                        <i class="fas fa-phone"></i> ${t('mark_patient_called')}
-                                    </button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>`;
-                    })()}
                 </div>
             `;
         },
 
-        renderHealthSpecialistCard(p, dcr) {
+        renderHealthSpecialistCard(p, dcr, showCallBtn) {
             if (!dcr && !(p.escalations || []).some(e => isOpenEscalationStatus(e.status))) {
                 return '';
             }
@@ -1222,10 +1274,7 @@
                     <div class="card-header"><div class="card-title"><i class="fas fa-user-md"></i> Health Specialist Request</div></div>
                     <div style="padding:16px;">
                         <p>${t('specialist_request_open')}</p>
-                        <button type="button" class="btn-primary" style="margin-top:12px"
-                            onclick="window.components.markSpecialistCalled(${p.id}, 0)">
-                            <i class="fas fa-phone"></i> ${t('mark_patient_called')}
-                        </button>
+                        <p class="muted">${t('use_call_button_above')}</p>
                     </div>
                 </div>`;
             }
@@ -1263,10 +1312,7 @@
                         <p class="call-reason-text">${escapeHtml(
                             reason || 'Waiting for patient to reply by SMS with their reason.'
                         )}</p>
-                        <button type="button" class="btn-primary hpv-confirm-btn" style="margin-top:14px"
-                            onclick="window.components.markSpecialistCalled(${p.id}, 0)">
-                            <i class="fas fa-phone"></i> ${t('mark_patient_called')}
-                        </button>
+                        ${showCallBtn ? `<p class="muted" style="margin-top:12px">${t('use_call_button_above')}</p>` : ''}
                     </div>
                 </div>`;
         },
@@ -1338,11 +1384,11 @@
                             ${recordedLine ? `<p class="hpv-recorded-note">${escapeHtml(recordedLine)}</p>` : ''}
                             <div class="hpv-record-actions">
                                 <button type="button" class="btn-primary ${result === 'positive' ? 'hpv-selected' : ''}"
-                                    onclick="window.components.setHpvResult(${p.id}, 'positive')">
+                                    data-action="hpv-record-positive" data-patient-id="${p.id}">
                                     <i class="fas fa-plus-circle"></i> ${t('hpv_record_positive')}
                                 </button>
                                 <button type="button" class="btn-secondary ${result === 'negative' ? 'hpv-selected' : ''}"
-                                    onclick="window.components.setHpvResult(${p.id}, 'negative')">
+                                    data-action="hpv-record-negative" data-patient-id="${p.id}">
                                     <i class="fas fa-minus-circle"></i> ${t('hpv_record_negative')}
                                 </button>
                             </div>
@@ -1353,7 +1399,7 @@
                             <p class="muted">${t('hpv_confirm_hint')}</p>
                             ${canConfirm ? `
                             <button type="button" class="btn-danger hpv-confirm-btn"
-                                onclick="window.components.confirmHpvResult(${p.id}, '${result}')">
+                                data-action="hpv-confirm" data-patient-id="${p.id}" data-result="${result}">
                                 <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
                             </button>` : `
                             <p class="hpv-confirm-disabled muted"><i class="fas fa-info-circle"></i> ${t('hpv_confirm_need_result')}</p>`}
@@ -1363,9 +1409,7 @@
         },
 
         async setHpvResult(patientId, result) {
-            const card = document.querySelector('.hpv-result-card');
-            const buttons = card ? card.querySelectorAll('button') : [];
-            buttons.forEach((b) => { b.disabled = true; });
+            const id = Number(patientId);
             showNotification(
                 result === 'positive' ? 'Recording HPV positive…' : 'Recording HPV negative…',
                 'info'
@@ -1373,42 +1417,48 @@
             try {
                 const data = await api.post('/api/hpv_result.php', {
                     action: 'set_result',
-                    patient_id: Number(patientId),
+                    patient_id: id,
                     result: String(result),
-                });
+                }, false);
                 showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
-                state.patientDetail = null;
-                await this.viewPatient(Number(patientId));
+                await this.reloadPatientDetail(id);
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
-                buttons.forEach((b) => { b.disabled = false; });
             }
         },
 
-        async markSpecialistCalled(patientId, escalationId) {
-            if (!window.confirm(t('mark_patient_called_confirm'))) {
-                return;
+        async callPatientAndMarkDone(patientId, escalationId, phone) {
+            const id = Number(patientId);
+            const tel = String(phone || getPatientPrimaryPhone(state.patientDetail) || '').replace(/[^\d+]/g, '');
+            if (tel) {
+                window.location.href = `tel:${tel}`;
             }
+            showNotification('Marking as called…', 'info');
             try {
                 const data = await api.post('/api/escalation.php', {
                     action: 'mark_called',
-                    patient_id: patientId || 0,
-                    escalation_id: escalationId || 0,
-                });
+                    patient_id: id,
+                    escalation_id: Number(escalationId) || 0,
+                }, false);
                 showNotification(data.message || t('patient_called_success'), 'ok');
                 this.closeEscalationModal();
                 state.messages = null;
                 state.dashboard = null;
-                if (state.currentTab === 'messages') {
+                if (state.currentTab === 'patient') {
+                    await this.reloadPatientDetail(id);
+                } else if (state.currentTab === 'messages') {
                     await this.loadCurrentTab();
-                } else if (state.currentTab === 'patient' && state.selectedPatientId) {
-                    await this.viewPatient(state.selectedPatientId);
                 } else {
                     await this.loadCurrentTab();
                 }
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
+        },
+
+        async markSpecialistCalled(patientId, escalationId) {
+            const phone = getPatientPrimaryPhone(state.patientDetail);
+            await this.callPatientAndMarkDone(patientId, escalationId, phone);
         },
 
         async confirmHpvResult(patientId, resultHint) {
@@ -1421,14 +1471,14 @@
                 const data = await api.post('/api/hpv_result.php', {
                     action: 'confirm_result',
                     patient_id: Number(patientId),
-                });
+                }, false);
                 showNotification(
                     data.counseling_started
                         ? 'Result sent. Follow-up messages will go out gently over the next hours and days (not all at once).'
                         : 'Result sent to patient.',
                     'ok'
                 );
-                await this.viewPatient(patientId);
+                await this.reloadPatientDetail(patientId);
             } catch (err) {
                 showNotification(err.message, 'error');
             }
@@ -2059,10 +2109,16 @@
                             <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${esc.patient_id || 0})">
                                 <i class="fas fa-user"></i> Patient
                             </button>
-                            ${isOpenEscalationStatus(esc.status) ? `
-                            <button class="btn-primary btn-sm" onclick="event.stopPropagation(); window.components.markSpecialistCalled(${esc.patient_id || 0}, ${esc.id})">
-                                <i class="fas fa-phone"></i> ${t('mark_patient_called')}
-                            </button>` : ''}
+                            ${isOpenEscalationStatus(esc.status) && esc.phone ? `
+                            <a class="btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none"
+                               href="tel:${String(esc.phone).replace(/[^\d+]/g, '')}"
+                               data-action="call-patient"
+                               data-patient-id="${esc.patient_id || 0}"
+                               data-escalation-id="${esc.id}"
+                               data-phone="${escapeHtml(esc.phone)}"
+                               onclick="event.stopPropagation()">
+                                <i class="fas fa-phone"></i> ${t('call_patient_btn')}
+                            </a>` : ''}
                             <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.toggleEscalationDetails(${esc.id})">
                                 <i class="fas fa-eye"></i> View Details
                             </button>
@@ -2140,10 +2196,15 @@
                         </div>
                         
                         <div class="detail-actions">
-                            ${isOpenEscalationStatus(escalation.status) ? `
-                            <button type="button" class="btn-primary" onclick="window.components.markSpecialistCalled(${escalation.patient_id || 0}, ${escalation.id})">
-                                <i class="fas fa-phone"></i> ${t('mark_patient_called')}
-                            </button>` : `
+                            ${isOpenEscalationStatus(escalation.status) && escalation.phone ? `
+                            <a class="btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px"
+                               href="tel:${String(escalation.phone).replace(/[^\d+]/g, '')}"
+                               data-action="call-patient"
+                               data-patient-id="${escalation.patient_id || 0}"
+                               data-escalation-id="${escalation.id}"
+                               data-phone="${escapeHtml(escalation.phone)}">
+                                <i class="fas fa-phone"></i> ${t('call_patient_btn')}
+                            </a>` : `
                             <p class="badge badge-success" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;">
                                 <i class="fas fa-check"></i> ${t('status_called')}
                             </p>`}
@@ -2524,8 +2585,13 @@
         window.components.wipeDataGoBack = () => components.wipeDataGoBack();
         window.components.submitWipeDataErase = () => components.submitWipeDataErase();
         window.components.setHpvResult = (id, r) => components.setHpvResult(id, r);
-        window.components.confirmHpvResult = (id) => components.confirmHpvResult(id);
+        window.components.confirmHpvResult = (id, r) => components.confirmHpvResult(id, r);
         window.components.markSpecialistCalled = (pid, eid) => components.markSpecialistCalled(pid, eid);
+        window.components.callPatientAndMarkDone = (pid, eid, ph) => components.callPatientAndMarkDone(pid, eid, ph);
+        window.components.viewPatient = (id) => components.viewPatient(id);
+        window.components.reloadPatientDetail = (id) => components.reloadPatientDetail(id);
+
+        components.setupActionDelegation();
         
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {

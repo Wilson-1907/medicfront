@@ -1535,6 +1535,22 @@ body {
 .specialist-request-card.called { border-left: 4px solid #059669; }
 .specialist-called-msg { font-weight: 600; color: #065f46; margin: 0 0 10px; line-height: 1.5; }
 
+.btn-call-patient {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; margin-top: 14px; padding: 14px 18px;
+    background: linear-gradient(135deg, #059669, #047857);
+    color: #fff !important; font-weight: 700; font-size: 1rem;
+    border-radius: 12px; text-decoration: none !important;
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+    cursor: pointer; border: none;
+}
+.btn-call-patient:hover { filter: brightness(1.08); color: #fff !important; }
+.call-patient-hint { margin: 10px 0 0; font-size: 0.8rem; }
+.hpv-record-actions button, .hpv-confirm-btn, .btn-call-patient {
+    cursor: pointer;
+    pointer-events: auto;
+}
+
 /* Appointments page — timeline & booked cards */
 .appointments-booked-card { overflow: hidden; }
 .appointments-booked-header { flex-wrap: wrap; gap: 16px; }
