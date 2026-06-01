@@ -75,6 +75,8 @@
             wipe_confirm: "This will permanently delete ALL patients, appointments, messages, and escalations. Continue?",
             wipe_success: "Database cleared successfully.",
             wipe_wrong_password: "Wrong administrator password.",
+        wipe_not_configured: "Server wipe password is not set. Ask your admin to set WIPE_DATA_PASSWORD on Render (default: Adminpass).",
+        wipe_failed: "Erase failed on the server. Try again or check Render logs.",
             wiping: "Erasing all data...",
             hpv_result_title: "HPV screening result",
             hpv_result_hint: "Record the lab result, then confirm to notify the patient and start guidance.",
@@ -144,6 +146,8 @@
             wipe_confirm: "Hii itafuta kabisa wagonjwa, miadi, ujumbe, na escalations zote. Endelea?",
             wipe_success: "Hifadhidata imefutwa kikamilifu.",
             wipe_wrong_password: "Nenosiri la msimamizi si sahihi.",
+            wipe_not_configured: "Nenosiri la kufuta halijawekwa kwenye seva. Weka WIPE_DATA_PASSWORD kwenye Render (chaguo-msingi: Adminpass).",
+            wipe_failed: "Kufuta kumeshindwa kwenye seva. Jaribu tena au angalia logi za Render.",
             wiping: "Inafuta data yote...",
             hpv_result_title: "Matokeo ya uchunguzi wa HPV",
             hpv_result_hint: "Weka matokeo ya maabara, kisha thibitisha kumjulisha mgonjwa na kuanza mwongozo.",
@@ -694,8 +698,13 @@
             state._wipeStep = 1;
             state._wipePassword = '';
             const modal = document.getElementById('wipeDataModal');
-            if (!modal) return;
+            if (!modal) {
+                showNotification('Could not open erase dialog — refresh the page', 'error');
+                return;
+            }
             modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
             modal.innerHTML = this.renderWipeDataModalContent();
             const first = modal.querySelector('#wipePasswordInput');
             if (first) first.focus();
@@ -707,6 +716,8 @@
             const modal = document.getElementById('wipeDataModal');
             if (modal) {
                 modal.classList.add('hidden');
+                modal.style.display = '';
+                modal.setAttribute('aria-hidden', 'true');
                 modal.innerHTML = '';
             }
         },
@@ -758,7 +769,7 @@
 
         wipeDataStepContinue() {
             const input = document.getElementById('wipePasswordInput');
-            const password = input ? input.value : '';
+            const password = input ? input.value.trim() : '';
             if (!password) {
                 showNotification(t('wipe_password_prompt'), 'error');
                 return;
@@ -793,7 +804,7 @@
 
         async submitWipeDataErase() {
             const confirmInput = document.getElementById('wipePasswordConfirmInput');
-            const confirmPassword = confirmInput ? confirmInput.value : '';
+            const confirmPassword = confirmInput ? confirmInput.value.trim() : '';
             const errEl = document.getElementById('wipeModalError');
             if (errEl) errEl.classList.add('hidden');
 
@@ -807,14 +818,24 @@
             showNotification(t('wiping'), 'info');
 
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 180000);
                 const response = await fetch(`${API_BASE_URL}/api/clear_data.php`, {
                     method: 'POST',
+                    signal: controller.signal,
                     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                     body: JSON.stringify({ password: confirmPassword, confirm: true }),
                 });
+                clearTimeout(timeoutId);
                 const data = await response.json().catch(() => ({}));
-                if (response.status === 401 || data.error === 'Invalid password') {
-                    this.showWipeModalError(t('wipe_wrong_password'));
+
+                if (data.code === 'wipe_not_configured' || response.status === 503) {
+                    this.showWipeModalError(data.error || t('wipe_not_configured'));
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+                if (response.status === 401 || data.code === 'invalid_password' || data.error === 'Invalid password') {
+                    this.showWipeModalError(t('wipe_wrong_password') + ' (default is Adminpass unless changed on Render.)');
                     if (btn) btn.disabled = false;
                     return;
                 }
@@ -826,11 +847,15 @@
                 state.patients = null;
                 state.appointments = null;
                 state.messages = null;
+                state.patientDetail = null;
                 showNotification(t('wipe_success') + ` (${data.tables_cleared || 0} tables)`, 'ok');
                 await this.loadCurrentTab();
             } catch (err) {
                 console.error(err);
-                this.showWipeModalError(err.message || t('server_error'));
+                const msg = err.name === 'AbortError'
+                    ? 'Request timed out — the database may still be clearing. Refresh in a minute.'
+                    : (err.message || t('wipe_failed'));
+                this.showWipeModalError(msg);
                 if (btn) btn.disabled = false;
             }
         },
