@@ -165,6 +165,9 @@ body {
 }
 
 .nav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 20px;
     border-radius: 12px;
     font-weight: 600;
@@ -173,6 +176,8 @@ body {
     transition: var(--transition-base);
     background: transparent;
     border: none;
+    text-decoration: none;
+    color: inherit;
     color: var(--gray-600);
     display: flex;
     align-items: center;
@@ -731,6 +736,54 @@ body {
 
 .patient-row:hover {
     background-color: var(--gray-50);
+}
+
+.patient-link {
+    color: var(--primary-600);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+
+.patient-link:hover {
+    border-bottom-color: var(--primary-400);
+    text-decoration: underline;
+}
+
+.patient-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 12px;
+    padding: 6px 12px;
+    text-decoration: none;
+}
+
+.app-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(2px);
+}
+
+#app {
+    position: relative;
+    min-height: 120px;
+}
+
+.patient-card.clickable {
+    cursor: pointer;
+}
+
+.patient-card.clickable:focus {
+    outline: 2px solid var(--primary-400);
+    outline-offset: 2px;
 }
 
 /* Badges */

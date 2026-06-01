@@ -1,7 +1,7 @@
 // ============================================
 // NYERI TOWN HEALTH CENTRE
 // Afya Rafiki - Smart Healthcare System
-// Version: 2.6.0 - Patient detail + button fixes
+// Version: 2.6.2 - Fix patient row clicks (async race) + smoke test
 // ============================================
 
 (function() {
@@ -266,8 +266,81 @@
         patientDetail: null,
         selectedPatientId: null,
         isLoading: false,
-        isRegistering: false
+        isRegistering: false,
+        _loadToken: 0,
+        _suppressHashRoute: false
     };
+
+    function bumpLoadToken() {
+        state._loadToken += 1;
+        return state._loadToken;
+    }
+
+    function isLoadTokenCurrent(token) {
+        return token === state._loadToken;
+    }
+
+    function showAppLoadingOverlay(container) {
+        if (!container) return;
+        removeAppLoadingOverlay();
+        const overlay = document.createElement('div');
+        overlay.id = 'appLoadingOverlay';
+        overlay.className = 'app-loading-overlay';
+        overlay.setAttribute('aria-busy', 'true');
+        overlay.innerHTML = '<div class="loading-spinner"></div><p>Loading…</p>';
+        container.appendChild(overlay);
+    }
+
+    function removeAppLoadingOverlay() {
+        document.getElementById('appLoadingOverlay')?.remove();
+    }
+
+    function navigateToPatient(patientId) {
+        const pid = Number(patientId);
+        if (pid < 1) {
+            showNotification('Invalid patient', 'error');
+            return;
+        }
+        if (typeof window.components?.viewPatient === 'function') {
+            window.components.viewPatient(pid);
+        }
+    }
+
+    function applyRouteFromHash() {
+        const hash = (window.location.hash || '').replace(/^#\/?/, '');
+        if (!hash) return;
+        const parts = hash.split('/').filter(Boolean);
+        if (parts[0] === 'patient' && parts[1]) {
+            const pid = Number(parts[1]);
+            if (pid > 0) {
+                state.currentTab = 'patient';
+                state.selectedPatientId = pid;
+                navigateToPatient(pid);
+                return;
+            }
+        }
+        const tabIds = ['dashboard', 'patients', 'register', 'appointments', 'messages'];
+        if (tabIds.includes(parts[0]) && typeof window.components?.switchTab === 'function') {
+            window.components.switchTab(parts[0]);
+        }
+    }
+
+    function setRouteHash(path) {
+        const next = path ? `#/${path}` : '#/dashboard';
+        if (window.location.hash === next) {
+            return;
+        }
+        state._suppressHashRoute = true;
+        window.location.hash = next;
+        state._suppressHashRoute = false;
+    }
+
+    function onHashRouteChange() {
+        if (state._suppressHashRoute) {
+            return;
+        }
+        applyRouteFromHash();
+    }
     
     // ============================================
     // UTILITY FUNCTIONS
@@ -552,10 +625,10 @@
 
                 if (action === 'view-patient' && patientId) {
                     e.preventDefault();
-                    components.viewPatient(patientId);
+                    navigateToPatient(patientId);
                 } else if (action === 'switch-tab' && tab) {
                     e.preventDefault();
-                    components.switchTab(tab);
+                    window.components.switchTab(tab);
                 } else if (action === 'hpv-record-positive' && patientId) {
                     e.preventDefault();
                     components.setHpvResult(patientId, 'positive');
@@ -587,14 +660,42 @@
             });
         },
 
+        bindPatientTableRows(root) {
+            const scope = root || document;
+            scope.querySelectorAll('#patientsTableBody .patient-row[data-patient-id]').forEach((row) => {
+                const pid = Number(row.getAttribute('data-patient-id') || 0);
+                if (pid < 1) {
+                    return;
+                }
+                row.style.cursor = 'pointer';
+                row.onclick = (e) => {
+                    if (e.target.closest('button, a')) {
+                        return;
+                    }
+                    e.preventDefault();
+                    navigateToPatient(pid);
+                };
+                row.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateToPatient(pid);
+                    }
+                };
+            });
+        },
+
         async reloadPatientDetail(patientId) {
             const id = Number(patientId || state.selectedPatientId || 0);
             if (id < 1) {
                 return;
             }
+            const loadToken = bumpLoadToken();
             const app = document.getElementById('app');
             try {
                 const response = await api.get(`/api/patients.php?id=${id}`);
+                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientId !== id) {
+                    return;
+                }
                 if (!response || !response.patient) {
                     throw new Error('Patient not found');
                 }
@@ -605,6 +706,9 @@
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
                 }
             } catch (err) {
+                if (!isLoadTokenCurrent(loadToken)) {
+                    return;
+                }
                 showNotification(err.message || t('server_error'), 'error');
                 if (app) {
                     app.innerHTML = this.renderConnectionError(err);
@@ -624,22 +728,27 @@
                 { id: 'messages', icon: 'fa-envelope', label: 'nav_messages' }
             ];
             
+            const activeTab = state.currentTab === 'patient' ? 'patients' : state.currentTab;
             nav.innerHTML = tabs.map(tab => `
-                <button class="nav-item ${state.currentTab === tab.id ? 'active' : ''}" data-tab="${tab.id}">
+                <a href="#/${tab.id}" class="nav-item ${activeTab === tab.id ? 'active' : ''}"
+                    data-action="switch-tab" data-tab="${tab.id}" role="tab">
                     <i class="fas ${tab.icon}"></i>
                     <span>${t(tab.label)}</span>
-                </button>
+                </a>
             `).join('');
-            
-            nav.querySelectorAll('.nav-item').forEach(btn => {
-                btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
-            });
         },
         
         switchTab(tabId) {
             state.currentTab = tabId;
+            if (tabId !== 'patient') {
+                state.selectedPatientId = null;
+                state.patientDetail = null;
+            }
             if (tabId === 'messages' && state._pendingEscalationOpen) {
                 state._scrollToEscalations = true;
+            }
+            if (tabId !== 'patient') {
+                setRouteHash(tabId);
             }
             this.renderNav();
             this.loadCurrentTab();
@@ -1123,7 +1232,9 @@
             return `
                 <div class="patients-grid">
                     ${recent.slice(0, 6).map(patient => `
-                        <div class="patient-card clickable" onclick="window.components.viewPatient(${patient.id})">
+                        <div class="patient-card clickable" role="link" tabindex="0"
+                            data-action="view-patient" data-patient-id="${patient.id}"
+                            aria-label="Open ${escapeHtml(patient.full_name)}">
                             <div class="patient-avatar">👤</div>
                             <div class="patient-info">
                                 <div class="patient-name">${escapeHtml(patient.full_name)}</div>
@@ -1215,14 +1326,20 @@
             }
             
             return patients.map(patient => `
-                <tr class="patient-row clickable" data-action="view-patient" data-patient-id="${patient.id}">
+                <tr class="patient-row clickable" data-patient-id="${patient.id}"
+                    aria-label="Open patient ${escapeHtml(patient.full_name)}">
                     <td><strong>#${patient.id}</strong></td>
-                    <td>${escapeHtml(patient.full_name)}</td>
+                    <td>
+                        <a href="#/patient/${patient.id}" class="patient-link"
+                           data-action="view-patient" data-patient-id="${patient.id}">
+                            ${escapeHtml(patient.full_name)}
+                        </a>
+                    </td>
                     <td>${patient.phone || '-'}</td>
                     <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
-                    <td onclick="event.stopPropagation();">
+                    <td class="patient-row-actions">
                         <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
                             data-action="view-patient" data-patient-id="${patient.id}">
                             ${t('view_record')} <i class="fas fa-chevron-right"></i>
@@ -1251,10 +1368,10 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="card-title">
-                                <button type="button" class="btn-secondary" style="margin-right:12px;padding:6px 12px;"
+                                <a href="#/patients" class="btn-secondary patient-back-link"
                                     data-action="switch-tab" data-tab="patients">
                                     <i class="fas fa-arrow-left"></i> Back
-                                </button>
+                                </a>
                                 <i class="fas fa-user"></i>
                                 <span>${escapeHtml(p.full_name)}</span>
                             </div>
@@ -1546,26 +1663,42 @@
                 showNotification('Invalid patient', 'error');
                 return;
             }
+            const loadToken = bumpLoadToken();
             state.selectedPatientId = pid;
             state.currentTab = 'patient';
+            state.patientDetail = null;
+            setRouteHash(`patient/${pid}`);
             this.renderNav();
             const app = document.getElementById('app');
+            const hadContent = Boolean(app && app.innerHTML.trim());
             if (app) {
-                app.innerHTML = this.renderLoading();
+                if (hadContent) {
+                    showAppLoadingOverlay(app);
+                } else {
+                    app.innerHTML = this.renderLoading();
+                }
             }
             try {
                 const response = await api.get(`/api/patients.php?id=${pid}`);
+                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientId !== pid) {
+                    return;
+                }
                 if (!response || !response.patient) {
                     throw new Error('Patient not found');
                 }
                 state.patientDetail = response.patient;
                 if (app) {
+                    removeAppLoadingOverlay();
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
                 }
             } catch (err) {
+                if (!isLoadTokenCurrent(loadToken)) {
+                    return;
+                }
                 console.error('viewPatient failed:', err);
                 showNotification(err.message || t('connection_error'), 'error');
                 if (app) {
+                    removeAppLoadingOverlay();
                     app.innerHTML = this.renderConnectionError(err);
                 }
             }
@@ -2303,32 +2436,51 @@
         async loadCurrentTab() {
             const app = document.getElementById('app');
             if (!app) return;
+
+            const loadToken = bumpLoadToken();
+            const tabAtStart = state.currentTab;
             
             state.isLoading = true;
             app.innerHTML = this.renderLoading();
             
             try {
-                if (state.currentTab === 'dashboard') {
+                if (tabAtStart === 'dashboard') {
                     const response = await api.get('/api/dashboard.php');
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'dashboard') {
+                        return;
+                    }
                     state.dashboard = response;
                     app.innerHTML = this.renderDashboard();
                     showNotification(t('ready'), 'ok');
                 } 
-                else if (state.currentTab === 'patients') {
+                else if (tabAtStart === 'patients') {
                     const response = await api.get('/api/patients.php');
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patients') {
+                        return;
+                    }
                     state.patients = response.items || [];
                     app.innerHTML = this.renderPatients();
+                    this.bindPatientTableRows(app);
                     
                     const searchBtn = document.getElementById('searchBtn');
                     const searchInput = document.getElementById('patientSearch');
                     
                     if (searchBtn && searchInput) {
                         const performSearch = async () => {
+                            if (state.currentTab !== 'patients') {
+                                return;
+                            }
                             const query = searchInput.value.trim();
                             const response = await api.get(`/api/patients.php?q=${encodeURIComponent(query)}`);
+                            if (state.currentTab !== 'patients') {
+                                return;
+                            }
                             state.patients = response.items || [];
                             const tbody = document.getElementById('patientsTableBody');
-                            if (tbody) tbody.innerHTML = this.renderPatientsTable();
+                            if (tbody) {
+                                tbody.innerHTML = this.renderPatientsTable();
+                                this.bindPatientTableRows(tbody);
+                            }
                         };
                         
                         searchBtn.onclick = performSearch;
@@ -2337,7 +2489,10 @@
                         };
                     }
                 } 
-                else if (state.currentTab === 'register') {
+                else if (tabAtStart === 'register') {
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'register') {
+                        return;
+                    }
                     app.innerHTML = this.renderRegister();
                     const form = document.getElementById('registerForm');
                     if (form) {
@@ -2386,18 +2541,24 @@
                         };
                     }
                 } 
-                else if (state.currentTab === 'patient') {
+                else if (tabAtStart === 'patient') {
                     if (!state.selectedPatientId) {
                         this.switchTab('patients');
                         return;
                     }
                     await this.reloadPatientDetail(state.selectedPatientId);
                 }
-                else if (state.currentTab === 'appointments') {
+                else if (tabAtStart === 'appointments') {
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'appointments') {
+                        return;
+                    }
                     try {
                         const pr = await api.get('/api/patients.php');
                         state.patients = pr.items || [];
                     } catch (e) { /* optional */ }
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'appointments') {
+                        return;
+                    }
                     app.innerHTML = this.renderAppointmentsPage();
                     
                     (async () => {
@@ -2437,13 +2598,19 @@
                         };
                     }
                 } 
-                else if (state.currentTab === 'messages') {
+                else if (tabAtStart === 'messages') {
                     const response = await api.get('/api/message_center.php');
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'messages') {
+                        return;
+                    }
                     state.messages = response;
                     try {
                         const pr = await api.get('/api/patients.php');
                         state.patients = pr.items || [];
                     } catch (e) { /* patient picker is optional */ }
+                    if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'messages') {
+                        return;
+                    }
                     app.innerHTML = this.renderMessages();
                     this.setupCustomMessageForm();
                     
@@ -2459,11 +2626,16 @@
                 
                 showNotification(t('ready'), 'ok');
             } catch (error) {
+                if (!isLoadTokenCurrent(loadToken)) {
+                    return;
+                }
                 console.error('Error loading tab:', error);
                 app.innerHTML = this.renderConnectionError(error);
                 showNotification(`${t('error')}: ${error.message}`, 'error');
             } finally {
-                state.isLoading = false;
+                if (isLoadTokenCurrent(loadToken)) {
+                    state.isLoading = false;
+                }
             }
         },
 
@@ -2644,32 +2816,9 @@
         `;
         
         window.components = components;
-        window.components.switchTab = (tab) => {
-            state.currentTab = tab;
-            if (tab === 'messages' && state._pendingEscalationOpen) {
-                state._scrollToEscalations = true;
-            }
-            components.renderNav();
-            components.loadCurrentTab();
-        };
-        window.components.openEscalations = () => components.openEscalations();
-        window.components.scrollToEscalations = () => components.scrollToEscalations();
-        window.components.toggleEscalationDetails = (id) => components.toggleEscalationDetails(id);
-        window.components.closeEscalationModal = () => components.closeEscalationModal();
-        window.components.presentEscalations = () => components.presentEscalations();
-        window.components.openWipeDataModal = () => components.openWipeDataModal();
-        window.components.closeWipeDataModal = () => components.closeWipeDataModal();
-        window.components.wipeDataStepContinue = () => components.wipeDataStepContinue();
-        window.components.wipeDataGoBack = () => components.wipeDataGoBack();
-        window.components.submitWipeDataErase = () => components.submitWipeDataErase();
-        window.components.setHpvResult = (id, r) => components.setHpvResult(id, r);
-        window.components.confirmHpvResult = (id, r) => components.confirmHpvResult(id, r);
-        window.components.markSpecialistCalled = (pid, eid) => components.markSpecialistCalled(pid, eid);
-        window.components.callPatientAndMarkDone = (pid, eid, ph) => components.callPatientAndMarkDone(pid, eid, ph);
-        window.components.viewPatient = (id) => components.viewPatient(id);
-        window.components.reloadPatientDetail = (id) => components.reloadPatientDetail(id);
 
         components.setupActionDelegation();
+        window.addEventListener('hashchange', onHashRouteChange);
         
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {
@@ -2684,7 +2833,12 @@
         }
         
         components.renderNav();
-        components.loadCurrentTab();
+        const bootHash = (window.location.hash || '').replace(/^#\/?/, '');
+        if (bootHash) {
+            applyRouteFromHash();
+        } else {
+            components.loadCurrentTab();
+        }
     }
     
     if (document.readyState === 'loading') {
