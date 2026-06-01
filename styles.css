@@ -435,6 +435,39 @@ body {
     transform: translateY(-1px);
 }
 
+.btn-danger {
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition-base);
+    border: 1px solid #fecaca;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #fee2e2;
+    border-color: #f87171;
+    transform: translateY(-1px);
+}
+
+.admin-danger-zone {
+    margin-top: 2rem;
+    border: 1px dashed #fecaca;
+    background: linear-gradient(180deg, #fff 0%, #fef2f2 100%);
+}
+
+.admin-danger-hint {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+
 /* Loading Overlay */
 .loading-overlay {
     position: absolute;

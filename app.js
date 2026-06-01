@@ -58,7 +58,15 @@
             processing: "Processing",
             view_record: "View Record",
             appt_with: "Appointment with",
-            appt_on: "on"
+            appt_on: "on",
+            admin_danger_zone: "Administrator",
+            wipe_all_data: "Erase all database data",
+            wipe_all_hint: "Deletes every row in all tables. Schema stays. Cannot be undone.",
+            wipe_password_prompt: "Enter administrator password:",
+            wipe_confirm: "This will permanently delete ALL patients, appointments, messages, and escalations. Continue?",
+            wipe_success: "Database cleared successfully.",
+            wipe_wrong_password: "Wrong password.",
+            wiping: "Erasing all data..."
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -101,7 +109,15 @@
             processing: "Inaprosesa",
             view_record: "Angalia Rekodi",
             appt_with: "Miadi na",
-            appt_on: "tarehe"
+            appt_on: "tarehe",
+            admin_danger_zone: "Msimamizi",
+            wipe_all_data: "Futa data yote kwenye hifadhidata",
+            wipe_all_hint: "Hufuta kila rekodi kwenye jedwali zote. Muundo wa jedwali hubaki. Haiwezi kutenduliwa.",
+            wipe_password_prompt: "Weka nenosiri la msimamizi:",
+            wipe_confirm: "Hii itafuta kabisa wagonjwa, miadi, ujumbe, na escalations zote. Endelea?",
+            wipe_success: "Hifadhidata imefutwa kikamilifu.",
+            wipe_wrong_password: "Nenosiri si sahihi.",
+            wiping: "Inafuta data yote..."
         }
     };
     
@@ -524,8 +540,62 @@
                         </div>
                         ${this.renderRecentPatients()}
                     </div>
+                    
+                    ${this.renderAdminDangerZone()}
                 </div>
             `;
+        },
+        
+        renderAdminDangerZone() {
+            return `
+                <div class="card admin-danger-zone">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-user-shield"></i>
+                            <span>${t('admin_danger_zone')}</span>
+                        </div>
+                    </div>
+                    <p class="muted admin-danger-hint">${t('wipe_all_hint')}</p>
+                    <button type="button" class="btn-danger" onclick="window.components.wipeAllDatabase()">
+                        <i class="fas fa-trash-alt"></i> ${t('wipe_all_data')}
+                    </button>
+                </div>
+            `;
+        },
+        
+        async wipeAllDatabase() {
+            const password = window.prompt(t('wipe_password_prompt'));
+            if (password === null || password === '') {
+                return;
+            }
+            if (!window.confirm(t('wipe_confirm'))) {
+                return;
+            }
+            showNotification(t('wiping'), 'info');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/clear_data.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({ password, confirm: true }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (response.status === 401 || data.error === 'Invalid password') {
+                    showNotification(t('wipe_wrong_password'), 'error');
+                    return;
+                }
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+                state.dashboard = null;
+                state.patients = null;
+                state.appointments = null;
+                state.messages = null;
+                showNotification(t('wipe_success') + ` (${data.tables_cleared || 0} tables)`, 'ok');
+                await this.loadCurrentTab();
+            } catch (err) {
+                console.error(err);
+                showNotification(err.message || t('server_error'), 'error');
+            }
         },
         
         renderAppointmentsList() {
@@ -1838,6 +1908,7 @@
         window.components.toggleEscalationDetails = (id) => components.toggleEscalationDetails(id);
         window.components.closeEscalationModal = () => components.closeEscalationModal();
         window.components.presentEscalations = () => components.presentEscalations();
+        window.components.wipeAllDatabase = () => components.wipeAllDatabase();
         
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {
