@@ -106,7 +106,26 @@
             specialist_request_open: "Patient requested a call from a health specialist.",
             call_patient_btn: "Call patient",
             call_patient_sub: "Opens your phone dialler with their number and marks this request complete.",
-            use_call_button_above: "Use the Call patient button in the Contact section above."
+            use_call_button_above: "Use the Call patient button in the Contact section above.",
+            reg_age_label: "Age",
+            reg_age_empty: "Enter date of birth to calculate age",
+            reg_hiv_status: "HIV status",
+            reg_hpv_done: "HPV screening done before?",
+            reg_hpv_prior: "Prior HPV result",
+            reg_residence: "Place of residence",
+            reg_via_result: "VIA (Visual Inspection) result",
+            reg_via_date: "Date of VIA",
+            reg_has_cancer: "Patient has cancer — send referral to Nyeri County Referral Hospital",
+            reg_treatment_date: "Date of treatment (if any)",
+            reg_via_not_done: "Not done yet",
+            reg_screening_section: "Clinical screening",
+            reg_followup_preview: "Follow-up reminders (SMS if opted in)",
+            reg_followup_via_neg: "VIA negative → annual check-up in 1 year",
+            reg_followup_hiv_hpv_neg: "HIV positive + HPV negative → check-up in 5 years",
+            reg_followup_hiv_hpv_pos: "HIV positive + HPV positive → check-up in 3 years",
+            reg_followup_referral: "VIA positive + cancer → immediate referral SMS",
+            screening_profile: "Screening profile",
+            screening_next_checkup: "Next check-up"
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -197,7 +216,26 @@
             specialist_request_open: "Mgonjwa ameomba kuzungumza na mhudumu wa afya.",
             call_patient_btn: "Mpigie mgonjwa",
             call_patient_sub: "Hufungua simu yako na nambari yake na kuweka ombi kama limekamilika.",
-            use_call_button_above: "Tumia kitufe cha Mpigie mgonjwa kwenye sehemu ya Mawasiliano hapo juu."
+            use_call_button_above: "Tumia kitufe cha Mpigie mgonjwa kwenye sehemu ya Mawasiliano hapo juu.",
+            reg_age_label: "Umri",
+            reg_age_empty: "Weka tarehe ya kuzaliwa kuhesabu umri",
+            reg_hiv_status: "Hali ya VVU",
+            reg_hpv_done: "Uchunguzi wa HPV umefanywa hapo awali?",
+            reg_hpv_prior: "Matokeo ya awali ya HPV",
+            reg_residence: "Mahali pa makazi",
+            reg_via_result: "Matokeo ya VIA",
+            reg_via_date: "Tarehe ya VIA",
+            reg_has_cancer: "Mgonjwa ana saratani — tuma rufaa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri",
+            reg_treatment_date: "Tarehe ya matibabu (ikiwa ipo)",
+            reg_via_not_done: "Haijafanyika bado",
+            reg_screening_section: "Uchunguzi wa kliniki",
+            reg_followup_preview: "Ukumbusho wa ufuatiliaji (SMS ikiwa amejisajili)",
+            reg_followup_via_neg: "VIA hasi → uchunguzi wa mwaka baada ya mwaka 1",
+            reg_followup_hiv_hpv_neg: "VVU chanya + HPV hasi → uchunguzi baada ya miaka 5",
+            reg_followup_hiv_hpv_pos: "VVU chanya + HPV chanya → uchunguzi baada ya miaka 3",
+            reg_followup_referral: "VIA chanya + saratani → SMS ya rufaa mara moja",
+            screening_profile: "Wasifu wa uchunguzi",
+            screening_next_checkup: "Uchunguzi ujao"
         }
     };
 
@@ -495,6 +533,129 @@
             }
             input.value = d.slice(0, 9);
         });
+    }
+
+    function calculateAgeFromDob(dobStr) {
+        if (!dobStr || !/^\d{4}-\d{2}-\d{2}$/.test(dobStr)) {
+            return null;
+        }
+        const dob = new Date(dobStr + 'T12:00:00');
+        if (Number.isNaN(dob.getTime())) {
+            return null;
+        }
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+            age -= 1;
+        }
+        return age >= 0 && age < 130 ? age : null;
+    }
+
+    function updateRegisterAgeDisplay(form) {
+        const dobInput = form?.querySelector('[name="date_of_birth"]');
+        const ageEl = document.getElementById('regAgeDisplay');
+        if (!dobInput || !ageEl) {
+            return;
+        }
+        const age = calculateAgeFromDob(dobInput.value);
+        if (age === null) {
+            ageEl.textContent = t('reg_age_empty');
+            ageEl.classList.remove('reg-age-value');
+        } else {
+            ageEl.textContent = `${age} ${currentLanguage === 'sw' ? 'miaka' : 'years'}`;
+            ageEl.classList.add('reg-age-value');
+        }
+    }
+
+    function updateRegisterConditionalFields(form) {
+        if (!form) {
+            return;
+        }
+        const hpvDone = form.querySelector('[name="hpv_done_before"]')?.value || '';
+        const viaResult = form.querySelector('[name="via_result"]')?.value || '';
+        const hpvPriorWrap = document.getElementById('regHpvPriorWrap');
+        const viaDateWrap = document.getElementById('regViaDateWrap');
+        const cancerWrap = document.getElementById('regCancerWrap');
+        const treatmentWrap = document.getElementById('regTreatmentWrap');
+
+        if (hpvPriorWrap) {
+            hpvPriorWrap.style.display = hpvDone === 'yes' ? '' : 'none';
+        }
+        const showViaDate = viaResult === 'negative' || viaResult === 'positive';
+        if (viaDateWrap) {
+            viaDateWrap.style.display = showViaDate ? '' : 'none';
+        }
+        if (cancerWrap) {
+            cancerWrap.style.display = viaResult === 'positive' ? '' : 'none';
+        }
+        if (treatmentWrap) {
+            treatmentWrap.style.display = viaResult === 'positive' ? '' : 'none';
+        }
+        if (viaResult !== 'positive') {
+            const cancerCb = form.querySelector('[name="has_cancer"]');
+            if (cancerCb) {
+                cancerCb.checked = false;
+            }
+        }
+        updateRegisterFollowupPreview(form);
+    }
+
+    function updateRegisterFollowupPreview(form) {
+        const box = document.getElementById('regFollowupPreview');
+        if (!box || !form) {
+            return;
+        }
+        const hiv = form.querySelector('[name="hiv_status"]')?.value || '';
+        const hpvDone = form.querySelector('[name="hpv_done_before"]')?.value || '';
+        const hpvPrior = form.querySelector('[name="hpv_prior_result"]')?.value || '';
+        const via = form.querySelector('[name="via_result"]')?.value || '';
+        const hasCancer = form.querySelector('[name="has_cancer"]')?.checked;
+
+        const lines = [];
+        if (via === 'negative') {
+            lines.push(t('reg_followup_via_neg'));
+        }
+        if (hiv === 'positive' && hpvDone === 'yes' && hpvPrior === 'negative') {
+            lines.push(t('reg_followup_hiv_hpv_neg'));
+        }
+        if (hiv === 'positive' && hpvDone === 'yes' && hpvPrior === 'positive') {
+            lines.push(t('reg_followup_hiv_hpv_pos'));
+        }
+        if (via === 'positive' && hasCancer) {
+            lines.push(t('reg_followup_referral'));
+        }
+        box.innerHTML = lines.length
+            ? `<ul class="reg-followup-list">${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`
+            : `<p class="muted">${currentLanguage === 'sw' ? 'Jaza taarifa za uchunguzi kuona mpango wa ufuatiliaji.' : 'Complete screening fields to see follow-up plan.'}</p>`;
+    }
+
+    function setupRegisterForm(form) {
+        if (!form || form.dataset.bound === '1') {
+            return;
+        }
+        form.dataset.bound = '1';
+        setupPhoneLocalInput(document.getElementById('phoneLocal'));
+
+        const dobInput = form.querySelector('[name="date_of_birth"]');
+        if (dobInput) {
+            dobInput.addEventListener('change', () => updateRegisterAgeDisplay(form));
+            dobInput.addEventListener('input', () => updateRegisterAgeDisplay(form));
+        }
+
+        ['hpv_done_before', 'via_result', 'hiv_status', 'hpv_prior_result'].forEach((name) => {
+            const el = form.querySelector(`[name="${name}"]`);
+            if (el) {
+                el.addEventListener('change', () => updateRegisterConditionalFields(form));
+            }
+        });
+        const cancerCb = form.querySelector('[name="has_cancer"]');
+        if (cancerCb) {
+            cancerCb.addEventListener('change', () => updateRegisterFollowupPreview(form));
+        }
+
+        updateRegisterAgeDisplay(form);
+        updateRegisterConditionalFields(form);
     }
 
     function showNotification(message, type = 'info') {
@@ -1389,6 +1550,8 @@
 
                     ${this.renderHpvResultCard(p)}
 
+                    ${this.renderScreeningProfileCard(p)}
+
                     <div class="card contact-card" style="margin-top:1rem;">
                         <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
                         <div style="padding:16px;">
@@ -1435,6 +1598,45 @@
 
                 </div>
             `;
+        },
+
+        renderScreeningProfileCard(p) {
+            if (p.screening_enabled === false) {
+                return '';
+            }
+            if (!p.hiv_status && !p.place_of_residence && !p.via_result) {
+                return '';
+            }
+            const age = calculateAgeFromDob(p.date_of_birth);
+            const ageStr = age !== null ? `${age} ${currentLanguage === 'sw' ? 'miaka' : 'years'}` : '—';
+            const posNeg = (v) => {
+                const x = (v || '').toLowerCase();
+                if (x === 'positive') return currentLanguage === 'sw' ? 'Chanya' : 'Positive';
+                if (x === 'negative') return currentLanguage === 'sw' ? 'Hasi' : 'Negative';
+                if (x === 'yes') return currentLanguage === 'sw' ? 'Ndiyo' : 'Yes';
+                if (x === 'no') return currentLanguage === 'sw' ? 'Hapana' : 'No';
+                if (x === 'not_done') return t('reg_via_not_done');
+                return v || '—';
+            };
+            const hpvDone = (p.hpv_done_before || '').toLowerCase();
+            return `
+                <div class="card screening-profile-card" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-notes-medical"></i> ${t('screening_profile')}</div>
+                    </div>
+                    <div class="detail-grid" style="padding:16px;">
+                        <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
+                        <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
+                        <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${posNeg(hpvDone)}</span></div>
+                        ${hpvDone === 'yes' ? `<div class="detail-item"><span class="label">${t('reg_hpv_prior')}</span><span class="value">${posNeg(p.hpv_prior_result)}</span></div>` : ''}
+                        <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
+                        <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
+                        <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
+                        ${Number(p.has_cancer) === 1 ? `<div class="detail-item"><span class="label">${t('reg_has_cancer')}</span><span class="badge badge-warning">Yes</span></div>` : ''}
+                        <div class="detail-item"><span class="label">${t('reg_treatment_date')}</span><span class="value">${p.treatment_date ? formatDate(p.treatment_date, 'full') : '—'}</span></div>
+                        <div class="detail-item"><span class="label">${t('screening_next_checkup')}</span><span class="value">${p.next_checkup_at ? formatDate(p.next_checkup_at, 'full') : '—'}</span></div>
+                    </div>
+                </div>`;
         },
 
         renderHealthSpecialistCard(p, dcr, showCallBtn) {
@@ -1740,8 +1942,13 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Date of Birth</label>
-                                <input type="date" name="date_of_birth" class="form-input">
+                                <label class="form-label">Date of Birth *</label>
+                                <input type="date" name="date_of_birth" class="form-input" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">${t('reg_age_label')}</label>
+                                <div id="regAgeDisplay" class="reg-age-display muted">${t('reg_age_empty')}</div>
                             </div>
                             
                             <div class="form-group">
@@ -1777,6 +1984,75 @@
                                     <option value="sms">📱 SMS</option>
                                     <option value="whatsapp">💬 WhatsApp</option>
                                 </select>
+                            </div>
+
+                            <div class="form-group full-width reg-screening-section">
+                                <h3 class="reg-section-title"><i class="fas fa-stethoscope"></i> ${t('reg_screening_section')}</h3>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">${t('reg_hiv_status')} *</label>
+                                <select name="hiv_status" class="form-select" required>
+                                    <option value="">—</option>
+                                    <option value="negative">${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
+                                    <option value="positive">${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">${t('reg_hpv_done')} *</label>
+                                <select name="hpv_done_before" class="form-select" required>
+                                    <option value="">—</option>
+                                    <option value="no">${currentLanguage === 'sw' ? 'Hapana' : 'No'}</option>
+                                    <option value="yes">${currentLanguage === 'sw' ? 'Ndiyo' : 'Yes'}</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="regHpvPriorWrap" style="display:none;">
+                                <label class="form-label">${t('reg_hpv_prior')} *</label>
+                                <select name="hpv_prior_result" class="form-select">
+                                    <option value="">—</option>
+                                    <option value="negative">${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
+                                    <option value="positive">${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label class="form-label">${t('reg_residence')} *</label>
+                                <input type="text" name="place_of_residence" class="form-input" required
+                                    placeholder="${currentLanguage === 'sw' ? 'Mf. Nyeri, Mweiga' : 'e.g. Nyeri Town, Mweiga'}">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">${t('reg_via_result')} *</label>
+                                <select name="via_result" class="form-select" required>
+                                    <option value="">—</option>
+                                    <option value="not_done">${t('reg_via_not_done')}</option>
+                                    <option value="negative">${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
+                                    <option value="positive">${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="regViaDateWrap" style="display:none;">
+                                <label class="form-label">${t('reg_via_date')} *</label>
+                                <input type="date" name="via_date" class="form-input">
+                            </div>
+
+                            <div class="form-group full-width" id="regCancerWrap" style="display:none;">
+                                <label class="checkbox-label reg-cancer-label">
+                                    <input type="checkbox" name="has_cancer" value="1">
+                                    <span>${t('reg_has_cancer')}</span>
+                                </label>
+                            </div>
+
+                            <div class="form-group" id="regTreatmentWrap" style="display:none;">
+                                <label class="form-label">${t('reg_treatment_date')}</label>
+                                <input type="date" name="treatment_date" class="form-input">
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label class="form-label">${t('reg_followup_preview')}</label>
+                                <div id="regFollowupPreview" class="reg-followup-preview card" style="padding:12px;"></div>
                             </div>
                             
                             <div class="form-group full-width">
@@ -2496,7 +2772,7 @@
                     app.innerHTML = this.renderRegister();
                     const form = document.getElementById('registerForm');
                     if (form) {
-                        setupPhoneLocalInput(document.getElementById('phoneLocal'));
+                        setupRegisterForm(form);
                         form.onsubmit = async (e) => {
                             e.preventDefault();
                             state.isRegistering = true;
@@ -2510,6 +2786,7 @@
                                 const formData = new FormData(form);
                                 const body = Object.fromEntries(formData.entries());
                                 body.opt_in = formData.get('opt_in') ? 1 : 0;
+                                body.has_cancer = formData.get('has_cancer') ? 1 : 0;
                                 const phone = normalizeKenyaPhone(body.phone_local);
                                 if (!phone) {
                                     throw new Error(currentLanguage === 'sw'
@@ -2522,7 +2799,16 @@
                                 await new Promise(resolve => setTimeout(resolve, 1500));
                                 
                                 const result = await api.post('/api/patients.php', body);
-                                showNotification(result.message || t('success'), 'ok');
+                                let msg = result.message || t('success');
+                                if (result.next_checkup_at) {
+                                    msg += ` ${t('screening_next_checkup')}: ${formatDate(result.next_checkup_at, 'full')}.`;
+                                }
+                                if (result.referral_sent) {
+                                    msg += currentLanguage === 'sw'
+                                        ? ' SMS ya rufaa imetumwa.'
+                                        : ' Referral SMS sent.';
+                                }
+                                showNotification(msg, 'ok');
                                 form.reset();
                                 
                                 const overlay = document.querySelector('.loading-overlay');

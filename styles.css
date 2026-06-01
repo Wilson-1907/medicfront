@@ -786,6 +786,61 @@ body {
     outline-offset: 2px;
 }
 
+.reg-age-display {
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    font-size: 0.95rem;
+}
+
+.reg-age-display.reg-age-value {
+    font-weight: 700;
+    color: var(--primary-700);
+    background: var(--primary-50);
+    border-color: var(--primary-200);
+}
+
+.reg-section-title {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--gray-800);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reg-screening-section {
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--gray-200);
+}
+
+.reg-followup-preview {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+}
+
+.reg-followup-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--gray-700);
+}
+
+.reg-followup-list li {
+    margin-bottom: 6px;
+}
+
+.reg-cancer-label {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.screening-profile-card .detail-grid {
+    gap: 12px;
+}
+
 /* Badges */
 .badge {
     display: inline-flex;
