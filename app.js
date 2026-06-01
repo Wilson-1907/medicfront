@@ -438,17 +438,27 @@
                 });
                 
                 clearTimeout(timeoutId);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+                const raw = await response.text();
+                let data = {};
+                if (raw) {
+                    try {
+                        data = JSON.parse(raw);
+                    } catch (parseErr) {
+                        if (!response.ok) {
+                            throw new Error(raw.slice(0, 200) || `HTTP ${response.status}`);
+                        }
+                    }
                 }
-                
-                const data = await response.json();
-                
-                if (!data.ok && data.error) {
+
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                if (data.ok === false && data.error) {
                     throw new Error(data.error);
                 }
-                
+
                 return data;
             } catch (error) {
                 console.error('API Request failed:', error);
@@ -1353,16 +1363,25 @@
         },
 
         async setHpvResult(patientId, result) {
+            const card = document.querySelector('.hpv-result-card');
+            const buttons = card ? card.querySelectorAll('button') : [];
+            buttons.forEach((b) => { b.disabled = true; });
+            showNotification(
+                result === 'positive' ? 'Recording HPV positive…' : 'Recording HPV negative…',
+                'info'
+            );
             try {
                 const data = await api.post('/api/hpv_result.php', {
                     action: 'set_result',
-                    patient_id: patientId,
-                    result,
+                    patient_id: Number(patientId),
+                    result: String(result),
                 });
                 showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
-                await this.viewPatient(patientId);
+                state.patientDetail = null;
+                await this.viewPatient(Number(patientId));
             } catch (err) {
-                showNotification(err.message, 'error');
+                showNotification(err.message || t('server_error'), 'error');
+                buttons.forEach((b) => { b.disabled = false; });
             }
         },
 
@@ -1397,10 +1416,11 @@
             if (!window.confirm(t('hpv_confirm_dialog').replace('{result}', label))) {
                 return;
             }
+            showNotification('Sending result to patient…', 'info');
             try {
                 const data = await api.post('/api/hpv_result.php', {
                     action: 'confirm_result',
-                    patient_id: patientId,
+                    patient_id: Number(patientId),
                 });
                 showNotification(
                     data.counseling_started
