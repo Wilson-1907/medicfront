@@ -1,7 +1,7 @@
 // ============================================
 // NYERI TOWN HEALTH CENTRE
 // Afya Rafiki - Smart Healthcare System
-// Version: 2.2.0 - Enhanced UI
+// Version: 2.6.0 - Patient detail + button fixes
 // ============================================
 
 (function() {
@@ -203,8 +203,21 @@
 
     function getPatientPrimaryPhone(p) {
         const contacts = p?.contacts || [];
-        const primary = contacts.find((c) => c.is_primary) || contacts[0];
+        const primary = contacts.find((c) => Number(c.is_primary) === 1) || contacts[0];
         return primary?.address ? String(primary.address).trim() : '';
+    }
+
+    function safeRender(fn, fallbackMsg) {
+        try {
+            return fn();
+        } catch (err) {
+            console.error(fallbackMsg, err);
+            return `
+                <div class="card" style="margin:1rem;padding:20px;border-left:4px solid #dc2626">
+                    <p><strong>${escapeHtml(fallbackMsg)}</strong></p>
+                    <p class="muted">${escapeHtml(err.message || String(err))}</p>
+                </div>`;
+        }
     }
 
     function isOpenEscalationStatus(status) {
@@ -535,8 +548,15 @@
                 const escalationId = Number(el.getAttribute('data-escalation-id') || 0);
                 const result = el.getAttribute('data-result') || '';
                 const phone = el.getAttribute('data-phone') || '';
+                const tab = el.getAttribute('data-tab') || '';
 
-                if (action === 'hpv-record-positive' && patientId) {
+                if (action === 'view-patient' && patientId) {
+                    e.preventDefault();
+                    components.viewPatient(patientId);
+                } else if (action === 'switch-tab' && tab) {
+                    e.preventDefault();
+                    components.switchTab(tab);
+                } else if (action === 'hpv-record-positive' && patientId) {
                     e.preventDefault();
                     components.setHpvResult(patientId, 'positive');
                 } else if (action === 'hpv-record-negative' && patientId) {
@@ -548,6 +568,21 @@
                 } else if (action === 'call-patient' && patientId) {
                     e.preventDefault();
                     components.callPatientAndMarkDone(patientId, escalationId, phone);
+                } else if (action === 'wipe-open') {
+                    e.preventDefault();
+                    components.openWipeDataModal();
+                } else if (action === 'wipe-continue') {
+                    e.preventDefault();
+                    components.wipeDataStepContinue();
+                } else if (action === 'wipe-back') {
+                    e.preventDefault();
+                    components.wipeDataGoBack();
+                } else if (action === 'wipe-close') {
+                    e.preventDefault();
+                    components.closeWipeDataModal();
+                } else if (action === 'wipe-confirm') {
+                    e.preventDefault();
+                    components.submitWipeDataErase();
                 }
             });
         },
@@ -557,12 +592,23 @@
             if (id < 1) {
                 return;
             }
-            const response = await api.get(`/api/patients.php?id=${id}`);
-            state.patientDetail = response.patient;
-            state.selectedPatientId = id;
             const app = document.getElementById('app');
-            if (app && state.currentTab === 'patient') {
-                app.innerHTML = this.renderPatientDetail();
+            try {
+                const response = await api.get(`/api/patients.php?id=${id}`);
+                if (!response || !response.patient) {
+                    throw new Error('Patient not found');
+                }
+                state.patientDetail = response.patient;
+                state.selectedPatientId = id;
+                state.currentTab = 'patient';
+                if (app) {
+                    app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
+                }
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+                if (app) {
+                    app.innerHTML = this.renderConnectionError(err);
+                }
             }
         },
 
@@ -819,7 +865,7 @@
                         </div>
                     </div>
                     <p class="muted admin-danger-hint">${t('wipe_all_hint')}</p>
-                    <button type="button" class="btn-danger" onclick="window.components.openWipeDataModal()">
+                    <button type="button" class="btn-danger" data-action="wipe-open">
                         <i class="fas fa-trash-alt"></i> ${t('wipe_all_data')}
                     </button>
                 </div>
@@ -840,6 +886,14 @@
             modal.innerHTML = this.renderWipeDataModalContent();
             const first = modal.querySelector('#wipePasswordInput');
             if (first) first.focus();
+            modal.onkeydown = (ev) => {
+                if (ev.key !== 'Enter') return;
+                if (state._wipeStep === 1) {
+                    components.wipeDataStepContinue();
+                } else {
+                    components.submitWipeDataErase();
+                }
+            };
         },
 
         closeWipeDataModal() {
@@ -861,18 +915,18 @@
                     <div class="modal-content wipe-modal-content">
                         <div class="modal-header">
                             <h2><i class="fas fa-exclamation-triangle" style="color:#b91c1c"></i> ${t('wipe_modal_title')}</h2>
-                            <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()" aria-label="Close">&times;</button>
+                            <button type="button" class="btn-secondary" data-action="wipe-close" aria-label="Close">&times;</button>
                         </div>
                         <div class="wipe-modal-body">
                             <p class="muted">${t('wipe_all_hint')}</p>
                             <p>${t('wipe_modal_step1')}</p>
                             <label class="form-label" for="wipePasswordInput">${t('wipe_password_prompt')}</label>
                             <input type="password" id="wipePasswordInput" class="form-input" autocomplete="off"
-                                   placeholder="Administrator password" onkeydown="if(event.key==='Enter')window.components.wipeDataStepContinue()">
+                                   placeholder="Administrator password">
                         </div>
                         <div class="wipe-modal-actions">
-                            <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()">${t('cancel')}</button>
-                            <button type="button" class="btn-primary" onclick="window.components.wipeDataStepContinue()">${t('wipe_continue')}</button>
+                            <button type="button" class="btn-secondary" data-action="wipe-close">${t('cancel')}</button>
+                            <button type="button" class="btn-primary" data-action="wipe-continue">${t('wipe_continue')}</button>
                         </div>
                     </div>`;
             }
@@ -880,19 +934,19 @@
                 <div class="modal-content wipe-modal-content">
                     <div class="modal-header">
                         <h2><i class="fas fa-trash-alt" style="color:#b91c1c"></i> ${t('wipe_confirm_btn')}</h2>
-                        <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()" aria-label="Close">&times;</button>
+                        <button type="button" class="btn-secondary" data-action="wipe-close" aria-label="Close">&times;</button>
                     </div>
                     <div class="wipe-modal-body">
                         <p>${t('wipe_modal_step2')}</p>
                         <label class="form-label" for="wipePasswordConfirmInput">${t('wipe_password_confirm_label')}</label>
                         <input type="password" id="wipePasswordConfirmInput" class="form-input" autocomplete="off"
-                               placeholder="Administrator password" onkeydown="if(event.key==='Enter')window.components.submitWipeDataErase()">
+                               placeholder="Administrator password">
                         <p id="wipeModalError" class="wipe-modal-error hidden"></p>
                     </div>
                     <div class="wipe-modal-actions">
-                        <button type="button" class="btn-secondary" onclick="window.components.wipeDataGoBack()">${t('wipe_back')}</button>
-                        <button type="button" class="btn-secondary" onclick="window.components.closeWipeDataModal()">${t('cancel')}</button>
-                        <button type="button" class="btn-danger" id="wipeConfirmEraseBtn" onclick="window.components.submitWipeDataErase()">
+                        <button type="button" class="btn-secondary" data-action="wipe-back">${t('wipe_back')}</button>
+                        <button type="button" class="btn-secondary" data-action="wipe-close">${t('cancel')}</button>
+                        <button type="button" class="btn-danger" id="wipeConfirmEraseBtn" data-action="wipe-confirm">
                             <i class="fas fa-trash-alt"></i> ${t('wipe_confirm_btn')}
                         </button>
                     </div>
@@ -1161,7 +1215,7 @@
             }
             
             return patients.map(patient => `
-                <tr class="patient-row clickable" onclick="window.components.viewPatient(${patient.id})">
+                <tr class="patient-row clickable" data-action="view-patient" data-patient-id="${patient.id}">
                     <td><strong>#${patient.id}</strong></td>
                     <td>${escapeHtml(patient.full_name)}</td>
                     <td>${patient.phone || '-'}</td>
@@ -1169,7 +1223,8 @@
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
                     <td onclick="event.stopPropagation();">
-                        <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;" onclick="window.components.viewPatient(${patient.id})">
+                        <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
+                            data-action="view-patient" data-patient-id="${patient.id}">
                             ${t('view_record')} <i class="fas fa-chevron-right"></i>
                         </button>
                     </td>
@@ -1196,7 +1251,8 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="card-title">
-                                <button type="button" class="btn-secondary" style="margin-right:12px;padding:6px 12px;" onclick="window.components.switchTab('patients')">
+                                <button type="button" class="btn-secondary" style="margin-right:12px;padding:6px 12px;"
+                                    data-action="switch-tab" data-tab="patients">
                                     <i class="fas fa-arrow-left"></i> Back
                                 </button>
                                 <i class="fas fa-user"></i>
@@ -1485,10 +1541,34 @@
         },
 
         async viewPatient(id) {
-            state.selectedPatientId = id;
+            const pid = Number(id);
+            if (!pid) {
+                showNotification('Invalid patient', 'error');
+                return;
+            }
+            state.selectedPatientId = pid;
             state.currentTab = 'patient';
             this.renderNav();
-            await this.loadCurrentTab();
+            const app = document.getElementById('app');
+            if (app) {
+                app.innerHTML = this.renderLoading();
+            }
+            try {
+                const response = await api.get(`/api/patients.php?id=${pid}`);
+                if (!response || !response.patient) {
+                    throw new Error('Patient not found');
+                }
+                state.patientDetail = response.patient;
+                if (app) {
+                    app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
+                }
+            } catch (err) {
+                console.error('viewPatient failed:', err);
+                showNotification(err.message || t('connection_error'), 'error');
+                if (app) {
+                    app.innerHTML = this.renderConnectionError(err);
+                }
+            }
         },
 
         scheduleForPatient(patientId) {
@@ -2311,9 +2391,7 @@
                         this.switchTab('patients');
                         return;
                     }
-                    const response = await api.get(`/api/patients.php?id=${state.selectedPatientId}`);
-                    state.patientDetail = response.patient;
-                    app.innerHTML = this.renderPatientDetail();
+                    await this.reloadPatientDetail(state.selectedPatientId);
                 }
                 else if (state.currentTab === 'appointments') {
                     try {
