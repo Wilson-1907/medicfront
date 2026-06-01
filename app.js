@@ -67,7 +67,16 @@
             wipe_confirm: "This will permanently delete ALL patients, appointments, messages, and escalations. Continue?",
             wipe_success: "Database cleared successfully.",
             wipe_wrong_password: "Wrong password.",
-            wiping: "Erasing all data..."
+            wiping: "Erasing all data...",
+            hpv_result_title: "HPV screening result",
+            hpv_result_hint: "Record the lab result, then confirm to notify the patient and start guidance.",
+            hpv_status: "Status",
+            hpv_record_positive: "Record POSITIVE",
+            hpv_record_negative: "Record NEGATIVE",
+            hpv_confirm_notify: "Confirm & notify patient",
+            hpv_confirmed: "Sent to patient",
+            hpv_awaiting: "Awaiting confirm",
+            hpv_pending: "PENDING"
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -119,7 +128,16 @@
             wipe_confirm: "Hii itafuta kabisa wagonjwa, miadi, ujumbe, na escalations zote. Endelea?",
             wipe_success: "Hifadhidata imefutwa kikamilifu.",
             wipe_wrong_password: "Nenosiri si sahihi.",
-            wiping: "Inafuta data yote..."
+            wiping: "Inafuta data yote...",
+            hpv_result_title: "Matokeo ya uchunguzi wa HPV",
+            hpv_result_hint: "Weka matokeo ya maabara, kisha thibitisha kumjulisha mgonjwa na kuanza mwongozo.",
+            hpv_status: "Hali",
+            hpv_record_positive: "Weka CHANYA",
+            hpv_record_negative: "Weka HASI",
+            hpv_confirm_notify: "Thibitisha & mjulishe mgonjwa",
+            hpv_confirmed: "Imetumwa kwa mgonjwa",
+            hpv_awaiting: "Inasubiri uthibitisho",
+            hpv_pending: "INASUBIRI"
         }
     };
     
@@ -847,6 +865,8 @@
                         </div>
                     </div>
 
+                    ${this.renderHpvResultCard(p)}
+
                     <div class="card" style="margin-top:1rem;">
                         <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
                         <div style="padding:16px;">
@@ -904,6 +924,81 @@
                     </div>` : ''}
                 </div>
             `;
+        },
+
+        renderHpvResultCard(p) {
+            const status = (p.hpv_screening_result || 'pending').toUpperCase();
+            const recorded = p.hpv_result_recorded_at;
+            const confirmed = p.hpv_result_confirmed_at;
+            const workflow = p.hpv_screening_result !== undefined && p.hpv_screening_result !== null;
+            if (!workflow) {
+                return `
+                    <div class="card hpv-result-card" style="margin-top:1rem;">
+                        <p class="muted">HPV result workflow: run database migration <code>sql/2026_05_31_hpv_result_workflow.sql</code> on the server.</p>
+                    </div>`;
+            }
+            let statusLine = `<span class="badge badge-warning">${status}</span>`;
+            if (confirmed) {
+                statusLine += ` <span class="badge badge-success">${t('hpv_confirmed')}</span> <span class="muted">${formatDate(confirmed, 'full')}</span>`;
+            } else if (recorded) {
+                statusLine += ` <span class="muted">${t('hpv_awaiting')}</span>`;
+            }
+            return `
+                <div class="card hpv-result-card" style="margin-top:1rem;border-left:4px solid var(--primary);">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-vial"></i> ${t('hpv_result_title')}</div>
+                    </div>
+                    <div style="padding:16px;">
+                        <p class="muted" style="margin-top:0">${t('hpv_result_hint')}</p>
+                        <p style="margin:12px 0"><strong>${t('hpv_status')}:</strong> ${statusLine}</p>
+                        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                            <button type="button" class="btn-primary" onclick="window.components.setHpvResult(${p.id}, 'positive')">
+                                ${t('hpv_record_positive')}
+                            </button>
+                            <button type="button" class="btn-secondary" onclick="window.components.setHpvResult(${p.id}, 'negative')">
+                                ${t('hpv_record_negative')}
+                            </button>
+                            <button type="button" class="btn-danger" style="background:#198754;border-color:#198754;color:#fff" onclick="window.components.confirmHpvResult(${p.id})">
+                                <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+        },
+
+        async setHpvResult(patientId, result) {
+            try {
+                const data = await api.post('/api/hpv_result.php', {
+                    action: 'set_result',
+                    patient_id: patientId,
+                    result,
+                });
+                showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
+                await this.viewPatient(patientId);
+            } catch (err) {
+                showNotification(err.message, 'error');
+            }
+        },
+
+        async confirmHpvResult(patientId) {
+            if (!window.confirm('Send confirmed HPV result to the patient and start their guidance messages?')) {
+                return;
+            }
+            try {
+                const data = await api.post('/api/hpv_result.php', {
+                    action: 'confirm_result',
+                    patient_id: patientId,
+                });
+                showNotification(
+                    data.counseling_started
+                        ? 'Result sent and guidance started.'
+                        : 'Result sent to patient.',
+                    'ok'
+                );
+                await this.viewPatient(patientId);
+            } catch (err) {
+                showNotification(err.message, 'error');
+            }
         },
 
         async viewPatient(id) {
@@ -1956,6 +2051,8 @@
         window.components.closeEscalationModal = () => components.closeEscalationModal();
         window.components.presentEscalations = () => components.presentEscalations();
         window.components.wipeAllDatabase = () => components.wipeAllDatabase();
+        window.components.setHpvResult = (id, r) => components.setHpvResult(id, r);
+        window.components.confirmHpvResult = (id) => components.confirmHpvResult(id);
         
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {
