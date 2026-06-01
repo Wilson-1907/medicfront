@@ -96,7 +96,8 @@
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
-            hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?"
+            hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
+            hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support."
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -177,7 +178,8 @@
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
             hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
-            hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?"
+            hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
+            hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada."
         }
     };
 
@@ -1176,10 +1178,16 @@
         },
 
         renderHpvResultCard(p) {
-            const workflowOff = p.hpv_workflow_enabled === false
-                || (p.hpv_workflow_enabled === undefined && p.hpv_screening_result == null && !p.hpv_result_recorded_at);
-            if (workflowOff) {
-                return '';
+            if (p.hpv_workflow_enabled === false) {
+                return `
+                <div class="card hpv-result-card hpv-card-pending" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-vial"></i> ${t('hpv_result_title')}</div>
+                    </div>
+                    <div class="hpv-result-body">
+                        <p class="muted">${t('hpv_unavailable')}</p>
+                    </div>
+                </div>`;
             }
 
             const result = (p.hpv_screening_result || 'pending').toLowerCase();
