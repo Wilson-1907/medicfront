@@ -1531,6 +1531,10 @@ body {
 .hpv-result-badge-line { margin: 0; }
 .hpv-result-badge-lg { font-size: 0.85rem; padding: 8px 14px; }
 
+.specialist-request-card.open { border-left: 4px solid #f59e0b; }
+.specialist-request-card.called { border-left: 4px solid #059669; }
+.specialist-called-msg { font-weight: 600; color: #065f46; margin: 0 0 10px; line-height: 1.5; }
+
 /* Appointments page — timeline & booked cards */
 .appointments-booked-card { overflow: hidden; }
 .appointments-booked-header { flex-wrap: wrap; gap: 16px; }

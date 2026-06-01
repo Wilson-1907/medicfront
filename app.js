@@ -97,7 +97,13 @@
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
             hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
-            hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support."
+            hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support.",
+            mark_patient_called: "Mark as called",
+            mark_patient_called_confirm: "Confirm you have spoken with this patient on the phone? This removes the request from open escalations.",
+            patient_called_success: "Marked as called. Open escalation cleared.",
+            status_called: "Called",
+            specialist_called_on: "Hospital confirmed they called this patient on {date}.",
+            specialist_request_open: "Patient requested a call from a health specialist."
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -179,9 +185,33 @@
             hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
             hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
-            hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada."
+            hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada.",
+            mark_patient_called: "Weka alipigiwa simu",
+            mark_patient_called_confirm: "Thibitisha umemzungumzia mgonjwa huyu kwa simu? Ombi litaondolewa kwenye escalations wazi.",
+            patient_called_success: "Imewekwa alipigiwa simu. Escalation imefungwa.",
+            status_called: "Amepigiwa simu",
+            specialist_called_on: "Hospitali imethibitisha kumpigia mgonjwa simu {date}.",
+            specialist_request_open: "Mgonjwa ameomba kuzungumza na mhudumu wa afya."
         }
     };
+
+    function isOpenEscalationStatus(status) {
+        const s = (status || '').toLowerCase();
+        return s === 'open' || s === 'triaged';
+    }
+
+    function isSpecialistCallPending(dcr) {
+        if (!dcr) return false;
+        const s = (dcr.status || '').toLowerCase();
+        return s === 'pending' || s === 'awaiting_reason';
+    }
+
+    function doctorCallReasonFromRecord(dcr) {
+        if (!dcr) return '';
+        const raw = String(dcr.reason || '').trim();
+        if (!raw || isGenericDoctorReason(raw)) return '';
+        return raw.replace(/^Patient wants to speak with a health specialist:\s*/i, '').trim();
+    }
 
     function hpvResultLabel(result) {
         const r = (result || '').toLowerCase();
@@ -1126,20 +1156,7 @@
                         </div>
                     </div>
 
-                    ${dcr ? `
-                    <div class="card" style="margin-top:1rem;border-left:4px solid var(--warning);">
-                        <div class="card-header"><div class="card-title"><i class="fas fa-user-md"></i> Health Specialist Request</div></div>
-                        <div style="padding:16px;">
-                            <p><strong>Status:</strong> ${(dcr.status || 'pending').toUpperCase()}</p>
-                            <p><strong>Requested:</strong> ${formatDate(dcr.requested_at, 'full')} ${formatTime(dcr.requested_at)}</p>
-                            <p><strong>Why they want to talk:</strong></p>
-                            <p class="call-reason-text">${escapeHtml(
-                                (dcr.reason && !isGenericDoctorReason(dcr.reason))
-                                    ? dcr.reason.replace(/^Patient wants to speak with a health specialist:\s*/i, '')
-                                    : 'Waiting for patient to reply by SMS with their reason.'
-                            )}</p>
-                        </div>
-                    </div>` : ''}
+                    ${this.renderHealthSpecialistCard(p, dcr)}
 
                     <div class="card" style="margin-top:1rem;">
                         <div class="card-header">
@@ -1160,21 +1177,88 @@
                         </div>
                     </div>
 
-                    ${escalations.length > 0 ? `
+                    ${(() => {
+                        const openEsc = escalations.filter(e => isOpenEscalationStatus(e.status));
+                        if (openEsc.length === 0) return '';
+                        return `
                     <div class="card" style="margin-top:1rem;">
-                        <div class="card-header"><div class="card-title"><i class="fas fa-exclamation-triangle"></i> Escalations</div></div>
+                        <div class="card-header"><div class="card-title"><i class="fas fa-exclamation-triangle"></i> Open escalations</div></div>
                         <div style="padding:16px;">
-                            ${escalations.map(e => `
-                                <div style="margin-bottom:10px;padding:10px;background:var(--gray-50);border-radius:8px;">
-                                    <strong>${(e.urgency || 'routine').toUpperCase()}</strong> — ${(e.status || 'open').toUpperCase()}
+                            ${openEsc.map(e => `
+                                <div style="margin-bottom:12px;padding:12px;background:var(--gray-50);border-radius:8px;">
+                                    <strong>${(e.urgency || 'routine').toUpperCase()}</strong>
                                     <div>${escapeHtml(e.reason || '')}</div>
                                     <div class="muted">${formatDate(e.created_at, 'full')}</div>
+                                    <button type="button" class="btn-primary btn-sm" style="margin-top:10px"
+                                        onclick="window.components.markSpecialistCalled(${p.id}, ${e.id})">
+                                        <i class="fas fa-phone"></i> ${t('mark_patient_called')}
+                                    </button>
                                 </div>
                             `).join('')}
                         </div>
-                    </div>` : ''}
+                    </div>`;
+                    })()}
                 </div>
             `;
+        },
+
+        renderHealthSpecialistCard(p, dcr) {
+            if (!dcr && !(p.escalations || []).some(e => isOpenEscalationStatus(e.status))) {
+                return '';
+            }
+            if (!dcr) {
+                return `
+                <div class="card specialist-request-card open" style="margin-top:1rem;">
+                    <div class="card-header"><div class="card-title"><i class="fas fa-user-md"></i> Health Specialist Request</div></div>
+                    <div style="padding:16px;">
+                        <p>${t('specialist_request_open')}</p>
+                        <button type="button" class="btn-primary" style="margin-top:12px"
+                            onclick="window.components.markSpecialistCalled(${p.id}, 0)">
+                            <i class="fas fa-phone"></i> ${t('mark_patient_called')}
+                        </button>
+                    </div>
+                </div>`;
+            }
+
+            const status = (dcr.status || 'pending').toLowerCase();
+            const called = status === 'contacted' || status === 'closed';
+            const reason = doctorCallReasonFromRecord(dcr);
+            const calledAt = dcr.updated_at || dcr.requested_at;
+
+            if (called) {
+                const when = hpvFormatConfirmedDate(calledAt);
+                return `
+                <div class="card specialist-request-card called" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-user-md"></i> Health Specialist Request</div>
+                        <span class="badge badge-success">${t('status_called')}</span>
+                    </div>
+                    <div style="padding:16px;">
+                        <p class="specialist-called-msg">${escapeHtml(t('specialist_called_on').replace('{date}', when))}</p>
+                        ${reason ? `<p><strong>They said:</strong> ${escapeHtml(reason)}</p>` : ''}
+                    </div>
+                </div>`;
+            }
+
+            return `
+                <div class="card specialist-request-card open" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-user-md"></i> Health Specialist Request</div>
+                        <span class="badge badge-warning">${(status || 'pending').toUpperCase()}</span>
+                    </div>
+                    <div style="padding:16px;">
+                        <p class="muted">${t('specialist_request_open')}</p>
+                        <p><strong>Requested:</strong> ${formatDate(dcr.requested_at, 'full')} ${formatTime(dcr.requested_at)}</p>
+                        <p><strong>Why they want to talk:</strong></p>
+                        <p class="call-reason-text">${escapeHtml(
+                            reason || 'Waiting for patient to reply by SMS with their reason.'
+                        )}</p>
+                        <button type="button" class="btn-primary hpv-confirm-btn" style="margin-top:14px"
+                            onclick="window.components.markSpecialistCalled(${p.id}, 0)">
+                            <i class="fas fa-phone"></i> ${t('mark_patient_called')}
+                        </button>
+                    </div>
+                </div>`;
         },
 
         renderHpvResultCard(p) {
@@ -1279,6 +1363,32 @@
                 await this.viewPatient(patientId);
             } catch (err) {
                 showNotification(err.message, 'error');
+            }
+        },
+
+        async markSpecialistCalled(patientId, escalationId) {
+            if (!window.confirm(t('mark_patient_called_confirm'))) {
+                return;
+            }
+            try {
+                const data = await api.post('/api/escalation.php', {
+                    action: 'mark_called',
+                    patient_id: patientId || 0,
+                    escalation_id: escalationId || 0,
+                });
+                showNotification(data.message || t('patient_called_success'), 'ok');
+                this.closeEscalationModal();
+                state.messages = null;
+                state.dashboard = null;
+                if (state.currentTab === 'messages') {
+                    await this.loadCurrentTab();
+                } else if (state.currentTab === 'patient' && state.selectedPatientId) {
+                    await this.viewPatient(state.selectedPatientId);
+                } else {
+                    await this.loadCurrentTab();
+                }
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
             }
         },
 
@@ -1929,7 +2039,11 @@
                             <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${esc.patient_id || 0})">
                                 <i class="fas fa-user"></i> Patient
                             </button>
-                            <button class="btn-primary btn-sm" onclick="event.stopPropagation(); window.components.toggleEscalationDetails(${esc.id})">
+                            ${isOpenEscalationStatus(esc.status) ? `
+                            <button class="btn-primary btn-sm" onclick="event.stopPropagation(); window.components.markSpecialistCalled(${esc.patient_id || 0}, ${esc.id})">
+                                <i class="fas fa-phone"></i> ${t('mark_patient_called')}
+                            </button>` : ''}
+                            <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.toggleEscalationDetails(${esc.id})">
                                 <i class="fas fa-eye"></i> View Details
                             </button>
                         </div>
@@ -2006,7 +2120,14 @@
                         </div>
                         
                         <div class="detail-actions">
-                            <button type="button" class="btn-primary" onclick="window.components.viewPatient(${escalation.patient_id || 0}); window.components.closeEscalationModal();">
+                            ${isOpenEscalationStatus(escalation.status) ? `
+                            <button type="button" class="btn-primary" onclick="window.components.markSpecialistCalled(${escalation.patient_id || 0}, ${escalation.id})">
+                                <i class="fas fa-phone"></i> ${t('mark_patient_called')}
+                            </button>` : `
+                            <p class="badge badge-success" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;">
+                                <i class="fas fa-check"></i> ${t('status_called')}
+                            </p>`}
+                            <button type="button" class="btn-secondary" onclick="window.components.viewPatient(${escalation.patient_id || 0}); window.components.closeEscalationModal();">
                                 <i class="fas fa-user"></i> View Patient Record
                             </button>
                             <button type="button" class="btn-secondary" onclick="window.components.closeEscalationModal()">
@@ -2384,6 +2505,7 @@
         window.components.submitWipeDataErase = () => components.submitWipeDataErase();
         window.components.setHpvResult = (id, r) => components.setHpvResult(id, r);
         window.components.confirmHpvResult = (id) => components.confirmHpvResult(id);
+        window.components.markSpecialistCalled = (pid, eid) => components.markSpecialistCalled(pid, eid);
         
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {
