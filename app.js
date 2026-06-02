@@ -49,7 +49,7 @@
             connection_error: "Cannot connect to server. Please check your connection.",
             server_error: "Server error occurred",
             network_error: "Network error. Please check your connection",
-            search_placeholder: "Search by name, MRN, or ID...",
+            search_placeholder: "Search by name or client number...",
             patient_name: "Patient Name",
             phone_number: "Phone Number",
             phone_local_hint: "Enter 9 digits (e.g. 712345678)",
@@ -133,7 +133,7 @@
             reg_enrollment_details: "Registration details",
             reg_contact_channel: "Contact channel",
             reg_opted_in: "Receives SMS/WhatsApp",
-            reg_internal_id: "System record ID"
+            no_client_number: "No client number on file — register with a lab serial or contact admin."
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -167,7 +167,7 @@
             connection_error: "Haikuweza kuunganishwa na seva. Tafadhali angalia muunganisho wako.",
             server_error: "Hitilafu ya seva imetokea",
             network_error: "Hitilafu ya mtandao. Tafadhali angalia muunganisho wako",
-            search_placeholder: "Tafuta kwa jina, MRN, au ID...",
+            search_placeholder: "Tafuta kwa jina au nambari ya mteja...",
             patient_name: "Jina la Mgonjwa",
             phone_number: "Nambari ya Simu",
             phone_local_hint: "Weka tarakimu 9 (mf. 712345678)",
@@ -251,7 +251,7 @@
             reg_enrollment_details: "Maelezo ya usajili",
             reg_contact_channel: "Njia ya mawasiliano",
             reg_opted_in: "Hupokea SMS/WhatsApp",
-            reg_internal_id: "Nambari ya mfumo"
+            no_client_number: "Hakuna nambari ya mteja — sajili kwa serial ya maabara au wasiliana na msimamizi."
         }
     };
 
@@ -263,6 +263,44 @@
         if (p?.external_mrn) return String(p.external_mrn);
         if (p?.client_id) return String(p.client_id);
         return '';
+    }
+
+    function patientClientSuffix(refOrPatient) {
+        if (refOrPatient && typeof refOrPatient === 'object') {
+            const cid = formatClientId(refOrPatient);
+            if (!cid) return '';
+            const prefix = clientIdPrefix();
+            return cid.startsWith(prefix) ? cid.slice(prefix.length) : cid;
+        }
+        const s = String(refOrPatient ?? '').trim();
+        if (!s) return '';
+        const prefix = clientIdPrefix();
+        if (s.startsWith(prefix)) return s.slice(prefix.length);
+        if (s.includes('/')) {
+            const parts = s.split('/').filter(Boolean);
+            return parts[parts.length - 1] || '';
+        }
+        return (s.replace(/\D/g, '') || s);
+    }
+
+    function fullClientIdFromRef(ref) {
+        const suffix = patientClientSuffix(ref);
+        if (!suffix) return '';
+        const digits = suffix.replace(/\D/g, '');
+        return digits ? clientIdPrefix() + digits : '';
+    }
+
+    function patientOpenRef(p) {
+        const suffix = patientClientSuffix(p);
+        return suffix || null;
+    }
+
+    function patientClientLabel(p) {
+        return formatClientId(p) || '—';
+    }
+
+    function escJsString(s) {
+        return JSON.stringify(String(s ?? ''));
     }
 
     function getPatientPrimaryPhone(p) {
@@ -329,6 +367,7 @@
         messages: null,
         patientDetail: null,
         selectedPatientId: null,
+        selectedPatientRef: null,
         isLoading: false,
         isRegistering: false,
         _loadToken: 0,
@@ -359,14 +398,14 @@
         document.getElementById('appLoadingOverlay')?.remove();
     }
 
-    function navigateToPatient(patientId) {
-        const pid = Number(patientId);
-        if (pid < 1) {
-            showNotification('Invalid patient', 'error');
+    function navigateToPatient(patientRef) {
+        const ref = patientClientSuffix(patientRef) || patientOpenRef(patientRef);
+        if (!ref) {
+            showNotification(t('no_client_number'), 'error');
             return;
         }
         if (typeof window.components?.viewPatient === 'function') {
-            window.components.viewPatient(pid);
+            window.components.viewPatient(ref);
         }
     }
 
@@ -375,11 +414,11 @@
         if (!hash) return;
         const parts = hash.split('/').filter(Boolean);
         if (parts[0] === 'patient' && parts[1]) {
-            const pid = Number(parts[1]);
-            if (pid > 0) {
+            const ref = decodeURIComponent(parts[1]);
+            if (ref) {
                 state.currentTab = 'patient';
-                state.selectedPatientId = pid;
-                navigateToPatient(pid);
+                state.selectedPatientRef = patientClientSuffix(ref);
+                navigateToPatient(ref);
                 return;
             }
         }
@@ -801,6 +840,29 @@
             }
         }
     };
+
+    async function fetchPatientByRef(ref) {
+        const fullId = fullClientIdFromRef(ref);
+        if (!fullId) {
+            throw new Error(t('no_client_number'));
+        }
+        try {
+            return await api.get(`/api/patients.php?client_id=${encodeURIComponent(fullId)}`);
+        } catch (err) {
+            const seg = patientClientSuffix(ref);
+            if (seg && /^\d{1,6}$/.test(seg)) {
+                try {
+                    const legacy = await api.get(`/api/patients.php?id=${Number(seg)}`);
+                    if (legacy?.patient) {
+                        return legacy;
+                    }
+                } catch (_) {
+                    /* use primary error */
+                }
+            }
+            throw err;
+        }
+    }
     
     // ============================================
     // UI COMPONENTS
@@ -823,9 +885,10 @@
                 const phone = el.getAttribute('data-phone') || '';
                 const tab = el.getAttribute('data-tab') || '';
 
-                if (action === 'view-patient' && patientId) {
+                const patientRef = el.getAttribute('data-patient-ref') || '';
+                if (action === 'view-patient' && patientRef) {
                     e.preventDefault();
-                    navigateToPatient(patientId);
+                    navigateToPatient(patientRef);
                 } else if (action === 'switch-tab' && tab) {
                     e.preventDefault();
                     window.components.switchTab(tab);
@@ -862,9 +925,9 @@
 
         bindPatientTableRows(root) {
             const scope = root || document;
-            scope.querySelectorAll('#patientsTableBody .patient-row[data-patient-id]').forEach((row) => {
-                const pid = Number(row.getAttribute('data-patient-id') || 0);
-                if (pid < 1) {
+            scope.querySelectorAll('#patientsTableBody .patient-row[data-patient-ref]').forEach((row) => {
+                const ref = row.getAttribute('data-patient-ref') || '';
+                if (!ref) {
                     return;
                 }
                 row.style.cursor = 'pointer';
@@ -873,34 +936,36 @@
                         return;
                     }
                     e.preventDefault();
-                    navigateToPatient(pid);
+                    navigateToPatient(ref);
                 };
                 row.onkeydown = (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        navigateToPatient(pid);
+                        navigateToPatient(ref);
                     }
                 };
             });
         },
 
-        async reloadPatientDetail(patientId) {
-            const id = Number(patientId || state.selectedPatientId || 0);
-            if (id < 1) {
+        async reloadPatientDetail(patientRef) {
+            const ref = patientRef || state.selectedPatientRef;
+            if (!ref) {
                 return;
             }
             const loadToken = bumpLoadToken();
             const app = document.getElementById('app');
             try {
-                const response = await api.get(`/api/patients.php?id=${id}`);
-                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientId !== id) {
+                const response = await fetchPatientByRef(ref);
+                const routeRef = patientClientSuffix(ref);
+                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientRef !== routeRef) {
                     return;
                 }
                 if (!response || !response.patient) {
                     throw new Error('Patient not found');
                 }
                 state.patientDetail = response.patient;
-                state.selectedPatientId = id;
+                state.selectedPatientId = response.patient.id;
+                state.selectedPatientRef = patientOpenRef(response.patient) || routeRef;
                 state.currentTab = 'patient';
                 if (app) {
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
@@ -942,6 +1007,7 @@
             state.currentTab = tabId;
             if (tabId !== 'patient') {
                 state.selectedPatientId = null;
+                state.selectedPatientRef = null;
                 state.patientDetail = null;
             }
             if (tabId === 'messages' && state._pendingEscalationOpen) {
@@ -1387,14 +1453,15 @@
                                 <span class="appointment-badge">${appointments.length} appointment${appointments.length > 1 ? 's' : ''}</span>
                             </div>
                             ${appointments.map(apt => `
-                                <div class="appointment-item clickable" onclick="window.components.viewPatient(${apt.patient_id})" style="cursor:pointer;">
+                                <div class="appointment-item clickable" ${patientOpenRef(apt) ? `onclick="window.components.viewPatient(${escJsString(patientOpenRef(apt))})"` : ''} style="cursor:${patientOpenRef(apt) ? 'pointer' : 'default'};">
                                     <div class="appointment-time">
                                         <i class="far fa-clock"></i>
                                         <span>${formatTime(apt.scheduled_start)}</span>
                                     </div>
                                     <div class="appointment-details">
                                         <div class="patient-name">
-                                            ${escapeHtml(apt.full_name || `Patient #${apt.patient_id}`)}
+                                            ${escapeHtml(apt.full_name || patientClientLabel(apt))}
+                                            ${apt.client_id ? `<span class="muted" style="font-size:0.85em;margin-left:6px">${escapeHtml(patientClientLabel(apt))}</span>` : ''}
                                             <span class="badge ${apt.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">
                                                 ${apt.status || 'pending'}
                                             </span>
@@ -1431,10 +1498,13 @@
             
             return `
                 <div class="patients-grid">
-                    ${recent.slice(0, 6).map(patient => `
-                        <div class="patient-card clickable" role="link" tabindex="0"
-                            data-action="view-patient" data-patient-id="${patient.id}"
+                    ${recent.slice(0, 6).map(patient => {
+                        const pref = patientOpenRef(patient);
+                        return `
+                        <div class="patient-card ${pref ? 'clickable' : ''}" role="${pref ? 'link' : 'group'}" tabindex="${pref ? '0' : '-1'}"
+                            ${pref ? `data-action="view-patient" data-patient-ref="${escapeHtml(pref)}"` : ''}
                             aria-label="Open ${escapeHtml(patient.full_name)}">
+                            ${pref ? '' : `<p class="muted" style="font-size:0.75rem;margin:0 0 4px">${t('no_client_number')}</p>`}
                             <div class="patient-avatar">👤</div>
                             <div class="patient-info">
                                 <div class="patient-name">${escapeHtml(patient.full_name)}</div>
@@ -1450,9 +1520,9 @@
                                         '<span class="badge badge-info"><i class="fas fa-language"></i> English</span>'}
                                 </div>
                             </div>
-                            <i class="fas fa-chevron-right" style="color: var(--gray-400);"></i>
-                        </div>
-                    `).join('')}
+                            ${pref ? '<i class="fas fa-chevron-right" style="color: var(--gray-400);"></i>' : ''}
+                        </div>`;
+                    }).join('')}
                 </div>
                 ${recent.length > 6 ? `
                     <div class="view-all-link">
@@ -1525,28 +1595,33 @@
                 '</tr>';
             }
             
-            return patients.map(patient => `
-                <tr class="patient-row clickable" data-patient-id="${patient.id}"
+            return patients.map(patient => {
+                const pref = patientOpenRef(patient);
+                const clientLabel = patientClientLabel(patient);
+                return `
+                <tr class="patient-row ${pref ? 'clickable' : ''}" ${pref ? `data-patient-ref="${escapeHtml(pref)}"` : ''}
                     aria-label="Open patient ${escapeHtml(patient.full_name)}">
-                    <td><strong>${escapeHtml(patient.client_id || formatClientId(patient) || '#' + patient.id)}</strong></td>
+                    <td><strong>${escapeHtml(clientLabel)}</strong></td>
                     <td>
-                        <a href="#/patient/${patient.id}" class="patient-link"
-                           data-action="view-patient" data-patient-id="${patient.id}">
+                        ${pref ? `
+                        <a href="#/patient/${encodeURIComponent(pref)}" class="patient-link"
+                           data-action="view-patient" data-patient-ref="${escapeHtml(pref)}">
                             ${escapeHtml(patient.full_name)}
-                        </a>
+                        </a>` : `<span>${escapeHtml(patient.full_name)}</span>`}
                     </td>
                     <td>${patient.phone || '-'}</td>
                     <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
                     <td class="patient-row-actions">
+                        ${pref ? `
                         <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
-                            data-action="view-patient" data-patient-id="${patient.id}">
+                            data-action="view-patient" data-patient-ref="${escapeHtml(pref)}">
                             ${t('view_record')} <i class="fas fa-chevron-right"></i>
-                        </button>
+                        </button>` : `<span class="muted" style="font-size:0.7rem">${t('no_client_number')}</span>`}
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
         },
 
         renderPatientDetail() {
@@ -1604,7 +1679,6 @@
                             <div class="card-title"><i class="fas fa-clipboard-list"></i> ${t('reg_enrollment_details')}</div>
                         </div>
                         <div class="detail-grid" style="padding:16px;">
-                            <div class="detail-item"><span class="label">${t('reg_internal_id')}</span><span class="value">#${p.id}</span></div>
                             <div class="detail-item"><span class="label">${t('patient_name')}</span><span class="value">${escapeHtml(p.full_name)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
                             <div class="detail-item"><span class="label">Date of Birth</span><span class="value">${p.date_of_birth ? formatDate(p.date_of_birth, 'full') : '—'}</span></div>
@@ -1874,7 +1948,7 @@
                     result: String(result),
                 }, false);
                 showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
-                await this.reloadPatientDetail(id);
+                await this.reloadPatientDetail();
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
@@ -1898,7 +1972,7 @@
                 state.messages = null;
                 state.dashboard = null;
                 if (state.currentTab === 'patient') {
-                    await this.reloadPatientDetail(id);
+                    await this.reloadPatientDetail();
                 } else if (state.currentTab === 'messages') {
                     await this.loadCurrentTab();
                 } else {
@@ -1931,23 +2005,24 @@
                         : 'Result sent to patient.',
                     'ok'
                 );
-                await this.reloadPatientDetail(patientId);
+                await this.reloadPatientDetail();
             } catch (err) {
                 showNotification(err.message, 'error');
             }
         },
 
-        async viewPatient(id) {
-            const pid = Number(id);
-            if (!pid) {
-                showNotification('Invalid patient', 'error');
+        async viewPatient(ref) {
+            const routeRef = patientClientSuffix(ref) || patientOpenRef(ref);
+            if (!routeRef) {
+                showNotification(t('no_client_number'), 'error');
                 return;
             }
             const loadToken = bumpLoadToken();
-            state.selectedPatientId = pid;
+            state.selectedPatientRef = routeRef;
+            state.selectedPatientId = null;
             state.currentTab = 'patient';
             state.patientDetail = null;
-            setRouteHash(`patient/${pid}`);
+            setRouteHash(`patient/${encodeURIComponent(routeRef)}`);
             this.renderNav();
             const app = document.getElementById('app');
             const hadContent = Boolean(app && app.innerHTML.trim());
@@ -1959,14 +2034,16 @@
                 }
             }
             try {
-                const response = await api.get(`/api/patients.php?id=${pid}`);
-                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientId !== pid) {
+                const response = await fetchPatientByRef(routeRef);
+                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientRef !== routeRef) {
                     return;
                 }
                 if (!response || !response.patient) {
                     throw new Error('Patient not found');
                 }
                 state.patientDetail = response.patient;
+                state.selectedPatientId = response.patient.id;
+                state.selectedPatientRef = patientOpenRef(response.patient) || routeRef;
                 if (app) {
                     removeAppLoadingOverlay();
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
@@ -2215,7 +2292,7 @@
                                     <label class="form-label">Patient *</label>
                                     <select name="patient_id" id="apptPatientSelect" class="form-select" required>
                                         <option value="">Select patient...</option>
-                                        ${(state.patients || []).map(p => `<option value="${p.id}">${escapeHtml(p.full_name)} (#${p.id})</option>`).join('')}
+                                        ${(state.patients || []).map(p => `<option value="${p.id}">${escapeHtml(p.full_name)} — ${escapeHtml(patientClientLabel(p))}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -2334,12 +2411,12 @@
                                 </header>
                                 <div class="appointment-cards-grid">
                                     ${grouped[date].map(apt => `
-                                        <article class="appointment-card-v2 status-${apt.status || 'proposed'}" onclick="window.components.viewPatient(${apt.patient_id})">
+                                        <article class="appointment-card-v2 status-${apt.status || 'proposed'}" ${patientOpenRef(apt) ? `onclick="window.components.viewPatient(${escJsString(patientOpenRef(apt))})"` : ''}>
                                             <div class="appt-card-top">
                                                 <div class="appointment-patient-avatar">${(apt.full_name || 'P').charAt(0).toUpperCase()}</div>
                                                 <div class="appt-card-headline">
                                                     <h4>${escapeHtml(apt.full_name || 'Unknown Patient')}</h4>
-                                                    <span class="appt-id">#${apt.patient_id}</span>
+                                                    <span class="appt-id">${escapeHtml(patientClientLabel(apt))}</span>
                                                 </div>
                                                 <span class="status-badge ${apt.status || 'proposed'}">${(apt.status || 'proposed').replace('_', ' ')}</span>
                                             </div>
@@ -2357,7 +2434,7 @@
                                             ${apt.reason ? `<p class="appt-reason"><i class="fas fa-notes-medical"></i> ${escapeHtml(apt.reason)}</p>` : ''}
                                             ${this.renderReminderBadges(apt)}
                                             <div class="appt-card-actions" onclick="event.stopPropagation()">
-                                                <button class="btn-secondary btn-sm" onclick="window.components.viewPatient(${apt.patient_id})"><i class="fas fa-user"></i> Patient</button>
+                                                ${patientOpenRef(apt) ? `<button class="btn-secondary btn-sm" onclick="window.components.viewPatient(${escJsString(patientOpenRef(apt))})"><i class="fas fa-user"></i> Patient</button>` : ''}
                                                 <button class="btn-primary btn-sm" onclick="window.components.viewAppointmentDetails(${apt.id})"><i class="fas fa-info-circle"></i> Details</button>
                                             </div>
                                         </article>
@@ -2400,7 +2477,9 @@
                     (apt.full_name || '').toLowerCase().includes(q) ||
                     (apt.department || '').toLowerCase().includes(q) ||
                     (apt.provider_name || '').toLowerCase().includes(q) ||
-                    String(apt.patient_id || '').includes(q)
+                    String(apt.patient_id || '').includes(q) ||
+                    (apt.client_id || '').toLowerCase().includes(q) ||
+                    patientClientSuffix(apt.client_id || '').includes(q.replace(/\D/g, ''))
                 );
             }
 
@@ -2503,7 +2582,7 @@
                                 <label class="form-label">Patient</label>
                                 <select id="cmPatient" class="form-select">
                                     <option value="">Select patient...</option>
-                                    ${(state.patients || []).map(p => `<option value="${p.id}">${escapeHtml(p.full_name || '')} (#${p.id})</option>`).join('')}
+                                    ${(state.patients || []).map(p => `<option value="${p.id}">${escapeHtml(p.full_name || '')} — ${escapeHtml(patientClientLabel(p))}</option>`).join('')}
                                 </select>
                             </div>
                             <div class="form-group">
@@ -2627,7 +2706,7 @@
                                 </div>
                                 <div class="escalation-title-section">
                                     <h4>${escapeHtml(esc.full_name || 'Unknown')}</h4>
-                                    <p class="escalation-id">Patient #${esc.patient_id || 'N/A'} · ${esc.phone ? escapeHtml(esc.phone) : 'No phone'}</p>
+                                    <p class="escalation-id">${escapeHtml(patientClientLabel(esc))} · ${esc.phone ? escapeHtml(esc.phone) : 'No phone'}</p>
                                 </div>
                             </div>
                             <div class="escalation-urgency ${esc.urgency || 'medium'}">
@@ -2680,9 +2759,9 @@
                         </div>
                         
                         <div class="escalation-footer">
-                            <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${esc.patient_id || 0})">
+                            ${patientOpenRef(esc) ? `<button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${escJsString(patientOpenRef(esc))})">
                                 <i class="fas fa-user"></i> Patient
-                            </button>
+                            </button>` : ''}
                             ${isOpenEscalationStatus(esc.status) && esc.phone ? `
                             <a class="btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none"
                                href="tel:${String(esc.phone).replace(/[^\d+]/g, '')}"
@@ -2733,8 +2812,8 @@
                                     <span class="value">${escalation.channel ? escalation.channel.toUpperCase() : 'SMS'}</span>
                                 </div>
                                 <div class="detail-item">
-                                    <span class="label">Patient ID</span>
-                                    <span class="value">#${escalation.patient_id || 'N/A'}</span>
+                                    <span class="label">${t('reg_client_no')}</span>
+                                    <span class="value">${escapeHtml(patientClientLabel(escalation))}</span>
                                 </div>
                             </div>
                         </div>
@@ -2782,9 +2861,9 @@
                             <p class="badge badge-success" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;">
                                 <i class="fas fa-check"></i> ${t('status_called')}
                             </p>`}
-                            <button type="button" class="btn-secondary" onclick="window.components.viewPatient(${escalation.patient_id || 0}); window.components.closeEscalationModal();">
+                            ${patientOpenRef(escalation) ? `<button type="button" class="btn-secondary" onclick="window.components.viewPatient(${escJsString(patientOpenRef(escalation))}); window.components.closeEscalationModal();">
                                 <i class="fas fa-user"></i> View Patient Record
-                            </button>
+                            </button>` : ''}
                             <button type="button" class="btn-secondary" onclick="window.components.closeEscalationModal()">
                                 <i class="fas fa-times"></i> Close
                             </button>
@@ -2885,6 +2964,9 @@
                                 
                                 const result = await api.post('/api/patients.php', body);
                                 let msg = result.message || t('success');
+                                if (result.client_id) {
+                                    msg += ` ${t('reg_client_no')}: ${result.client_id}.`;
+                                }
                                 if (result.next_checkup_at) {
                                     msg += ` ${t('screening_next_checkup')}: ${formatDate(result.next_checkup_at, 'full')}.`;
                                 }
@@ -2913,11 +2995,11 @@
                     }
                 } 
                 else if (tabAtStart === 'patient') {
-                    if (!state.selectedPatientId) {
+                    if (!state.selectedPatientRef && !state.selectedPatientId) {
                         this.switchTab('patients');
                         return;
                     }
-                    await this.reloadPatientDetail(state.selectedPatientId);
+                    await this.reloadPatientDetail(state.selectedPatientRef);
                 }
                 else if (tabAtStart === 'appointments') {
                     if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'appointments') {

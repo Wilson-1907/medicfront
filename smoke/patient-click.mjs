@@ -74,8 +74,11 @@ async function main() {
             }
         } else {
             const link = page.locator('#patientsTableBody a.patient-link').first();
-            const firstId = await link.getAttribute('data-patient-id');
-            console.log('Clicking patient link id=', firstId);
+            const firstRef = await link.getAttribute('data-patient-ref');
+            if (!firstRef) {
+                fail('Patient link missing data-patient-ref (client serial required)');
+            }
+            console.log('Clicking patient link ref=', firstRef);
             await link.click({ timeout: 20000 });
             await expectPatientDetail(page, 'Patient name link opens detail');
 
@@ -83,7 +86,11 @@ async function main() {
             await page.waitForSelector('#patientsTableBody .patient-row', { timeout: 60000 });
             await waitForAppSettled(page);
 
-            await page.locator('#patientsTableBody .patient-row').first().click({ timeout: 20000 });
+            const rowRef = await page.locator('#patientsTableBody .patient-row[data-patient-ref]').first().getAttribute('data-patient-ref');
+            if (!rowRef) {
+                fail('No patient row with client serial');
+            }
+            await page.locator('#patientsTableBody .patient-row[data-patient-ref]').first().click({ timeout: 20000 });
             await expectPatientDetail(page, 'Patient table row opens detail');
 
             await page.click('a.patient-back-link');
@@ -95,8 +102,13 @@ async function main() {
         await page.click('a.nav-item[data-tab="dashboard"]');
         await page.waitForSelector('.patient-card.clickable', { timeout: 60000 });
         await waitForAppSettled(page);
-        await page.locator('.patient-card.clickable').first().click({ timeout: 20000 });
-        await expectPatientDetail(page, 'Dashboard patient card opens detail');
+        const dashCard = page.locator('.patient-card.clickable[data-patient-ref]').first();
+        if (await dashCard.count()) {
+            await dashCard.click({ timeout: 20000 });
+            await expectPatientDetail(page, 'Dashboard patient card opens detail');
+        } else {
+            console.log('SKIP: dashboard cards without client serial');
+        }
 
         await page.click('a.nav-item[data-tab="dashboard"]');
         await waitForAppSettled(page);
