@@ -1,0 +1,14 @@
+{
+  "name": "medicfront-smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node smoke/patient-click.mjs",
+    "smoke:local": "node smoke/patient-click.mjs http://127.0.0.1:4173",
+    "monkey": "node smoke/api-monkey.mjs",
+    "test:launch": "node smoke/api-monkey.mjs && node smoke/patient-click.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}

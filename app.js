@@ -1,5 +1,5 @@
 // ============================================
-// NYERI TOWN HEALTH CENTRE
+// NYERI TOWN HEALTH CENTER
 // Afya Rafiki - Smart Healthcare System
 // Version: 2.6.2 - Fix patient row clicks (async race) + smoke test
 // ============================================
@@ -3237,7 +3237,7 @@
                         <div class="logo" onclick="window.components.switchTab('dashboard')">
                             <div class="logo-icon">🏥</div>
                             <div>
-                                <div class="logo-text">${cfg.APP_NAME || 'Nyeri Level 4 Hospital'}</div>
+                                <div class="logo-text">${cfg.APP_NAME || 'Nyeri Town Health Center'}</div>
                                 <div class="logo-subtitle">HPV Patient Engagement Console</div>
                             </div>
                         </div>
@@ -3267,7 +3267,7 @@
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
             <footer class="footer">
-                <p>© 2026 ${cfg.APP_NAME || 'Nyeri Level 4 Hospital'} | HPV Patient Engagement v2.3 | Connected to ${API_BASE_URL}</p>
+                <p>© 2026 ${cfg.APP_NAME || 'Nyeri Town Health Center'} | HPV Patient Engagement v2.3 | Connected to ${API_BASE_URL}</p>
             </footer>
         `;
         
