@@ -125,7 +125,15 @@
             reg_followup_hiv_hpv_pos: "HIV positive + HPV positive → check-up in 3 years",
             reg_followup_referral: "VIA positive + cancer → immediate referral SMS",
             screening_profile: "Screening profile",
-            screening_next_checkup: "Next check-up"
+            screening_next_checkup: "Next check-up",
+            reg_client_no: "Client number",
+            reg_client_no_hint: "Enter only the unique digits from the lab register (e.g. 022). Full ID:",
+            reg_hiv_not_known: "Not known",
+            reg_consent_signed: "Patient signed written consent at registration (required for SMS)",
+            reg_enrollment_details: "Registration details",
+            reg_contact_channel: "Contact channel",
+            reg_opted_in: "Receives SMS/WhatsApp",
+            reg_internal_id: "System record ID"
         },
         sw: {
             nav_dashboard: "Dashibodi",
@@ -235,9 +243,27 @@
             reg_followup_hiv_hpv_pos: "VVU chanya + HPV chanya → uchunguzi baada ya miaka 3",
             reg_followup_referral: "VIA chanya + saratani → SMS ya rufaa mara moja",
             screening_profile: "Wasifu wa uchunguzi",
-            screening_next_checkup: "Uchunguzi ujao"
+            screening_next_checkup: "Uchunguzi ujao",
+            reg_client_no: "Nambari ya mteja",
+            reg_client_no_hint: "Weka tarakimu za kipekee kutoka kwenye daftari (mf. 022). Nambari kamili:",
+            reg_hiv_not_known: "Haijulikani",
+            reg_consent_signed: "Mgonjwa amesaini fomu ya idhini kwa maandishi (inahitajika kwa SMS)",
+            reg_enrollment_details: "Maelezo ya usajili",
+            reg_contact_channel: "Njia ya mawasiliano",
+            reg_opted_in: "Hupokea SMS/WhatsApp",
+            reg_internal_id: "Nambari ya mfumo"
         }
     };
+
+    function clientIdPrefix() {
+        return (window.HPV_CONFIG && window.HPV_CONFIG.CLIENT_ID_PREFIX) || 'NC/NTHC/001/';
+    }
+
+    function formatClientId(p) {
+        if (p?.external_mrn) return String(p.external_mrn);
+        if (p?.client_id) return String(p.client_id);
+        return '';
+    }
 
     function getPatientPrimaryPhone(p) {
         const contacts = p?.contacts || [];
@@ -653,6 +679,19 @@
         if (cancerCb) {
             cancerCb.addEventListener('change', () => updateRegisterFollowupPreview(form));
         }
+
+        const clientSuffix = form.querySelector('#clientNoSuffix');
+        const clientPreview = document.getElementById('clientIdPreview');
+        const updateClientPreview = () => {
+            const suffix = (clientSuffix?.value || '').replace(/\D/g, '');
+            if (clientPreview) {
+                clientPreview.textContent = suffix ? clientIdPrefix() + suffix : clientIdPrefix() + '…';
+            }
+        };
+        if (clientSuffix) {
+            clientSuffix.addEventListener('input', updateClientPreview);
+        }
+        updateClientPreview();
 
         updateRegisterAgeDisplay(form);
         updateRegisterConditionalFields(form);
@@ -1458,7 +1497,7 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th>${t('reg_client_no')}</th>
                                     <th>${t('patient_name')}</th>
                                     <th>${t('phone_number')}</th>
                                     <th>Language</th>
@@ -1489,7 +1528,7 @@
             return patients.map(patient => `
                 <tr class="patient-row clickable" data-patient-id="${patient.id}"
                     aria-label="Open patient ${escapeHtml(patient.full_name)}">
-                    <td><strong>#${patient.id}</strong></td>
+                    <td><strong>${escapeHtml(patient.client_id || formatClientId(patient) || '#' + patient.id)}</strong></td>
                     <td>
                         <a href="#/patient/${patient.id}" class="patient-link"
                            data-action="view-patient" data-patient-id="${patient.id}">
@@ -1523,6 +1562,21 @@
                 isSpecialistCallPending(dcr)
                 || (p.escalations || []).some((e) => isOpenEscalationStatus(e.status))
             );
+            const clientId = formatClientId(p) || '—';
+            const age = calculateAgeFromDob(p.date_of_birth);
+            const ageStr = age !== null ? `${age} ${currentLanguage === 'sw' ? 'miaka' : 'years'}` : '—';
+            const primaryContact = contacts.find((c) => Number(c.is_primary) === 1) || contacts[0];
+            const posNeg = (v) => {
+                const x = (v || '').toLowerCase();
+                if (x === 'positive') return currentLanguage === 'sw' ? 'Chanya' : 'Positive';
+                if (x === 'negative') return currentLanguage === 'sw' ? 'Hasi' : 'Negative';
+                if (x === 'not_known') return t('reg_hiv_not_known');
+                if (x === 'yes') return currentLanguage === 'sw' ? 'Ndiyo' : 'Yes';
+                if (x === 'no') return currentLanguage === 'sw' ? 'Hapana' : 'No';
+                if (x === 'not_done') return t('reg_via_not_done');
+                return v || '—';
+            };
+            const hpvDone = (p.hpv_done_before || '').toLowerCase();
 
             return `
                 <div class="fade-in-up">
@@ -1538,19 +1592,40 @@
                             </div>
                             <span class="badge ${p.status === 'active' ? 'badge-success' : 'badge-danger'}">${p.status || 'active'}</span>
                         </div>
+                        <div class="client-id-banner">
+                            <span class="label">${t('reg_client_no')}</span>
+                            <strong class="client-id-value">${escapeHtml(clientId)}</strong>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:1rem;">
+                        <div class="card-header">
+                            <div class="card-title"><i class="fas fa-clipboard-list"></i> ${t('reg_enrollment_details')}</div>
+                        </div>
                         <div class="detail-grid" style="padding:16px;">
-                            <div class="detail-item"><span class="label">Patient ID</span><span class="value">#${p.id}</span></div>
-                            <div class="detail-item"><span class="label">Language</span><span class="value">${p.preferred_language === 'sw' ? 'Kiswahili' : 'English'}</span></div>
-                            <div class="detail-item"><span class="label">Date of Birth</span><span class="value">${p.date_of_birth || 'N/A'}</span></div>
-                            <div class="detail-item"><span class="label">MRN</span><span class="value">${escapeHtml(p.external_mrn || 'N/A')}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_internal_id')}</span><span class="value">#${p.id}</span></div>
+                            <div class="detail-item"><span class="label">${t('patient_name')}</span><span class="value">${escapeHtml(p.full_name)}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
+                            <div class="detail-item"><span class="label">Date of Birth</span><span class="value">${p.date_of_birth ? formatDate(p.date_of_birth, 'full') : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('select_language')}</span><span class="value">${p.preferred_language === 'sw' ? 'Kiswahili' : 'English'}</span></div>
+                            <div class="detail-item"><span class="label">${t('phone_number')}</span><span class="value">${escapeHtml(phone || '—')}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_contact_channel')}</span><span class="value">${primaryContact ? primaryContact.channel.toUpperCase() : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_opted_in')}</span><span class="value">${primaryContact && primaryContact.opted_in ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${posNeg(hpvDone)}</span></div>
+                            ${hpvDone === 'yes' ? `<div class="detail-item"><span class="label">${t('reg_hpv_prior')}</span><span class="value">${posNeg(p.hpv_prior_result)}</span></div>` : ''}
+                            <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_has_cancer')}</span><span class="value">${Number(p.has_cancer) === 1 ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_treatment_date')}</span><span class="value">${p.treatment_date ? formatDate(p.treatment_date, 'full') : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('screening_next_checkup')}</span><span class="value">${p.next_checkup_at ? formatDate(p.next_checkup_at, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">Registered</span><span class="value">${formatDate(p.registration_at, 'full')}</span></div>
                             <div class="detail-item full-width"><span class="label">Notes</span><span class="value">${escapeHtml(p.notes || 'None')}</span></div>
                         </div>
                     </div>
 
                     ${this.renderHpvResultCard(p)}
-
-                    ${this.renderScreeningProfileCard(p)}
 
                     <div class="card contact-card" style="margin-top:1rem;">
                         <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
@@ -1613,6 +1688,7 @@
                 const x = (v || '').toLowerCase();
                 if (x === 'positive') return currentLanguage === 'sw' ? 'Chanya' : 'Positive';
                 if (x === 'negative') return currentLanguage === 'sw' ? 'Hasi' : 'Negative';
+                if (x === 'not_known') return t('reg_hiv_not_known');
                 if (x === 'yes') return currentLanguage === 'sw' ? 'Ndiyo' : 'Yes';
                 if (x === 'no') return currentLanguage === 'sw' ? 'Hapana' : 'No';
                 if (x === 'not_done') return t('reg_via_not_done');
@@ -1974,8 +2050,14 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">MRN (Optional)</label>
-                                <input type="text" name="external_mrn" class="form-input" placeholder="Medical Record Number">
+                                <label class="form-label">${t('reg_client_no')} *</label>
+                                <div class="client-id-input-group">
+                                    <span class="client-id-prefix" id="clientIdPrefix">${escapeHtml(clientIdPrefix())}</span>
+                                    <input type="text" name="client_no_suffix" id="clientNoSuffix" class="form-input client-id-suffix"
+                                           required maxlength="6" inputmode="numeric" pattern="[0-9]{1,6}"
+                                           placeholder="022" autocomplete="off">
+                                </div>
+                                <small class="form-hint-muted">${t('reg_client_no_hint')} <strong id="clientIdPreview">${escapeHtml(clientIdPrefix())}…</strong></small>
                             </div>
                             
                             <div class="form-group">
@@ -1996,6 +2078,7 @@
                                     <option value="">—</option>
                                     <option value="negative">${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
                                     <option value="positive">${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
+                                    <option value="not_known">${t('reg_hiv_not_known')}</option>
                                 </select>
                             </div>
 
@@ -2062,8 +2145,8 @@
                             
                             <div class="form-group full-width">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" name="opt_in" checked>
-                                    <span>✅ Receive appointment reminders and health tips</span>
+                                    <input type="checkbox" name="opt_in" checked required>
+                                    <span>✅ ${t('reg_consent_signed')}</span>
                                 </label>
                             </div>
                         </div>
