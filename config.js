@@ -14,7 +14,7 @@ window.HPV_CONFIG = {
   },
   
   APP_NAME: "Nyeri Level 4 Hospital — HPV Care",
-  APP_VERSION: "2.9.0",
+  APP_VERSION: "2.9.1",
   /** Nurse enters digits after this prefix (lab register: NC/NTHC/001/022). */
   CLIENT_ID_PREFIX: "NC/NTHC/001/"
 };

@@ -398,14 +398,15 @@
         document.getElementById('appLoadingOverlay')?.remove();
     }
 
-    function navigateToPatient(patientRef) {
+    function navigateToPatient(patientRef, internalId = 0) {
         const ref = patientClientSuffix(patientRef) || patientOpenRef(patientRef);
-        if (!ref) {
+        const pid = Number(internalId || 0);
+        if (!ref && pid < 1) {
             showNotification(t('no_client_number'), 'error');
             return;
         }
         if (typeof window.components?.viewPatient === 'function') {
-            window.components.viewPatient(ref);
+            window.components.viewPatient(ref || pid, pid);
         }
     }
 
@@ -841,27 +842,23 @@
         }
     };
 
-    async function fetchPatientByRef(ref) {
+    async function fetchPatientByRef(ref, internalIdFallback = 0) {
         const fullId = fullClientIdFromRef(ref);
-        if (!fullId) {
-            throw new Error(t('no_client_number'));
-        }
-        try {
-            return await api.get(`/api/patients.php?client_id=${encodeURIComponent(fullId)}`);
-        } catch (err) {
-            const seg = patientClientSuffix(ref);
-            if (seg && /^\d{1,6}$/.test(seg)) {
-                try {
-                    const legacy = await api.get(`/api/patients.php?id=${Number(seg)}`);
-                    if (legacy?.patient) {
-                        return legacy;
-                    }
-                } catch (_) {
-                    /* use primary error */
-                }
+        if (fullId) {
+            try {
+                return await api.get(`/api/patients.php?client_id=${encodeURIComponent(fullId)}`);
+            } catch (err) {
+                /* try internal id below */
             }
-            throw err;
         }
+        const id = Number(internalIdFallback || 0);
+        if (id > 0) {
+            return await api.get(`/api/patients.php?id=${id}`);
+        }
+        if (/^\d{1,6}$/.test(String(ref || ''))) {
+            return await api.get(`/api/patients.php?id=${Number(ref)}`);
+        }
+        throw new Error(t('no_client_number'));
     }
     
     // ============================================
@@ -886,9 +883,10 @@
                 const tab = el.getAttribute('data-tab') || '';
 
                 const patientRef = el.getAttribute('data-patient-ref') || '';
-                if (action === 'view-patient' && patientRef) {
+                const internalId = Number(el.getAttribute('data-patient-id') || 0);
+                if (action === 'view-patient' && (patientRef || internalId > 0)) {
                     e.preventDefault();
-                    navigateToPatient(patientRef);
+                    navigateToPatient(patientRef || internalId, internalId);
                 } else if (action === 'switch-tab' && tab) {
                     e.preventDefault();
                     window.components.switchTab(tab);
@@ -925,9 +923,10 @@
 
         bindPatientTableRows(root) {
             const scope = root || document;
-            scope.querySelectorAll('#patientsTableBody .patient-row[data-patient-ref]').forEach((row) => {
+            scope.querySelectorAll('#patientsTableBody .patient-row[data-patient-id]').forEach((row) => {
                 const ref = row.getAttribute('data-patient-ref') || '';
-                if (!ref) {
+                const pid = Number(row.getAttribute('data-patient-id') || 0);
+                if (!ref && pid < 1) {
                     return;
                 }
                 row.style.cursor = 'pointer';
@@ -936,28 +935,29 @@
                         return;
                     }
                     e.preventDefault();
-                    navigateToPatient(ref);
+                    navigateToPatient(ref || pid, pid);
                 };
                 row.onkeydown = (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        navigateToPatient(ref);
+                        navigateToPatient(ref || pid, pid);
                     }
                 };
             });
         },
 
-        async reloadPatientDetail(patientRef) {
+        async reloadPatientDetail(patientRef, internalIdFallback = 0) {
             const ref = patientRef || state.selectedPatientRef;
-            if (!ref) {
+            const pid = Number(internalIdFallback || state.selectedPatientId || 0);
+            if (!ref && pid < 1) {
                 return;
             }
             const loadToken = bumpLoadToken();
             const app = document.getElementById('app');
             try {
-                const response = await fetchPatientByRef(ref);
-                const routeRef = patientClientSuffix(ref);
-                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientRef !== routeRef) {
+                const response = await fetchPatientByRef(ref || pid, pid);
+                const routeRef = patientOpenRef(response.patient) || patientClientSuffix(ref) || String(pid);
+                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient') {
                     return;
                 }
                 if (!response || !response.patient) {
@@ -1598,27 +1598,26 @@
             return patients.map(patient => {
                 const pref = patientOpenRef(patient);
                 const clientLabel = patientClientLabel(patient);
+                const routeSeg = pref || String(patient.id);
                 return `
-                <tr class="patient-row ${pref ? 'clickable' : ''}" ${pref ? `data-patient-ref="${escapeHtml(pref)}"` : ''}
+                <tr class="patient-row clickable" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}"
                     aria-label="Open patient ${escapeHtml(patient.full_name)}">
-                    <td><strong>${escapeHtml(clientLabel)}</strong></td>
+                    <td><strong>${escapeHtml(clientLabel !== '—' ? clientLabel : `#${patient.id}`)}</strong></td>
                     <td>
-                        ${pref ? `
-                        <a href="#/patient/${encodeURIComponent(pref)}" class="patient-link"
-                           data-action="view-patient" data-patient-ref="${escapeHtml(pref)}">
+                        <a href="#/patient/${encodeURIComponent(routeSeg)}" class="patient-link"
+                           data-action="view-patient" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}">
                             ${escapeHtml(patient.full_name)}
-                        </a>` : `<span>${escapeHtml(patient.full_name)}</span>`}
+                        </a>
                     </td>
                     <td>${patient.phone || '-'}</td>
                     <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
                     <td class="patient-row-actions">
-                        ${pref ? `
                         <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
-                            data-action="view-patient" data-patient-ref="${escapeHtml(pref)}">
+                            data-action="view-patient" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}">
                             ${t('view_record')} <i class="fas fa-chevron-right"></i>
-                        </button>` : `<span class="muted" style="font-size:0.7rem">${t('no_client_number')}</span>`}
+                        </button>
                     </td>
                 </tr>`;
             }).join('');
@@ -2011,15 +2010,16 @@
             }
         },
 
-        async viewPatient(ref) {
-            const routeRef = patientClientSuffix(ref) || patientOpenRef(ref);
+        async viewPatient(ref, internalIdFallback = 0) {
+            const pid = Number(internalIdFallback || 0);
+            const routeRef = patientClientSuffix(ref) || patientOpenRef(ref) || (pid > 0 ? String(pid) : '');
             if (!routeRef) {
                 showNotification(t('no_client_number'), 'error');
                 return;
             }
             const loadToken = bumpLoadToken();
-            state.selectedPatientRef = routeRef;
-            state.selectedPatientId = null;
+            state.selectedPatientRef = patientClientSuffix(ref) || null;
+            state.selectedPatientId = pid || null;
             state.currentTab = 'patient';
             state.patientDetail = null;
             setRouteHash(`patient/${encodeURIComponent(routeRef)}`);
@@ -2034,8 +2034,8 @@
                 }
             }
             try {
-                const response = await fetchPatientByRef(routeRef);
-                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient' || state.selectedPatientRef !== routeRef) {
+                const response = await fetchPatientByRef(ref || pid, pid);
+                if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient') {
                     return;
                 }
                 if (!response || !response.patient) {
@@ -2043,7 +2043,10 @@
                 }
                 state.patientDetail = response.patient;
                 state.selectedPatientId = response.patient.id;
-                state.selectedPatientRef = patientOpenRef(response.patient) || routeRef;
+                state.selectedPatientRef = patientOpenRef(response.patient) || state.selectedPatientRef;
+                if (state.selectedPatientRef) {
+                    setRouteHash(`patient/${encodeURIComponent(state.selectedPatientRef)}`);
+                }
                 if (app) {
                     removeAppLoadingOverlay();
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
