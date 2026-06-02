@@ -1574,7 +1574,8 @@
                 if (x === 'yes') return currentLanguage === 'sw' ? 'Ndiyo' : 'Yes';
                 if (x === 'no') return currentLanguage === 'sw' ? 'Hapana' : 'No';
                 if (x === 'not_done') return t('reg_via_not_done');
-                return v || '—';
+                if (x === '' || x === 'unknown') return t('reg_hiv_not_known');
+                return escapeHtml(String(v || '—'));
             };
             const hpvDone = (p.hpv_done_before || '').toLowerCase();
 
@@ -1609,7 +1610,7 @@
                             <div class="detail-item"><span class="label">Date of Birth</span><span class="value">${p.date_of_birth ? formatDate(p.date_of_birth, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('select_language')}</span><span class="value">${p.preferred_language === 'sw' ? 'Kiswahili' : 'English'}</span></div>
                             <div class="detail-item"><span class="label">${t('phone_number')}</span><span class="value">${escapeHtml(phone || '—')}</span></div>
-                            <div class="detail-item"><span class="label">${t('reg_contact_channel')}</span><span class="value">${primaryContact ? primaryContact.channel.toUpperCase() : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_contact_channel')}</span><span class="value">${primaryContact ? String(primaryContact.channel || 'sms').toUpperCase() : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_opted_in')}</span><span class="value">${primaryContact && primaryContact.opted_in ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${posNeg(hpvDone)}</span></div>
@@ -1692,7 +1693,8 @@
                 if (x === 'yes') return currentLanguage === 'sw' ? 'Ndiyo' : 'Yes';
                 if (x === 'no') return currentLanguage === 'sw' ? 'Hapana' : 'No';
                 if (x === 'not_done') return t('reg_via_not_done');
-                return v || '—';
+                if (x === '' || x === 'unknown') return t('reg_hiv_not_known');
+                return escapeHtml(String(v || '—'));
             };
             const hpvDone = (p.hpv_done_before || '').toLowerCase();
             return `
