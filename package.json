@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "smoke": "node smoke/patient-click.mjs",
-    "smoke:local": "node smoke/patient-click.mjs http://127.0.0.1:4173",
     "monkey": "node smoke/api-monkey.mjs",
+    "mock-api": "node smoke/mock-api.mjs",
     "test:launch": "node smoke/api-monkey.mjs && node smoke/patient-click.mjs"
   },
   "devDependencies": {

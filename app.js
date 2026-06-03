@@ -1,8 +1,4 @@
-// ============================================
-// NYERI TOWN HEALTH CENTER
-// Afya Rafiki - Smart Healthcare System
-// Version: 2.6.2 - Fix patient row clicks (async race) + smoke test
-// ============================================
+// Nyeri Town Health Center — HPV Patient Engagement Console
 
 (function() {
     'use strict';
@@ -10,7 +6,7 @@
     // ============================================
     // CONFIGURATION
     // ============================================
-    const cfg = window.HPV_CONFIG || window.PHV_CONFIG || {};
+    const cfg = window.HPV_CONFIG || {};
     const API_BASE_URL = cfg.BACKEND_BASE_URL || "https://medicback.onrender.com";
     
     // ============================================
@@ -3267,7 +3263,7 @@
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
             <footer class="footer">
-                <p>© 2026 ${cfg.APP_NAME || 'Nyeri Town Health Center'} | HPV Patient Engagement v2.3 | Connected to ${API_BASE_URL}</p>
+                <p>© 2026 ${cfg.APP_NAME || 'Nyeri Town Health Center'} | ${cfg.APP_VERSION || 'HPV Care'} | ${API_BASE_URL}</p>
             </footer>
         `;
         

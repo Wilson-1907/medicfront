@@ -1,23 +1,37 @@
-# Vercel Frontend Deployment
+# Medicfront — HPV Patient Engagement Console
 
-This folder contains the actual frontend app for the hospital console.
+Static console for **Nyeri Town Health Center**. Talks to the PHP API on Render ([medicback](https://github.com/Wilson-1907/medicback)).
 
-## Purpose
+## Deploy (Vercel)
 
-- Host hospital console UI on Vercel
-- Call backend JSON APIs hosted on Render
+1. Import this repository.
+2. Set **Root Directory** to `deploy/vercel` (or deploy this folder as the project root).
+3. Set `BACKEND_BASE_URL` in `config.js` if not using the default Render URL.
+4. Deploy.
 
-## Deploy Steps
+Production example: `https://medicfront-neon.vercel.app`
 
-1. Import repository into Vercel.
-2. Set root directory to `deploy/vercel`.
-3. Deploy.
-4. Edit `config.js` and set:
-   - `BACKEND_BASE_URL=https://medicback.onrender.com`
+## Configuration
 
-## Backend Integration
+Edit `config.js`:
 
-Africa's Talking webhook callbacks must point to Render backend URLs:
+- `BACKEND_BASE_URL` — medicback API base URL
+- `APP_NAME`, `CLIENT_ID_PREFIX` — facility branding and lab client ID prefix (`NC/NTHC/001/`)
 
-- `https://medicback.onrender.com/webhook_africastalking.php`
-- `https://medicback.onrender.com/webhook_delivery_report.php`
+## Quality checks
+
+```bash
+npm install
+npm run monkey    # API registration, duplicates, endpoints
+npm run smoke     # Browser navigation and patient detail
+npm run test:launch   # Both
+```
+
+Optional: `node smoke/mock-api.mjs` — HPV/escalation API smoke against production.
+
+## Webhooks (backend only)
+
+Inbound SMS/WhatsApp and delivery reports are handled on **medicback**, not Vercel:
+
+- `/webhook_africastalking.php`
+- `/webhook_delivery_report.php`
