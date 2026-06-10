@@ -92,6 +92,7 @@
             hpv_recorded_negative: "HPV negative recorded on {date}.",
             hpv_status_recorded: "Recorded",
             hpv_step_record: "Step 1 — Record lab result",
+            hpv_step_book_appt: "Step 2 — Book clinic visit",
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle FAQ tips that continue until VIA is recorded.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
@@ -156,6 +157,7 @@
             care_path_done: "Done",
             care_path_action: "Action needed",
             care_path_hpv_record: "Record HPV lab result",
+            care_path_book_appt: "Book clinic visit (sends HPV result + appointment SMS)",
             care_path_hpv_confirm: "Confirm & notify patient (HPV result SMS)",
             care_path_attendance: "Confirm attendance for clinic visit",
             care_path_via_record: "Record VIA result after the test",
@@ -275,6 +277,7 @@
             hpv_recorded_negative: "HPV hasi imewekwa {date}.",
             hpv_status_recorded: "Imewekwa",
             hpv_step_record: "Hatua 1 — Weka matokeo ya maabara",
+            hpv_step_book_appt: "Hatua 2 — Panga ziara ya kliniki",
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
             hpv_confirm_hint: "Uthibitisha hutuma matokeo kwa mgonjwa na kuanza vidokezo vya FAQ hadi VIA iwekwe.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
@@ -339,6 +342,7 @@
             care_path_done: "Imekamilika",
             care_path_action: "Inahitaji hatua",
             care_path_hpv_record: "Weka matokeo ya HPV",
+            care_path_book_appt: "Panga ziara ya kliniki (hutuma HPV + miadi kwa SMS)",
             care_path_hpv_confirm: "Thibitisha & mjulishe mgonjwa (SMS ya HPV)",
             care_path_attendance: "Thibitisha mahudhurio kwa miadi",
             care_path_via_record: "Weka matokeo ya VIA baada ya kipimo",
@@ -486,10 +490,21 @@
         return appointmentOnOrPastDay(appt);
     }
 
-    function patientHasConfirmedAppointment(appointments) {
+    function patientHasBookedAppointment(appointments) {
         return (appointments || []).some((a) => {
             const status = (a.status || '').toLowerCase();
-            return ['confirmed', 'completed', 'no_show'].includes(status);
+            return ['proposed', 'confirmed', 'completed', 'no_show'].includes(status);
+        });
+    }
+
+    function patientHasConfirmedAppointment(appointments) {
+        return patientHasBookedAppointment(appointments);
+    }
+
+    function patientHasUpcomingAppointment(appointments) {
+        return (appointments || []).some((a) => {
+            const status = (a.status || '').toLowerCase();
+            return ['proposed', 'confirmed'].includes(status);
         });
     }
 
@@ -581,7 +596,11 @@
         if (!hpvRecorded) {
             nextKey = 'care_path_hpv_record';
         } else if (!hpvConfirmed) {
-            nextKey = 'care_path_hpv_confirm';
+            if (result === 'positive' && !patientHasUpcomingAppointment(list)) {
+                nextKey = 'care_path_book_appt';
+            } else {
+                nextKey = 'care_path_hpv_confirm';
+            }
         } else if (pendingAttendance && !viaDone) {
             nextKey = 'care_path_attendance';
         } else if (hpvConfirmed && !viaDone && patientHasConfirmedAppointment(list)) {
@@ -642,7 +661,8 @@
         const s = (status || '').toLowerCase();
         if (s === 'completed') return t('appt_status_completed');
         if (s === 'no_show') return t('appt_status_no_show');
-        if (s === 'confirmed') return currentLanguage === 'sw' ? 'Imethibitishwa' : 'Confirmed';
+        if (s === 'confirmed') return currentLanguage === 'sw' ? 'Imepangwa' : 'Booked';
+        if (s === 'proposed') return currentLanguage === 'sw' ? 'Imepangwa' : 'Booked';
         return escapeHtml(status || '—');
     }
 
@@ -1256,7 +1276,7 @@
                     components.sendNyeriReferral(patientId);
                 } else if (action === 'open-appt-visit' && patientId) {
                     e.preventDefault();
-                    components.openPatientAppointmentVisit(patientId);
+                    components.scrollToPatientBookApptForm(patientId);
                 } else if (action === 'call-patient' && patientId) {
                     e.preventDefault();
                     components.callPatientAndMarkDone(patientId, escalationId, phone);
@@ -1327,6 +1347,10 @@
                 state.currentTab = 'patient';
                 if (app) {
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
+                }
+                if (state.focusApptBookingAfterLoad) {
+                    state.focusApptBookingAfterLoad = false;
+                    this.scrollToPatientBookApptForm(response.patient.id);
                 }
             } catch (err) {
                 if (!isLoadTokenCurrent(loadToken)) {
@@ -2088,17 +2112,19 @@
 
                     ${this.renderHealthSpecialistCard(p, dcr, showCallBtn)}
 
-                    <div class="card" style="margin-top:1rem;">
+                    <div class="card" style="margin-top:1rem;" id="patientApptSection-${p.id}">
                         <div class="card-header">
                             <div class="card-title"><i class="fas fa-calendar"></i> Appointments</div>
-                            <button type="button" class="btn-primary btn-sm"
-                                data-action="open-appt-visit" data-patient-id="${p.id}">
-                                <i class="fas fa-clipboard-check"></i> ${t('appt_manage_visit')}
-                            </button>
                         </div>
                         <div style="padding:16px;">
                             ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.map(a => this.renderPatientAppointmentItem(a, p.id)).join('')}
-                            ${this.renderPatientBookApptForm(p)}
+                            ${(() => {
+                                const hpvPos = (p.hpv_screening_result || '').toLowerCase() === 'positive';
+                                const hpvRec = Boolean(p.hpv_result_recorded_at);
+                                const hpvConf = Boolean(p.hpv_result_confirmed_at);
+                                const hideBook = hpvPos && hpvRec && !hpvConf && !patientHasUpcomingAppointment(appointments);
+                                return hideBook ? '' : this.renderPatientBookApptForm(p);
+                            })()}
                         </div>
                     </div>
 
@@ -2278,10 +2304,8 @@
             }
 
             const appointments = p.appointments || [];
-            const hasUpcomingAppt = appointments.some(
-                (a) => ['proposed', 'confirmed'].includes((a.status || '').toLowerCase())
-            );
-            const needsApptForPositive = result === 'positive' && !hasUpcomingAppt;
+            const hasUpcomingAppt = patientHasUpcomingAppointment(appointments);
+            const needsApptForPositive = result === 'positive' && !hasUpcomingAppt && !confirmed;
             const recordedAwaitingConfirm = hasResult && Boolean(recorded) && !confirmed;
 
             if (recordedAwaitingConfirm) {
@@ -2307,16 +2331,20 @@
                                 ${escapeHtml(hpvResultLabel(result))}
                             </span>
                         </p>
+                        ${needsApptForPositive ? `
+                        <div class="hpv-step-block hpv-step-active" id="hpvBookApptBlock-${p.id}" style="margin-top:16px;">
+                            <h4 class="hpv-step-title">${t('hpv_step_book_appt')}</h4>
+                            <p class="muted">${t('hpv_confirm_need_appointment')}</p>
+                            ${this.renderPatientBookApptForm(p, { compact: true })}
+                        </div>` : `
                         <div class="hpv-step-block hpv-step-confirm hpv-step-active" style="margin-top:16px;">
                             <h4 class="hpv-step-title">${t('hpv_step_confirm')}</h4>
                             <p class="muted">${t('hpv_confirm_hint')}</p>
-                            ${needsApptForPositive ? `
-                            <p class="hpv-confirm-disabled muted"><i class="fas fa-info-circle"></i> ${t('hpv_confirm_need_appointment')}</p>` : `
                             <button type="button" class="btn-danger hpv-confirm-btn"
                                 data-action="hpv-confirm" data-patient-id="${p.id}" data-result="${result}">
                                 <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
-                            </button>`}
-                        </div>
+                            </button>
+                        </div>`}
                     </div>
                 </div>`;
             }
@@ -2346,12 +2374,34 @@
         },
 
         scrollToAppointmentBookingForm() {
+            const pid = Number(state.selectedPatientId || state.patientDetail?.id || 0);
+            if (pid > 0 && state.currentTab === 'patient') {
+                this.scrollToPatientBookApptForm(pid);
+                return;
+            }
             requestAnimationFrame(() => {
                 const form = document.getElementById('appointmentForm');
                 const target = form?.closest('.appointments-form-card') || form;
                 if (target) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+                const dateInput = form?.querySelector('[name="scheduled_start"]');
+                if (dateInput) {
+                    dateInput.focus();
+                }
+            });
+        },
+
+        scrollToPatientBookApptForm(patientId) {
+            const id = Number(patientId || 0);
+            requestAnimationFrame(() => {
+                const anchor = document.getElementById(`hpvBookApptBlock-${id}`)
+                    || document.getElementById(`patientApptSection-${id}`)
+                    || document.getElementById(`patientBookApptForm-${id}`);
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                const form = document.getElementById(`patientBookApptForm-${id}`);
                 const dateInput = form?.querySelector('[name="scheduled_start"]');
                 if (dateInput) {
                     dateInput.focus();
@@ -2375,7 +2425,12 @@
                 if (isPositive) {
                     showNotification(data.message || t('hpv_positive_book_appt'), 'ok');
                     state.focusApptBookingAfterLoad = true;
-                    await this.openPatientAppointmentVisit(id);
+                    if (state.currentTab !== 'patient' || Number(state.patientDetail?.id) !== id) {
+                        const ref = state.selectedPatientRef || patientOpenRef(state.patientDetail) || String(id);
+                        await this.viewPatient(ref, id);
+                    } else {
+                        await this.reloadPatientDetail();
+                    }
                     return;
                 }
                 showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
@@ -2663,7 +2718,7 @@
             const status = (a.status || '').toLowerCase();
             const badgeClass = status === 'completed' ? 'badge-success'
                 : status === 'no_show' ? 'badge-danger'
-                    : status === 'confirmed' ? 'badge-success' : 'badge-warning';
+                    : (status === 'confirmed' || status === 'proposed') ? 'badge-success' : 'badge-warning';
             return `
                 <div class="appointment-item" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
                     <strong>${formatDate(a.scheduled_start, 'full')} ${formatTime(a.scheduled_start)}</strong>
@@ -2722,9 +2777,13 @@
             }
         },
 
-        renderPatientBookApptForm(p) {
+        renderPatientBookApptForm(p, options = {}) {
+            const compact = Boolean(options.compact);
+            const wrapStyle = compact
+                ? 'margin-top:12px;'
+                : 'margin-top:16px;padding-top:16px;border-top:1px solid var(--border);';
             return `
-                <div class="patient-book-appt" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+                <div class="patient-book-appt" style="${wrapStyle}">
                     <h4 style="margin:0 0 8px;"><i class="fas fa-calendar-plus"></i> ${t('book_appt_inline_title')}</h4>
                     <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('book_appt_inline_hint')}</p>
                     <form id="patientBookApptForm-${p.id}" class="form-container">
@@ -2930,6 +2989,10 @@
                     removeAppLoadingOverlay();
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
                 }
+                if (state.focusApptBookingAfterLoad) {
+                    state.focusApptBookingAfterLoad = false;
+                    this.scrollToPatientBookApptForm(response.patient.id);
+                }
             } catch (err) {
                 if (!isLoadTokenCurrent(loadToken)) {
                     return;
@@ -3000,7 +3063,8 @@
             }
             const appointments = p.appointments || [];
             const wf = getVisitWorkflowState(p, appointments);
-            const nextAppt = appointments.find((a) => ['proposed', 'confirmed'].includes((a.status || '').toLowerCase()));
+            const nextAppt = appointments.find((a) => ['proposed', 'confirmed'].includes((a.status || '').toLowerCase()))
+                || appointments.find((a) => ['completed', 'no_show'].includes((a.status || '').toLowerCase()));
             const pref = patientOpenRef(p) || String(p.id);
             return `
                 <div class="card appointments-workflow-card" style="margin-top:1rem;border:2px solid var(--accent);">
@@ -3115,16 +3179,24 @@
                     const body = Object.fromEntries(fd.entries());
                     body.action = 'add';
                     try {
-                        await api.post('/api/appointments.php', body);
-                        showNotification(
-                            currentLanguage === 'sw'
-                                ? 'Miadi imepangwa. Ujumbe wa uthibitisho umetumwa kwa mgonjwa.'
-                                : 'Appointment booked. Confirmation message sent to patient.',
-                            'ok'
-                        );
+                        const data = await api.post('/api/appointments.php', body);
+                        let bookedMsg = t('book_appt_confirm_only');
+                        if (data.hpv_result_sent) {
+                            bookedMsg = t('book_appt_hpv_sent');
+                            if (data.counseling_started) {
+                                bookedMsg += currentLanguage === 'sw'
+                                    ? ' Vidokezo vya FAQ vitaendelea hadi VIA iwekwe.'
+                                    : ' Gentle FAQ tips will continue until VIA is recorded.';
+                            }
+                        }
+                        showNotification(bookedMsg, 'ok');
                         const pid = Number(body.patient_id || 0);
                         if (pid > 0) {
-                            await this.refreshApptWorkflowPanel(pid);
+                            if (state.currentTab === 'patient' && Number(state.patientDetail?.id) === pid) {
+                                await this.reloadPatientDetail();
+                            } else {
+                                await this.refreshApptWorkflowPanel(pid);
+                            }
                         } else {
                             const apptRes = await api.get('/api/appointments.php');
                             state.appointments = apptRes.items || [];
