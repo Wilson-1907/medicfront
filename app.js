@@ -93,7 +93,7 @@
             hpv_status_recorded: "Recorded",
             hpv_step_record: "Step 1 — Record lab result",
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
-            hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
+            hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle FAQ tips that continue until VIA is recorded.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
             hpv_confirm_need_appointment: "Book the clinic visit below first. That sends the HPV result and appointment confirmation together.",
             hpv_positive_book_appt: "HPV positive recorded. Book the clinic visit below — that sends the result and appointment to the patient.",
@@ -133,7 +133,7 @@
             via_recorded_positive: "VIA positive recorded on {date}.",
             via_unavailable: "VIA recording is not available on this server.",
             book_appt_inline_title: "Book appointment",
-            book_appt_inline_hint: "For HPV positive, booking sends the lab result SMS first, then the appointment confirmation. FAQ tips start after that.",
+            book_appt_inline_hint: "For HPV positive, booking sends the lab result SMS first, then the appointment confirmation. Gentle FAQ tips continue until VIA is recorded.",
             book_appt_submit: "Book & notify patient",
             book_appt_hpv_sent: "Appointment booked. HPV result and appointment confirmation sent to patient.",
             book_appt_confirm_only: "Appointment confirmation sent to patient.",
@@ -276,7 +276,7 @@
             hpv_status_recorded: "Imewekwa",
             hpv_step_record: "Hatua 1 — Weka matokeo ya maabara",
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
-            hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
+            hpv_confirm_hint: "Uthibitisha hutuma matokeo kwa mgonjwa na kuanza vidokezo vya FAQ hadi VIA iwekwe.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
             hpv_confirm_need_appointment: "Panga ziara ya kliniki hapa chini kwanza. Hiyo hutuma matokeo ya HPV na uthibitisho wa miadi pamoja.",
             hpv_positive_book_appt: "HPV chanya imewekwa. Panga ziara ya kliniki hapa chini — hiyo hutuma matokeo na miadi kwa mgonjwa.",
@@ -316,7 +316,7 @@
             via_recorded_positive: "VIA chanya imewekwa {date}.",
             via_unavailable: "Kuweka matokeo ya VIA hakupatikani kwenye seva.",
             book_appt_inline_title: "Panga miadi",
-            book_appt_inline_hint: "Kwa HPV chanya, kupanga miadi hutuma matokeo ya maabara kwanza, kisha uthibitisho wa miadi. Vidokezo vya FAQ vinaanza baadaye.",
+            book_appt_inline_hint: "Kwa HPV chanya, kupanga miadi hutuma matokeo ya maabara kwanza, kisha uthibitisho wa miadi. Vidokezo vya FAQ vinaendelea hadi VIA iwekwe.",
             book_appt_submit: "Panga & mjulishe mgonjwa",
             book_appt_hpv_sent: "Miadi imepangwa. Matokeo ya HPV na uthibitisho wa miadi vimetumwa kwa mgonjwa.",
             book_appt_confirm_only: "Ujumbe wa uthibitisho wa miadi umetumwa kwa mgonjwa.",
@@ -2850,8 +2850,8 @@
                     bookedMsg = t('book_appt_hpv_sent');
                     if (data.counseling_started) {
                         bookedMsg += currentLanguage === 'sw'
-                            ? ' Vidokezo vya mwongozo vitaanza polepole.'
-                            : ' Gentle FAQ tips will follow over the next days.';
+                            ? ' Vidokezo vya FAQ vitaendelea hadi VIA iwekwe.'
+                            : ' Gentle FAQ tips will continue until VIA is recorded.';
                     }
                 }
                 showNotification(bookedMsg, 'ok');
