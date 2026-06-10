@@ -95,8 +95,8 @@
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
-            hpv_confirm_need_appointment: "For HPV positive, book a follow-up appointment first — the patient message needs the date.",
-            hpv_positive_book_appt: "HPV positive recorded. Book a follow-up appointment below.",
+            hpv_confirm_need_appointment: "Book the clinic visit below first. That sends the HPV result and appointment confirmation together.",
+            hpv_positive_book_appt: "HPV positive recorded. Book the clinic visit below — that sends the result and appointment to the patient.",
             hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
             hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support.",
             mark_patient_called: "Mark as called",
@@ -133,8 +133,11 @@
             via_recorded_positive: "VIA positive recorded on {date}.",
             via_unavailable: "VIA recording is not available on this server.",
             book_appt_inline_title: "Book appointment",
-            book_appt_inline_hint: "Booking sends an appointment confirmation message to the patient automatically.",
-            book_appt_submit: "Book & send confirmation",
+            book_appt_inline_hint: "For HPV positive, booking sends the lab result SMS first, then the appointment confirmation. FAQ tips start after that.",
+            book_appt_submit: "Book & notify patient",
+            book_appt_hpv_sent: "Appointment booked. HPV result and appointment confirmation sent to patient.",
+            book_appt_confirm_only: "Appointment confirmation sent to patient.",
+            reg_open_patient_hint: "Open the patient record to record today's HPV lab result.",
             appt_attendance_hint: "After the appointment date, confirm whether the patient came.",
             appt_patient_attended: "Patient attended",
             appt_patient_missed: "Did not attend",
@@ -276,7 +279,7 @@
             hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
             hpv_confirm_need_appointment: "Kwa HPV chanya, pangia miadi ya ufuatiliaji kwanza — ujumbe kwa mgonjwa unahitaji tarehe.",
-            hpv_positive_book_appt: "HPV chanya imewekwa. Panga miadi ya ufuatiliaji hapa chini.",
+            hpv_positive_book_appt: "HPV chanya imewekwa. Panga ziara ya kliniki hapa chini — hiyo hutuma matokeo na miadi kwa mgonjwa.",
             hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
             hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada.",
             mark_patient_called: "Weka alipigiwa simu",
@@ -313,8 +316,11 @@
             via_recorded_positive: "VIA chanya imewekwa {date}.",
             via_unavailable: "Kuweka matokeo ya VIA hakupatikani kwenye seva.",
             book_appt_inline_title: "Panga miadi",
-            book_appt_inline_hint: "Kupanga miadi hutuma ujumbe wa uthibitisho kwa mgonjwa kiotomatiki.",
-            book_appt_submit: "Panga & tuma uthibitisho",
+            book_appt_inline_hint: "Kwa HPV chanya, kupanga miadi hutuma matokeo ya maabara kwanza, kisha uthibitisho wa miadi. Vidokezo vya FAQ vinaanza baadaye.",
+            book_appt_submit: "Panga & mjulishe mgonjwa",
+            book_appt_hpv_sent: "Miadi imepangwa. Matokeo ya HPV na uthibitisho wa miadi vimetumwa kwa mgonjwa.",
+            book_appt_confirm_only: "Ujumbe wa uthibitisho wa miadi umetumwa kwa mgonjwa.",
+            reg_open_patient_hint: "Fungua rekodi ya mgonjwa kuweka matokeo ya HPV ya leo.",
             appt_attendance_hint: "Baada ya tarehe ya miadi, thibitisha kama mgonjwa alifika.",
             appt_patient_attended: "Alihudhuria",
             appt_patient_missed: "Hakuja",
@@ -2838,13 +2844,17 @@
             }
             showNotification(t('processing'), 'info');
             try {
-                await api.post('/api/appointments.php', body);
-                showNotification(
-                    currentLanguage === 'sw'
-                        ? 'Miadi imepangwa. Ujumbe wa uthibitisho umetumwa kwa mgonjwa.'
-                        : 'Appointment booked. Confirmation message sent to patient.',
-                    'ok'
-                );
+                const data = await api.post('/api/appointments.php', body);
+                let bookedMsg = t('book_appt_confirm_only');
+                if (data.hpv_result_sent) {
+                    bookedMsg = t('book_appt_hpv_sent');
+                    if (data.counseling_started) {
+                        bookedMsg += currentLanguage === 'sw'
+                            ? ' Vidokezo vya mwongozo vitaanza polepole.'
+                            : ' Gentle FAQ tips will follow over the next days.';
+                    }
+                }
+                showNotification(bookedMsg, 'ok');
                 form.reset();
                 await this.reloadPatientDetail();
             } catch (err) {
@@ -4020,14 +4030,20 @@
                                         ? ' SMS ya rufaa imetumwa.'
                                         : ' Referral SMS sent.';
                                 }
-                                showNotification(msg, 'ok');
+                                showNotification(msg + ' ' + t('reg_open_patient_hint'), 'ok');
                                 form.reset();
                                 
                                 const overlay = document.querySelector('.loading-overlay');
                                 if (overlay) overlay.remove();
                                 submitBtn.disabled = false;
                                 
-                                setTimeout(() => this.switchTab('patients'), 1500);
+                                if (result.patient_id) {
+                                    setTimeout(() => {
+                                        navigateToPatient(result.client_id || result.patient_id, result.patient_id);
+                                    }, 800);
+                                } else {
+                                    setTimeout(() => this.switchTab('patients'), 1500);
+                                }
                             } catch (err) {
                                 const overlay = document.querySelector('.loading-overlay');
                                 if (overlay) overlay.remove();
