@@ -154,6 +154,17 @@
             reg_followup_hiv_hpv_neg: "HIV positive + HPV negative → check-up in 5 years",
             reg_followup_hiv_hpv_pos: "HIV positive + HPV positive → check-up in 3 years",
             reg_followup_referral: "VIA positive + cancer → immediate referral SMS",
+            nyeri_referral_title: "Refer to Nyeri County Referral Hospital",
+            nyeri_referral_intro: "When HPV and VIA are both complete, refer the patient for specialist review and further treatment.",
+            nyeri_referral_test_hpv: "HPV test confirmed",
+            nyeri_referral_test_via: "VIA test recorded",
+            nyeri_referral_ready: "All screening tests are complete. Schedule the referral appointment and notify the patient.",
+            nyeri_referral_pending: "Complete all tests above before sending a referral.",
+            nyeri_referral_appt_date: "Referral appointment date",
+            nyeri_referral_send: "Send referral to Nyeri",
+            nyeri_referral_sent: "Referral sent to Nyeri County Referral Hospital.",
+            nyeri_referral_already: "Patient already referred to Nyeri County Referral Hospital.",
+            nyeri_referral_need_date: "Enter the referral appointment date.",
             screening_profile: "Screening profile",
             screening_next_checkup: "Next check-up",
             reg_client_no: "Client number",
@@ -306,6 +317,17 @@
             reg_followup_hiv_hpv_neg: "VVU chanya + HPV hasi → uchunguzi baada ya miaka 5",
             reg_followup_hiv_hpv_pos: "VVU chanya + HPV chanya → uchunguzi baada ya miaka 3",
             reg_followup_referral: "VIA chanya + saratani → SMS ya rufaa mara moja",
+            nyeri_referral_title: "Rufaa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri",
+            nyeri_referral_intro: "HPV na VIA zikikamilika, mpe rufaa mgonjwa kwa daktari bingwa na matibabu zaidi.",
+            nyeri_referral_test_hpv: "Kipimo cha HPV kimehakikishwa",
+            nyeri_referral_test_via: "Kipimo cha VIA kimewekwa",
+            nyeri_referral_ready: "Vipimo vyote vimekamilika. Weka tarehe ya miadi ya rufaa na mjulishe mgonjwa.",
+            nyeri_referral_pending: "Kamilisha vipimo hapo juu kabla ya kutuma rufaa.",
+            nyeri_referral_appt_date: "Tarehe ya miadi ya rufaa",
+            nyeri_referral_send: "Tuma rufaa Nyeri",
+            nyeri_referral_sent: "Rufaa imetumwa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri.",
+            nyeri_referral_already: "Mgonjwa tayari amepewa rufaa Hospitali ya Rufaa ya Kaunti ya Nyeri.",
+            nyeri_referral_need_date: "Weka tarehe ya miadi ya rufaa.",
             screening_profile: "Wasifu wa uchunguzi",
             screening_next_checkup: "Uchunguzi ujao",
             reg_client_no: "Nambari ya mteja",
@@ -427,6 +449,42 @@
     function viaIsRecorded(p) {
         const v = (p?.via_result || '').toLowerCase();
         return v === 'positive' || v === 'negative';
+    }
+
+    function hpvTestComplete(p) {
+        if (!p) {
+            return false;
+        }
+        if (p.hpv_result_confirmed_at) {
+            return true;
+        }
+        if (p.hpv_workflow_enabled === false) {
+            const prior = (p.hpv_prior_result || '').toLowerCase();
+            if (prior === 'positive' || prior === 'negative') {
+                return true;
+            }
+            const r = (p.hpv_screening_result || '').toLowerCase();
+            return r === 'positive' || r === 'negative';
+        }
+        return false;
+    }
+
+    function getNyeriReferralStatus(p) {
+        const fromApi = p?.nyeri_referral_status;
+        if (fromApi && typeof fromApi === 'object') {
+            return fromApi;
+        }
+        const hpvComplete = hpvTestComplete(p);
+        const viaComplete = viaIsRecorded(p);
+        return {
+            hpv_complete: hpvComplete,
+            via_complete: viaComplete,
+            all_complete: hpvComplete && viaComplete,
+            already_referred: Boolean(p?.nyeri_referral_at),
+            referral_at: p?.nyeri_referral_at || null,
+            referral_appointment_date: p?.nyeri_referral_appointment_date || null,
+            hospital: 'Nyeri County Referral Hospital',
+        };
     }
 
     function appointmentDateInputValue(scheduledStart) {
@@ -1099,6 +1157,9 @@
                     if (apptId > 0) {
                         components.markAppointmentMissed(apptId, patientId);
                     }
+                } else if (action === 'nyeri-referral-submit' && patientId) {
+                    e.preventDefault();
+                    components.sendNyeriReferral(patientId);
                 } else if (action === 'open-appt-visit' && patientId) {
                     e.preventDefault();
                     components.openPatientAppointmentVisit(patientId);
@@ -1904,6 +1965,7 @@
                     ${this.renderVisitWorkflowCard(p, appointments)}
                     ${this.renderHpvResultCard(p)}
                     ${this.renderViaResultCard(p, appointments)}
+                    ${this.renderNyeriReferralCard(p)}
 
                     <div class="card contact-card" style="margin-top:1rem;">
                         <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
@@ -2273,6 +2335,96 @@
                         </div>` : ''}
                     </div>
                 </div>`;
+        },
+
+        renderNyeriReferralCard(p) {
+            if (p.screening_enabled === false) {
+                return '';
+            }
+            const status = getNyeriReferralStatus(p);
+            const hospital = escapeHtml(status.hospital || 'Nyeri County Referral Hospital');
+            const check = (done) => done
+                ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>'
+                : '<i class="fas fa-circle" style="color:var(--muted);font-size:0.65rem"></i>';
+
+            if (status.already_referred) {
+                const when = status.referral_at ? formatDate(status.referral_at, 'full') : '—';
+                const appt = status.referral_appointment_date
+                    ? formatDate(status.referral_appointment_date, 'full')
+                    : '—';
+                return `
+                <div class="card nyeri-referral-card" style="margin-top:1rem;border-left:4px solid var(--success);">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-hospital"></i> ${t('nyeri_referral_title')}</div>
+                        <span class="badge badge-success">${currentLanguage === 'sw' ? 'Rufaa imetumwa' : 'Referred'}</span>
+                    </div>
+                    <div style="padding:16px;">
+                        <p class="muted" style="margin:0 0 12px;">${escapeHtml(t('nyeri_referral_already'))}</p>
+                        <p style="margin:0;"><strong>${hospital}</strong></p>
+                        <p class="muted" style="margin:8px 0 0;">
+                            ${currentLanguage === 'sw' ? 'Miadi' : 'Appointment'}: ${escapeHtml(appt)}
+                            · ${currentLanguage === 'sw' ? 'Imetumwa' : 'Sent'}: ${escapeHtml(when)}
+                        </p>
+                    </div>
+                </div>`;
+            }
+
+            const defaultDate = appointmentDateInputValue(new Date().toISOString());
+            return `
+                <div class="card nyeri-referral-card" style="margin-top:1rem;border-left:4px solid #6f42c1;" id="nyeriReferralCard-${p.id}">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-hospital"></i> ${t('nyeri_referral_title')}</div>
+                    </div>
+                    <div style="padding:16px;">
+                        <p class="muted" style="margin:0 0 14px;">${t('nyeri_referral_intro')}</p>
+                        <ul class="reg-followup-list" style="margin:0 0 16px;padding-left:1.2rem;">
+                            <li>${check(status.hpv_complete)} ${t('nyeri_referral_test_hpv')}</li>
+                            <li>${check(status.via_complete)} ${t('nyeri_referral_test_via')}</li>
+                        </ul>
+                        ${status.all_complete ? `
+                        <p style="margin:0 0 12px;">${t('nyeri_referral_ready')}</p>
+                        <div class="form-group" style="margin-bottom:12px;">
+                            <label class="form-label">${t('nyeri_referral_appt_date')} *</label>
+                            <input type="date" id="nyeriReferralDate-${p.id}" class="form-input" value="${escapeHtml(defaultDate)}">
+                        </div>
+                        <button type="button" class="btn-primary"
+                            data-action="nyeri-referral-submit" data-patient-id="${p.id}">
+                            <i class="fas fa-paper-plane"></i> ${t('nyeri_referral_send')}
+                        </button>
+                        <p class="muted" style="margin:10px 0 0;font-size:0.85rem;">
+                            <i class="fas fa-info-circle"></i> ${hospital}
+                        </p>` : `
+                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${t('nyeri_referral_pending')}</p>`}
+                    </div>
+                </div>`;
+        },
+
+        async sendNyeriReferral(patientId) {
+            const dateInput = document.getElementById(`nyeriReferralDate-${patientId}`);
+            const referralDate = (dateInput?.value || '').trim();
+            if (!referralDate) {
+                showNotification(t('nyeri_referral_need_date'), 'error');
+                return;
+            }
+            if (!confirm(currentLanguage === 'sw'
+                ? 'Tuma rufaa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri na ujumbe kwa mgonjwa?'
+                : 'Send referral to Nyeri County Referral Hospital and notify the patient?')) {
+                return;
+            }
+            showNotification(t('processing'), 'info');
+            try {
+                const data = await api.post('/api/referral.php', {
+                    patient_id: Number(patientId),
+                    referral_appointment_date: referralDate,
+                }, false);
+                showNotification(
+                    data.referral_sent ? t('nyeri_referral_sent') : t('success'),
+                    'ok'
+                );
+                await this.reloadPatientDetail();
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            }
         },
 
         renderViaResultCard(p, appointments = []) {
