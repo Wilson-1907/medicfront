@@ -105,7 +105,11 @@
             call_patient_sub: "Opens your phone dialler with their number and marks this request complete.",
             use_call_button_above: "Use the Call patient button in the Contact section above.",
             reg_age_label: "Age",
-            reg_age_empty: "Enter date of birth to calculate age",
+            reg_age_empty: "Enter age or date of birth",
+            reg_age_or_dob_required: "Enter the patient age or date of birth.",
+            reg_dob_optional: "Date of birth (optional)",
+            reg_age_hint: "Enter age directly, or pick date of birth to calculate it automatically.",
+            reg_age_years: "years",
             reg_hiv_status: "HIV status",
             reg_hpv_done: "HPV screening done before?",
             reg_hpv_prior: "Prior HPV result",
@@ -253,7 +257,11 @@
             call_patient_sub: "Hufungua simu yako na nambari yake na kuweka ombi kama limekamilika.",
             use_call_button_above: "Tumia kitufe cha Mpigie mgonjwa kwenye sehemu ya Mawasiliano hapo juu.",
             reg_age_label: "Umri",
-            reg_age_empty: "Weka tarehe ya kuzaliwa kuhesabu umri",
+            reg_age_empty: "Weka umri au tarehe ya kuzaliwa",
+            reg_age_or_dob_required: "Weka umri wa mgonjwa au tarehe ya kuzaliwa.",
+            reg_dob_optional: "Tarehe ya kuzaliwa (si lazima)",
+            reg_age_hint: "Weka umri moja kwa moja, au chagua tarehe ya kuzaliwa kuhesabu kiotomatiki.",
+            reg_age_years: "miaka",
             reg_hiv_status: "Hali ya VVU",
             reg_hpv_done: "Uchunguzi wa HPV umefanywa hapo awali?",
             reg_hpv_prior: "Matokeo ya awali ya HPV",
@@ -768,19 +776,60 @@
         return age >= 0 && age < 130 ? age : null;
     }
 
+    function getPatientAge(p) {
+        if (!p) {
+            return null;
+        }
+        const dobAge = calculateAgeFromDob(p.date_of_birth);
+        if (dobAge !== null) {
+            return dobAge;
+        }
+        const stored = Number(p.age);
+        if (Number.isFinite(stored) && stored > 0 && stored <= 120) {
+            return stored;
+        }
+        return null;
+    }
+
+    function formatPatientAge(p) {
+        const age = getPatientAge(p);
+        if (age === null) {
+            return '—';
+        }
+        return `${age} ${t('reg_age_years')}`;
+    }
+
+    function resolveRegisterAgeDob(form) {
+        const dob = (form.querySelector('[name="date_of_birth"]')?.value || '').trim();
+        const ageRaw = (form.querySelector('[name="age"]')?.value || '').trim();
+        if (dob) {
+            const age = calculateAgeFromDob(dob);
+            if (age === null) {
+                throw new Error(t('reg_age_or_dob_required'));
+            }
+            return { date_of_birth: dob, age };
+        }
+        const age = Number(ageRaw);
+        if (!Number.isFinite(age) || age < 1 || age > 120) {
+            throw new Error(t('reg_age_or_dob_required'));
+        }
+        return { date_of_birth: '', age };
+    }
+
     function updateRegisterAgeDisplay(form) {
         const dobInput = form?.querySelector('[name="date_of_birth"]');
-        const ageEl = document.getElementById('regAgeDisplay');
-        if (!dobInput || !ageEl) {
+        const ageInput = form?.querySelector('[name="age"]');
+        if (!dobInput || !ageInput) {
             return;
         }
-        const age = calculateAgeFromDob(dobInput.value);
-        if (age === null) {
-            ageEl.textContent = t('reg_age_empty');
-            ageEl.classList.remove('reg-age-value');
+        const fromDob = calculateAgeFromDob(dobInput.value);
+        if (fromDob !== null) {
+            ageInput.value = String(fromDob);
+            ageInput.readOnly = true;
+            ageInput.classList.add('reg-age-auto');
         } else {
-            ageEl.textContent = `${age} ${currentLanguage === 'sw' ? 'miaka' : 'years'}`;
-            ageEl.classList.add('reg-age-value');
+            ageInput.readOnly = false;
+            ageInput.classList.remove('reg-age-auto');
         }
     }
 
@@ -826,9 +875,18 @@
         setupPhoneLocalInput(document.getElementById('phoneLocal'));
 
         const dobInput = form.querySelector('[name="date_of_birth"]');
+        const ageInput = form.querySelector('[name="age"]');
         if (dobInput) {
             dobInput.addEventListener('change', () => updateRegisterAgeDisplay(form));
             dobInput.addEventListener('input', () => updateRegisterAgeDisplay(form));
+        }
+        if (ageInput) {
+            ageInput.addEventListener('input', () => {
+                if (!dobInput?.value) {
+                    ageInput.readOnly = false;
+                    ageInput.classList.remove('reg-age-auto');
+                }
+            });
         }
 
         ['hpv_done_before', 'hiv_status', 'hpv_prior_result'].forEach((name) => {
@@ -1782,8 +1840,7 @@
                 || (p.escalations || []).some((e) => isOpenEscalationStatus(e.status))
             );
             const clientId = formatClientId(p) || '—';
-            const age = calculateAgeFromDob(p.date_of_birth);
-            const ageStr = age !== null ? `${age} ${currentLanguage === 'sw' ? 'miaka' : 'years'}` : '—';
+            const ageStr = formatPatientAge(p);
             const primaryContact = contacts.find((c) => Number(c.is_primary) === 1) || contacts[0];
             const posNeg = (v) => {
                 const x = (v || '').toLowerCase();
@@ -1825,7 +1882,7 @@
                         <div class="detail-grid" style="padding:16px;">
                             <div class="detail-item"><span class="label">${t('patient_name')}</span><span class="value">${escapeHtml(p.full_name)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
-                            <div class="detail-item"><span class="label">Date of Birth</span><span class="value">${p.date_of_birth ? formatDate(p.date_of_birth, 'full') : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_dob_optional')}</span><span class="value">${p.date_of_birth ? formatDate(p.date_of_birth, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('select_language')}</span><span class="value">${p.preferred_language === 'sw' ? 'Kiswahili' : 'English'}</span></div>
                             <div class="detail-item"><span class="label">${t('phone_number')}</span><span class="value">${escapeHtml(phone || '—')}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_contact_channel')}</span><span class="value">${primaryContact ? String(primaryContact.channel || 'sms').toUpperCase() : '—'}</span></div>
@@ -1898,8 +1955,7 @@
             if (!p.hiv_status && !p.place_of_residence && !p.via_result) {
                 return '';
             }
-            const age = calculateAgeFromDob(p.date_of_birth);
-            const ageStr = age !== null ? `${age} ${currentLanguage === 'sw' ? 'miaka' : 'years'}` : '—';
+            const ageStr = formatPatientAge(p);
             const posNeg = (v) => {
                 const x = (v || '').toLowerCase();
                 if (x === 'positive') return currentLanguage === 'sw' ? 'Chanya' : 'Positive';
@@ -2780,13 +2836,15 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Date of Birth *</label>
-                                <input type="date" name="date_of_birth" class="form-input" required>
+                                <label class="form-label">${t('reg_dob_optional')}</label>
+                                <input type="date" name="date_of_birth" class="form-input">
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label">${t('reg_age_label')}</label>
-                                <div id="regAgeDisplay" class="reg-age-display muted">${t('reg_age_empty')}</div>
+                                <label class="form-label">${t('reg_age_label')} *</label>
+                                <input type="number" name="age" class="form-input" min="1" max="120" inputmode="numeric"
+                                    placeholder="${currentLanguage === 'sw' ? 'mf. 35' : 'e.g. 35'}">
+                                <small class="form-hint-muted">${t('reg_age_hint')}</small>
                             </div>
                             
                             <div class="form-group">
@@ -3609,6 +3667,9 @@
                             try {
                                 const formData = new FormData(form);
                                 const body = Object.fromEntries(formData.entries());
+                                const ageDob = resolveRegisterAgeDob(form);
+                                body.date_of_birth = ageDob.date_of_birth;
+                                body.age = ageDob.age;
                                 body.opt_in = formData.get('opt_in') ? 1 : 0;
                                 const phone = normalizeKenyaPhone(body.phone_local);
                                 if (!phone) {
