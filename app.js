@@ -136,11 +136,12 @@
             appt_status_no_show: "Missed",
             visit_workflow_title: "Clinic visit — attendance & VIA",
             visit_workflow_intro: "When the appointment day arrives, confirm whether the patient came, then record the VIA test result.",
+            visit_workflow_intro_followup: "Confirm whether the patient attended this follow-up appointment. VIA is only done at the first visit.",
             visit_step_attendance: "Step 1 — Did the patient attend?",
             visit_step_via: "Step 2 — Record VIA result from this visit",
             visit_appt_on: "Appointment:",
             appt_manage_visit: "Manage visit",
-            appt_workflow_panel_hint: "Confirm if the patient attended, then record VIA results. Messages are sent automatically.",
+            appt_workflow_panel_hint: "First visit: confirm attendance, then record VIA. Follow-up visits: attendance only. Messages are sent automatically.",
             appt_workflow_upcoming: "Next appointment is scheduled. Return on that day to confirm attendance and record VIA.",
             appt_select_patient_workflow: "Select a patient to confirm attendance and record VIA results.",
             reg_screening_section: "Clinical screening",
@@ -283,11 +284,12 @@
             appt_status_no_show: "Hakuhudhuria",
             visit_workflow_title: "Ziara ya kliniki — mahudhurio na VIA",
             visit_workflow_intro: "Siku ya miadi inapofika, thibitisha kama mgonjwa alifika, kisha weka matokeo ya kipimo cha VIA.",
+            visit_workflow_intro_followup: "Thibitisha kama mgonjwa alihudhuria miadi hii ya ufuatiliaji. VIA hufanywa tu katika ziara ya kwanza.",
             visit_step_attendance: "Hatua 1 — Je, mgonjwa alihudhuria?",
             visit_step_via: "Hatua 2 — Weka matokeo ya VIA kutoka ziara hii",
             visit_appt_on: "Miadi:",
             appt_manage_visit: "Simamia ziara",
-            appt_workflow_panel_hint: "Thibitisha kama mgonjwa alifika, kisha weka matokeo ya VIA. Ujumbe hutumwa kiotomatiki.",
+            appt_workflow_panel_hint: "Ziara ya kwanza: thibitisha mahudhurio, kisha weka VIA. Miadi ya ufuatiliaji: mahudhurio tu. Ujumbe hutumwa kiotomatiki.",
             appt_workflow_upcoming: "Miadi ijayo imepangwa. Rudi siku ya miadi kuthibitisha mahudhurio na kuweka VIA.",
             appt_select_patient_workflow: "Chagua mgonjwa kuthibitisha mahudhurio na kuweka matokeo ya VIA.",
             reg_screening_section: "Uchunguzi wa kliniki",
@@ -433,14 +435,48 @@
         return `${y}-${m}-${day}`;
     }
 
+    function appointmentSortKey(a) {
+        const ts = new Date(a?.scheduled_start || 0).getTime();
+        return Number.isFinite(ts) ? ts : Number(a?.id) || 0;
+    }
+
+    function getFirstPatientAppointment(appointments) {
+        return [...(appointments || [])].sort((a, b) => {
+            const diff = appointmentSortKey(a) - appointmentSortKey(b);
+            return diff !== 0 ? diff : (Number(a?.id) || 0) - (Number(b?.id) || 0);
+        })[0] || null;
+    }
+
+    function isFirstPatientAppointment(appt, appointments) {
+        if (!appt) {
+            return false;
+        }
+        const first = getFirstPatientAppointment(appointments);
+        return Boolean(first && Number(first.id) === Number(appt.id));
+    }
+
     function getVisitWorkflowState(p, appointments) {
         const list = appointments || [];
         const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
-        const completedVisit = list.find((a) => (a.status || '').toLowerCase() === 'completed');
-        const needsVia = !viaIsRecorded(p) && Boolean(completedVisit);
+        const firstCompleted = [...list]
+            .filter((a) => (a.status || '').toLowerCase() === 'completed')
+            .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
+        const needsVia = !viaIsRecorded(p)
+            && Boolean(firstCompleted)
+            && isFirstPatientAppointment(firstCompleted, list)
+            && !pendingAttendance;
         const active = Boolean(pendingAttendance) || needsVia;
-        const visitAppt = pendingAttendance || completedVisit || null;
-        return { pendingAttendance, completedVisit, needsVia, active, visitAppt };
+        const visitAppt = pendingAttendance || (needsVia ? firstCompleted : null);
+        const isFollowUpVisit = Boolean(pendingAttendance)
+            && !isFirstPatientAppointment(pendingAttendance, list);
+        return {
+            pendingAttendance,
+            completedVisit: firstCompleted,
+            needsVia,
+            active,
+            visitAppt,
+            isFollowUpVisit,
+        };
     }
 
     function appointmentStatusLabel(status) {
@@ -2153,7 +2189,7 @@
                         <span class="badge badge-warning">${currentLanguage === 'sw' ? 'Inahitaji hatua' : 'Action needed'}</span>
                     </div>
                     <div class="hpv-result-body" style="padding:16px;">
-                        <p class="muted" style="margin:0 0 12px;">${t('visit_workflow_intro')}</p>
+                        <p class="muted" style="margin:0 0 12px;">${t(wf.isFollowUpVisit ? 'visit_workflow_intro_followup' : 'visit_workflow_intro')}</p>
                         <p style="margin:0 0 16px;"><strong>${t('visit_appt_on')}</strong> ${escapeHtml(apptWhen)}</p>
 
                         ${wf.pendingAttendance ? `
