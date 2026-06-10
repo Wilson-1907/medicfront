@@ -129,7 +129,13 @@
             via_result_hint: "Record the VIA result after the patient has been tested. Follow-up messages are sent when opted in.",
             via_record_positive: "Record POSITIVE",
             via_record_negative: "Record NEGATIVE",
-            via_record_save: "Save VIA result & notify patient",
+            via_record_save: "Save VIA result",
+            via_step_book_followup: "Step 2 — Book follow-up visit",
+            via_book_followup_hint: "Book the next clinic visit below — that sends the VIA result and appointment confirmation to the patient.",
+            via_recorded_book_next: "VIA recorded. Book the follow-up visit below to notify the patient.",
+            book_appt_via_sent: "Follow-up booked. VIA result and appointment confirmation sent to patient.",
+            nyeri_referral_manual_hint: "Nurse may refer at any time from this patient record when specialist care is needed.",
+            nyeri_referral_manual_confirm: "Refer this patient to Nyeri County Referral Hospital even though screening is not fully complete?",
             via_recorded_negative: "VIA negative recorded on {date}. Annual check-up reminders scheduled.",
             via_recorded_positive: "VIA positive recorded on {date}.",
             via_unavailable: "VIA recording is not available on this server.",
@@ -161,6 +167,8 @@
             care_path_hpv_confirm: "Confirm & notify patient (HPV result SMS)",
             care_path_attendance: "Confirm attendance for clinic visit",
             care_path_via_record: "Record VIA result after the test",
+            care_path_via_book: "Book follow-up visit (sends VIA result + appointment SMS)",
+            care_path_referral: "Refer to Nyeri specialist hospital (optional)",
             care_path_out_of_order: "VIA was recorded before the HPV result was confirmed. Confirm HPV below so the patient receives the lab result message.",
             via_step_record: "Step 1 — Record VIA result",
             visit_step_attendance: "Step 1 — Did the patient attend?",
@@ -314,7 +322,13 @@
             via_result_hint: "Weka matokeo ya VIA baada ya mgonjwa kupimwa. Ujumbe wa ufuatiliaji hutumwa ikiwa amejisajili.",
             via_record_positive: "Weka CHANYA",
             via_record_negative: "Weka HASI",
-            via_record_save: "Hifadhi matokeo ya VIA & mjulishe mgonjwa",
+            via_record_save: "Hifadhi matokeo ya VIA",
+            via_step_book_followup: "Hatua 2 — Panga ziara ya ufuatiliaji",
+            via_book_followup_hint: "Panga ziara inayofuata hapa chini — hiyo hutuma matokeo ya VIA na uthibitisho wa miadi kwa mgonjwa.",
+            via_recorded_book_next: "VIA imewekwa. Panga ziara ya ufuatiliaji hapa chini kumjulisha mgonjwa.",
+            book_appt_via_sent: "Ufuatiliaji umepangwa. Matokeo ya VIA na uthibitisho wa miadi vimetumwa kwa mgonjwa.",
+            nyeri_referral_manual_hint: "Muuguzi anaweza kutoa rufaa wakati wowote kutoka rekodi hii ikiwa huduma ya daktari bingwa inahitajika.",
+            nyeri_referral_manual_confirm: "Mpe rufaa mgonjwa huyu Hospitali ya Rufaa ya Nyeri hata kama uchunguzi haujakamilika?",
             via_recorded_negative: "VIA hasi imewekwa {date}. Ukumbusho wa uchunguzi wa kila mwaka umepangwa.",
             via_recorded_positive: "VIA chanya imewekwa {date}.",
             via_unavailable: "Kuweka matokeo ya VIA hakupatikani kwenye seva.",
@@ -346,6 +360,8 @@
             care_path_hpv_confirm: "Thibitisha & mjulishe mgonjwa (SMS ya HPV)",
             care_path_attendance: "Thibitisha mahudhurio kwa miadi",
             care_path_via_record: "Weka matokeo ya VIA baada ya kipimo",
+            care_path_via_book: "Panga ziara ya ufuatiliaji (hutuma VIA + miadi kwa SMS)",
+            care_path_referral: "Rufaa kwa hospitali ya rufaa ya Nyeri (hiari)",
             care_path_out_of_order: "VIA iliwekwa kabla ya kuthibitisha HPV. Thibitisha HPV hapa chini ili mgonjwa apate ujumbe wa matokeo ya maabara.",
             via_step_record: "Hatua 1 — Weka matokeo ya VIA",
             visit_step_attendance: "Hatua 1 — Je, mgonjwa alihudhuria?",
@@ -513,6 +529,14 @@
         return v === 'positive' || v === 'negative';
     }
 
+    function viaIsNotified(p) {
+        return viaIsRecorded(p) && Boolean(p?.via_result_notified_at);
+    }
+
+    function viaNeedsFollowupBook(p) {
+        return viaIsRecorded(p) && !viaIsNotified(p);
+    }
+
     function hpvTestComplete(p) {
         if (!p) {
             return false;
@@ -603,11 +627,15 @@
             }
         } else if (pendingAttendance && !viaDone) {
             nextKey = 'care_path_attendance';
-        } else if (hpvConfirmed && !viaDone && patientHasConfirmedAppointment(list)) {
+        } else if (!viaDone && patientHasBookedAppointment(list)) {
             const wf = getVisitWorkflowState(p, list);
             if (wf.needsVia) {
                 nextKey = 'care_path_via_record';
+            } else if (wf.pendingAttendance) {
+                nextKey = 'care_path_attendance';
             }
+        } else if (viaDone && viaNeedsFollowupBook(p) && !patientHasUpcomingAppointment(list)) {
+            nextKey = 'care_path_via_book';
         }
 
         return {
@@ -694,6 +722,7 @@
         patientDetail: null,
         apptWorkflowPatient: null,
         focusApptBookingAfterLoad: false,
+        focusViaFollowupBookingAfterLoad: false,
         selectedPatientId: null,
         selectedPatientRef: null,
         isLoading: false,
@@ -1273,7 +1302,8 @@
                     }
                 } else if (action === 'nyeri-referral-submit' && patientId) {
                     e.preventDefault();
-                    components.sendNyeriReferral(patientId);
+                    const manualOverride = el.getAttribute('data-manual-override') === '1';
+                    components.sendNyeriReferral(patientId, manualOverride);
                 } else if (action === 'open-appt-visit' && patientId) {
                     e.preventDefault();
                     components.scrollToPatientBookApptForm(patientId);
@@ -1351,6 +1381,10 @@
                 if (state.focusApptBookingAfterLoad) {
                     state.focusApptBookingAfterLoad = false;
                     this.scrollToPatientBookApptForm(response.patient.id);
+                }
+                if (state.focusViaFollowupBookingAfterLoad) {
+                    state.focusViaFollowupBookingAfterLoad = false;
+                    this.scrollToViaFollowupBookForm(response.patient.id);
                 }
             } catch (err) {
                 if (!isLoadTokenCurrent(loadToken)) {
@@ -2122,8 +2156,9 @@
                                 const hpvPos = (p.hpv_screening_result || '').toLowerCase() === 'positive';
                                 const hpvRec = Boolean(p.hpv_result_recorded_at);
                                 const hpvConf = Boolean(p.hpv_result_confirmed_at);
-                                const hideBook = hpvPos && hpvRec && !hpvConf && !patientHasUpcomingAppointment(appointments);
-                                return hideBook ? '' : this.renderPatientBookApptForm(p);
+                                const hideForHpv = hpvPos && hpvRec && !hpvConf && !patientHasUpcomingAppointment(appointments);
+                                const hideForVia = viaNeedsFollowupBook(p);
+                                return (hideForHpv || hideForVia) ? '' : this.renderPatientBookApptForm(p);
                             })()}
                         </div>
                     </div>
@@ -2392,10 +2427,27 @@
             });
         },
 
+        scrollToViaFollowupBookForm(patientId) {
+            const id = Number(patientId || 0);
+            requestAnimationFrame(() => {
+                const anchor = document.getElementById(`viaBookApptBlock-${id}`)
+                    || document.getElementById(`patientApptSection-${id}`);
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                const form = document.getElementById(`patientBookApptForm-${id}`);
+                const dateInput = form?.querySelector('[name="scheduled_start"]');
+                if (dateInput) {
+                    dateInput.focus();
+                }
+            });
+        },
+
         scrollToPatientBookApptForm(patientId) {
             const id = Number(patientId || 0);
             requestAnimationFrame(() => {
                 const anchor = document.getElementById(`hpvBookApptBlock-${id}`)
+                    || document.getElementById(`viaBookApptBlock-${id}`)
                     || document.getElementById(`patientApptSection-${id}`)
                     || document.getElementById(`patientBookApptForm-${id}`);
                 if (anchor) {
@@ -2603,34 +2655,39 @@
                             <li>${check(status.hpv_complete)} ${t('nyeri_referral_test_hpv')}</li>
                             <li>${check(status.via_complete)} ${t('nyeri_referral_test_via')}</li>
                         </ul>
-                        ${status.all_complete ? `
-                        <p style="margin:0 0 12px;">${t('nyeri_referral_ready')}</p>
+                        <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('nyeri_referral_manual_hint')}</p>
+                        ${status.all_complete
+                            ? `<p style="margin:0 0 12px;">${t('nyeri_referral_ready')}</p>`
+                            : `<p class="muted" style="margin:0 0 12px;"><i class="fas fa-info-circle"></i> ${t('nyeri_referral_pending')}</p>`}
                         <div class="form-group" style="margin-bottom:12px;">
                             <label class="form-label">${t('nyeri_referral_appt_date')} *</label>
                             <input type="date" id="nyeriReferralDate-${p.id}" class="form-input" value="${escapeHtml(defaultDate)}">
                         </div>
                         <button type="button" class="btn-primary"
-                            data-action="nyeri-referral-submit" data-patient-id="${p.id}">
+                            data-action="nyeri-referral-submit" data-patient-id="${p.id}"
+                            data-manual-override="${status.all_complete ? '0' : '1'}">
                             <i class="fas fa-paper-plane"></i> ${t('nyeri_referral_send')}
                         </button>
                         <p class="muted" style="margin:10px 0 0;font-size:0.85rem;">
                             <i class="fas fa-info-circle"></i> ${hospital}
-                        </p>` : `
-                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${t('nyeri_referral_pending')}</p>`}
+                        </p>
                     </div>
                 </div>`;
         },
 
-        async sendNyeriReferral(patientId) {
+        async sendNyeriReferral(patientId, manualOverride = false) {
             const dateInput = document.getElementById(`nyeriReferralDate-${patientId}`);
             const referralDate = (dateInput?.value || '').trim();
             if (!referralDate) {
                 showNotification(t('nyeri_referral_need_date'), 'error');
                 return;
             }
-            if (!confirm(currentLanguage === 'sw'
-                ? 'Tuma rufaa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri na ujumbe kwa mgonjwa?'
-                : 'Send referral to Nyeri County Referral Hospital and notify the patient?')) {
+            const confirmMsg = manualOverride
+                ? t('nyeri_referral_manual_confirm')
+                : (currentLanguage === 'sw'
+                    ? 'Tuma rufaa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri na ujumbe kwa mgonjwa?'
+                    : 'Send referral to Nyeri County Referral Hospital and notify the patient?');
+            if (!confirm(confirmMsg)) {
                 return;
             }
             showNotification(t('processing'), 'info');
@@ -2638,6 +2695,7 @@
                 const data = await api.post('/api/referral.php', {
                     patient_id: Number(patientId),
                     referral_appointment_date: referralDate,
+                    manual_override: manualOverride ? 1 : 0,
                 }, false);
                 showNotification(
                     data.referral_sent ? t('nyeri_referral_sent') : t('success'),
@@ -2677,15 +2735,19 @@
                 const dateStr = p.via_date ? formatDate(p.via_date, 'full') : '—';
                 const summaryKey = via === 'positive' ? 'via_recorded_positive' : 'via_recorded_negative';
                 const summary = t(summaryKey).replace('{date}', dateStr);
+                const needsFollowupBook = viaNeedsFollowupBook(p);
+                const notified = viaIsNotified(p);
                 return `
-                <div class="card via-result-card ${borderClass}" style="margin-top:1rem;">
+                <div class="card via-result-card ${borderClass}" style="margin-top:1rem;" id="viaResultCard-${p.id}">
                     <div class="card-header">
                         <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
-                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> ${t('hpv_confirmed')}</span>
+                        ${notified
+                            ? `<span class="badge badge-success"><i class="fas fa-check-circle"></i> ${t('hpv_confirmed')}</span>`
+                            : `<span class="badge badge-warning"><i class="fas fa-clock"></i> ${t('hpv_awaiting')}</span>`}
                     </div>
                     <div class="hpv-result-body">
                         <div class="hpv-confirmed-banner">
-                            <i class="fas fa-check-circle"></i>
+                            <i class="fas fa-${notified ? 'check-circle' : 'eye'}"></i>
                             <p>${escapeHtml(summary)}</p>
                         </div>
                         <p class="hpv-result-badge-line">
@@ -2693,8 +2755,14 @@
                                 ${escapeHtml(hpvResultLabel(via))}
                             </span>
                         </p>
-                        ${Number(p.has_cancer) === 1 ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
-                        ${p.next_checkup_at ? `<p class="muted">${t('screening_next_checkup')}: ${formatDate(p.next_checkup_at, 'full')}</p>` : ''}
+                        ${needsFollowupBook ? `
+                        <div class="hpv-step-block hpv-step-active" id="viaBookApptBlock-${p.id}" style="margin-top:16px;">
+                            <h4 class="hpv-step-title">${t('via_step_book_followup')}</h4>
+                            <p class="muted">${t('via_book_followup_hint')}</p>
+                            ${this.renderPatientBookApptForm(p, { compact: true, reasonDefault: 'VIA follow-up visit' })}
+                        </div>` : ''}
+                        ${notified && Number(p.has_cancer) === 1 ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
+                        ${notified && p.next_checkup_at ? `<p class="muted">${t('screening_next_checkup')}: ${formatDate(p.next_checkup_at, 'full')}</p>` : ''}
                     </div>
                 </div>`;
             }
@@ -2779,13 +2847,14 @@
 
         renderPatientBookApptForm(p, options = {}) {
             const compact = Boolean(options.compact);
+            const reasonDefault = options.reasonDefault || '';
             const wrapStyle = compact
                 ? 'margin-top:12px;'
                 : 'margin-top:16px;padding-top:16px;border-top:1px solid var(--border);';
             return `
                 <div class="patient-book-appt" style="${wrapStyle}">
-                    <h4 style="margin:0 0 8px;"><i class="fas fa-calendar-plus"></i> ${t('book_appt_inline_title')}</h4>
-                    <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('book_appt_inline_hint')}</p>
+                    ${compact ? '' : `<h4 style="margin:0 0 8px;"><i class="fas fa-calendar-plus"></i> ${t('book_appt_inline_title')}</h4>
+                    <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('book_appt_inline_hint')}</p>`}
                     <form id="patientBookApptForm-${p.id}" class="form-container">
                         <div class="form-grid">
                             <div class="form-group">
@@ -2799,7 +2868,7 @@
                         </div>
                         <div class="form-group full-width">
                             <label class="form-label">Reason for Visit *</label>
-                            <textarea name="reason" class="form-textarea" required rows="2"></textarea>
+                            <textarea name="reason" class="form-textarea" required rows="2">${escapeHtml(reasonDefault)}</textarea>
                         </div>
                         <button type="button" class="btn-primary" data-action="book-appt-submit" data-patient-id="${p.id}">
                             <i class="fas fa-calendar-check"></i> ${t('book_appt_submit')}
@@ -2869,17 +2938,13 @@
                     has_cancer: hasCancer,
                     treatment_date: treatmentDate || undefined,
                 }, false);
-                let msg = currentLanguage === 'sw'
-                    ? 'Matokeo ya VIA yamehifadhiwa na ujumbe umetumwa kwa mgonjwa.'
-                    : 'VIA result recorded and message sent to patient.';
-                if (data.referral_sent) {
-                    msg += currentLanguage === 'sw' ? ' (SMS ya rufaa.)' : ' (Referral pathway.)';
+                showNotification(data.book_followup_next ? t('via_recorded_book_next') : t('success'), 'ok');
+                state.focusViaFollowupBookingAfterLoad = true;
+                if (state.currentTab === 'patient') {
+                    await this.reloadPatientDetail();
+                } else {
+                    await this.refreshAfterVisitAction(patientId);
                 }
-                if (data.next_checkup_at) {
-                    msg += ` ${t('screening_next_checkup')}: ${formatDate(data.next_checkup_at, 'full')}.`;
-                }
-                showNotification(msg, 'ok');
-                await this.refreshAfterVisitAction(patientId);
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
@@ -2905,7 +2970,9 @@
             try {
                 const data = await api.post('/api/appointments.php', body);
                 let bookedMsg = t('book_appt_confirm_only');
-                if (data.hpv_result_sent) {
+                if (data.via_result_sent) {
+                    bookedMsg = t('book_appt_via_sent');
+                } else if (data.hpv_result_sent) {
                     bookedMsg = t('book_appt_hpv_sent');
                     if (data.counseling_started) {
                         bookedMsg += currentLanguage === 'sw'
@@ -2992,6 +3059,10 @@
                 if (state.focusApptBookingAfterLoad) {
                     state.focusApptBookingAfterLoad = false;
                     this.scrollToPatientBookApptForm(response.patient.id);
+                }
+                if (state.focusViaFollowupBookingAfterLoad) {
+                    state.focusViaFollowupBookingAfterLoad = false;
+                    this.scrollToViaFollowupBookForm(response.patient.id);
                 }
             } catch (err) {
                 if (!isLoadTokenCurrent(loadToken)) {
@@ -3181,7 +3252,9 @@
                     try {
                         const data = await api.post('/api/appointments.php', body);
                         let bookedMsg = t('book_appt_confirm_only');
-                        if (data.hpv_result_sent) {
+                        if (data.via_result_sent) {
+                            bookedMsg = t('book_appt_via_sent');
+                        } else if (data.hpv_result_sent) {
                             bookedMsg = t('book_appt_hpv_sent');
                             if (data.counseling_started) {
                                 bookedMsg += currentLanguage === 'sw'
