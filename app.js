@@ -88,6 +88,9 @@
             hpv_confirmed_on_positive: "This patient was confirmed on {date} as HPV positive. Result and guidance were sent by SMS.",
             hpv_confirmed_on_negative: "This patient was confirmed on {date} as HPV negative. Result and guidance were sent by SMS.",
             hpv_recorded_on: "Lab result recorded on {date} as {result}. Confirm below to notify the patient.",
+            hpv_recorded_positive: "HPV positive recorded on {date}.",
+            hpv_recorded_negative: "HPV negative recorded on {date}.",
+            hpv_status_recorded: "Recorded",
             hpv_step_record: "Step 1 — Record lab result",
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
@@ -252,6 +255,9 @@
             hpv_confirmed_on_positive: "Mgonjwa alithibitishwa {date} kuwa na HPV chanya. Matokeo na mwongozo yametumwa kwa SMS.",
             hpv_confirmed_on_negative: "Mgonjwa alithibitishwa {date} kuwa na HPV hasi. Matokeo na mwongozo yametumwa kwa SMS.",
             hpv_recorded_on: "Matokeo ya maabara yamewekwa {date} kama {result}. Thibitisha hapa chini kumjulisha mgonjwa.",
+            hpv_recorded_positive: "HPV chanya imewekwa {date}.",
+            hpv_recorded_negative: "HPV hasi imewekwa {date}.",
+            hpv_status_recorded: "Imewekwa",
             hpv_step_record: "Hatua 1 — Weka matokeo ya maabara",
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
             hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
@@ -2162,51 +2168,67 @@
                 </div>`;
             }
 
-            const canConfirm = hasResult && !confirmed;
-            const hasUpcomingAppt = (p.appointments || []).some(
-                (a) => a.status === 'proposed' || a.status === 'confirmed'
+            const appointments = p.appointments || [];
+            const hasUpcomingAppt = appointments.some(
+                (a) => ['proposed', 'confirmed'].includes((a.status || '').toLowerCase())
             );
             const needsApptForPositive = result === 'positive' && !hasUpcomingAppt;
-            const recordedLine = hasResult && recorded
-                ? t('hpv_recorded_on')
-                    .replace('{date}', hpvFormatConfirmedDate(recorded))
-                    .replace('{result}', hpvResultLabel(result))
-                : '';
+            const recordedAwaitingConfirm = hasResult && Boolean(recorded) && !confirmed;
+
+            if (recordedAwaitingConfirm) {
+                const dateStr = hpvFormatConfirmedDate(recorded);
+                const summaryKey = result === 'positive' ? 'hpv_recorded_positive' : 'hpv_recorded_negative';
+                const summary = t(summaryKey).replace('{date}', dateStr);
+                const recordedBorder = result === 'positive' ? 'hpv-card-positive' : 'hpv-card-negative';
+                return `
+                <div class="card hpv-result-card ${recordedBorder}" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-vial"></i> ${t('hpv_result_title')}</div>
+                        <span class="badge badge-warning"><i class="fas fa-clock"></i> ${t('hpv_awaiting')}</span>
+                    </div>
+                    <div class="hpv-result-body">
+                        <div class="hpv-confirmed-banner">
+                            <i class="fas fa-vial"></i>
+                            <p>${escapeHtml(summary)}</p>
+                        </div>
+                        <p class="hpv-result-badge-line">
+                            <span class="badge ${result === 'positive' ? 'badge-warning' : 'badge-success'} hpv-result-badge-lg">
+                                ${escapeHtml(hpvResultLabel(result))}
+                            </span>
+                        </p>
+                        <div class="hpv-step-block hpv-step-confirm hpv-step-active" style="margin-top:16px;">
+                            <h4 class="hpv-step-title">${t('hpv_step_confirm')}</h4>
+                            <p class="muted">${t('hpv_confirm_hint')}</p>
+                            ${needsApptForPositive ? `
+                            <p class="hpv-confirm-disabled muted"><i class="fas fa-info-circle"></i> ${t('hpv_confirm_need_appointment')}</p>` : `
+                            <button type="button" class="btn-danger hpv-confirm-btn"
+                                data-action="hpv-confirm" data-patient-id="${p.id}" data-result="${result}">
+                                <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
+                            </button>`}
+                        </div>
+                    </div>
+                </div>`;
+            }
 
             return `
                 <div class="card hpv-result-card ${borderClass}" style="margin-top:1rem;">
                     <div class="card-header">
                         <div class="card-title"><i class="fas fa-vial"></i> ${t('hpv_result_title')}</div>
-                        ${hasResult ? `<span class="badge badge-warning">${t('hpv_awaiting')}</span>` : ''}
                     </div>
                     <div class="hpv-result-body">
                         <p class="muted hpv-result-intro">${t('hpv_result_hint')}</p>
-
-                        <div class="hpv-step-block">
+                        <div class="hpv-step-block hpv-step-active">
                             <h4 class="hpv-step-title">${t('hpv_step_record')}</h4>
-                            ${recordedLine ? `<p class="hpv-recorded-note">${escapeHtml(recordedLine)}</p>` : ''}
                             <div class="hpv-record-actions">
-                                <button type="button" class="btn-primary ${result === 'positive' ? 'hpv-selected' : ''}"
+                                <button type="button" class="btn-primary"
                                     data-action="hpv-record-positive" data-patient-id="${p.id}">
                                     <i class="fas fa-plus-circle"></i> ${t('hpv_record_positive')}
                                 </button>
-                                <button type="button" class="btn-secondary ${result === 'negative' ? 'hpv-selected' : ''}"
+                                <button type="button" class="btn-secondary"
                                     data-action="hpv-record-negative" data-patient-id="${p.id}">
                                     <i class="fas fa-minus-circle"></i> ${t('hpv_record_negative')}
                                 </button>
                             </div>
-                        </div>
-
-                        <div class="hpv-step-block hpv-step-confirm ${canConfirm ? 'hpv-step-active' : ''}">
-                            <h4 class="hpv-step-title">${t('hpv_step_confirm')}</h4>
-                            <p class="muted">${t('hpv_confirm_hint')}</p>
-                            ${needsApptForPositive ? `
-                            <p class="hpv-confirm-disabled muted"><i class="fas fa-info-circle"></i> ${t('hpv_confirm_need_appointment')}</p>` : canConfirm ? `
-                            <button type="button" class="btn-danger hpv-confirm-btn"
-                                data-action="hpv-confirm" data-patient-id="${p.id}" data-result="${result}">
-                                <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
-                            </button>` : `
-                            <p class="hpv-confirm-disabled muted"><i class="fas fa-info-circle"></i> ${t('hpv_confirm_need_result')}</p>`}
                         </div>
                     </div>
                 </div>`;
