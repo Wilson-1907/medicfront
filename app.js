@@ -139,6 +139,10 @@
             visit_step_attendance: "Step 1 — Did the patient attend?",
             visit_step_via: "Step 2 — Record VIA result from this visit",
             visit_appt_on: "Appointment:",
+            appt_manage_visit: "Manage visit",
+            appt_workflow_panel_hint: "Confirm if the patient attended, then record VIA results. Messages are sent automatically.",
+            appt_workflow_upcoming: "Next appointment is scheduled. Return on that day to confirm attendance and record VIA.",
+            appt_select_patient_workflow: "Select a patient to confirm attendance and record VIA results.",
             reg_screening_section: "Clinical screening",
             reg_followup_preview: "Follow-up reminders (SMS if opted in)",
             reg_followup_via_neg: "VIA negative → annual check-up in 1 year",
@@ -282,6 +286,10 @@
             visit_step_attendance: "Hatua 1 — Je, mgonjwa alihudhuria?",
             visit_step_via: "Hatua 2 — Weka matokeo ya VIA kutoka ziara hii",
             visit_appt_on: "Miadi:",
+            appt_manage_visit: "Simamia ziara",
+            appt_workflow_panel_hint: "Thibitisha kama mgonjwa alifika, kisha weka matokeo ya VIA. Ujumbe hutumwa kiotomatiki.",
+            appt_workflow_upcoming: "Miadi ijayo imepangwa. Rudi siku ya miadi kuthibitisha mahudhurio na kuweka VIA.",
+            appt_select_patient_workflow: "Chagua mgonjwa kuthibitisha mahudhurio na kuweka matokeo ya VIA.",
             reg_screening_section: "Uchunguzi wa kliniki",
             reg_followup_preview: "Ukumbusho wa ufuatiliaji (SMS ikiwa amejisajili)",
             reg_followup_via_neg: "VIA hasi → uchunguzi wa mwaka baada ya mwaka 1",
@@ -469,6 +477,7 @@
         appointments: [],
         messages: null,
         patientDetail: null,
+        apptWorkflowPatient: null,
         selectedPatientId: null,
         selectedPatientRef: null,
         isLoading: false,
@@ -996,6 +1005,9 @@
                     if (apptId > 0) {
                         components.markAppointmentMissed(apptId, patientId);
                     }
+                } else if (action === 'open-appt-visit' && patientId) {
+                    e.preventDefault();
+                    components.openPatientAppointmentVisit(patientId);
                 } else if (action === 'call-patient' && patientId) {
                     e.preventDefault();
                     components.callPatientAndMarkDone(patientId, escalationId, phone);
@@ -1550,7 +1562,7 @@
                                 <span class="appointment-badge">${appointments.length} appointment${appointments.length > 1 ? 's' : ''}</span>
                             </div>
                             ${appointments.map(apt => `
-                                <div class="appointment-item clickable" ${patientOpenRef(apt) ? `onclick="window.components.viewPatient(${escJsString(patientOpenRef(apt))})"` : ''} style="cursor:${patientOpenRef(apt) ? 'pointer' : 'default'};">
+                                <div class="appointment-item clickable" ${apt.patient_id ? `data-action="open-appt-visit" data-patient-id="${apt.patient_id}" role="button" tabindex="0"` : ''} style="cursor:${apt.patient_id ? 'pointer' : 'default'};">
                                     <div class="appointment-time">
                                         <i class="far fa-clock"></i>
                                         <span>${formatTime(apt.scheduled_start)}</span>
@@ -1828,6 +1840,10 @@
                     <div class="card" style="margin-top:1rem;">
                         <div class="card-header">
                             <div class="card-title"><i class="fas fa-calendar"></i> Appointments</div>
+                            <button type="button" class="btn-primary btn-sm"
+                                data-action="open-appt-visit" data-patient-id="${p.id}">
+                                <i class="fas fa-clipboard-check"></i> ${t('appt_manage_visit')}
+                            </button>
                         </div>
                         <div style="padding:16px;">
                             ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.map(a => this.renderPatientAppointmentItem(a, p.id)).join('')}
@@ -2253,7 +2269,7 @@
                     data.record_via_next ? t('appt_attended_via_hint') : t('success'),
                     'ok'
                 );
-                await this.reloadPatientDetail();
+                await this.refreshAfterVisitAction(patientId);
                 if (data.record_via_next) {
                     const visitCard = document.getElementById(`visitWorkflowCard-${patientId}`)
                         || document.getElementById(`viaRecordCard-${patientId}`);
@@ -2285,7 +2301,7 @@
                     data.missed_message_sent ? t('appt_missed_sent') : t('success'),
                     'ok'
                 );
-                await this.reloadPatientDetail();
+                await this.refreshAfterVisitAction(patientId);
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
@@ -2389,7 +2405,7 @@
                     msg += ` ${t('screening_next_checkup')}: ${formatDate(data.next_checkup_at, 'full')}.`;
                 }
                 showNotification(msg, 'ok');
-                await this.reloadPatientDetail();
+                await this.refreshAfterVisitAction(patientId);
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
@@ -2508,14 +2524,198 @@
             }
         },
 
-        scheduleForPatient(patientId) {
-            state.selectedPatientId = patientId;
+        async openPatientAppointmentVisit(patientId) {
+            const id = Number(patientId);
+            if (id < 1) {
+                return;
+            }
+            state.selectedPatientId = id;
             state.currentTab = 'appointments';
+            setRouteHash('appointments');
             this.renderNav();
-            this.loadCurrentTab().then(() => {
-                const sel = document.getElementById('apptPatientSelect');
-                if (sel) sel.value = String(patientId);
-            });
+            const app = document.getElementById('app');
+            if (app && state.apptWorkflowPatient?.id !== id) {
+                app.innerHTML = this.renderLoading();
+            }
+            try {
+                const response = await api.get(`/api/patients.php?id=${id}`);
+                if (!response?.patient) {
+                    throw new Error('Patient not found');
+                }
+                state.apptWorkflowPatient = response.patient;
+                if (state.currentTab === 'appointments') {
+                    if (app) {
+                        app.innerHTML = this.renderAppointmentsPage();
+                    }
+                    this.setupAppointmentsPageAfterRender();
+                }
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+                if (state.currentTab === 'appointments' && app) {
+                    app.innerHTML = this.renderAppointmentsPage();
+                    this.setupAppointmentsPageAfterRender();
+                }
+            }
+        },
+
+        scheduleForPatient(patientId) {
+            this.openPatientAppointmentVisit(patientId);
+        },
+
+        renderApptPatientWorkflowPanel(p) {
+            if (!p) {
+                return `
+                    <div class="card appointments-workflow-card" style="margin-top:1rem;">
+                        <div style="padding:16px;">
+                            <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${t('appt_select_patient_workflow')}</p>
+                        </div>
+                    </div>`;
+            }
+            const appointments = p.appointments || [];
+            const wf = getVisitWorkflowState(p, appointments);
+            const nextAppt = appointments.find((a) => ['proposed', 'confirmed'].includes((a.status || '').toLowerCase()));
+            const pref = patientOpenRef(p) || String(p.id);
+            return `
+                <div class="card appointments-workflow-card" style="margin-top:1rem;border:2px solid var(--accent);">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-user-check"></i>
+                            ${escapeHtml(p.full_name)} — ${t('appt_manage_visit')}
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm"
+                            data-action="view-patient" data-patient-ref="${escapeHtml(pref)}" data-patient-id="${p.id}">
+                            <i class="fas fa-user"></i> ${t('view_record')}
+                        </button>
+                    </div>
+                    <div style="padding:0 16px 16px;">
+                        <p class="muted" style="margin:0 0 12px;">${t('appt_workflow_panel_hint')}</p>
+                        ${wf.active ? this.renderVisitWorkflowCard(p, appointments).replace('margin-top:1rem;', 'margin-top:0;') : ''}
+                        ${!wf.active && nextAppt ? `
+                        <p class="muted" style="margin:0;">
+                            <i class="fas fa-calendar"></i> ${t('appt_workflow_upcoming')}
+                            <br><strong>${formatDate(nextAppt.scheduled_start, 'full')} ${formatTime(nextAppt.scheduled_start)}</strong>
+                        </p>` : ''}
+                        ${!wf.active && !nextAppt ? `<p class="muted" style="margin:0;">${t('no_appointments')}</p>` : ''}
+                    </div>
+                </div>`;
+        },
+
+        async refreshApptWorkflowPanel(patientId) {
+            const id = Number(patientId || state.selectedPatientId || 0);
+            if (id < 1) {
+                return;
+            }
+            try {
+                const response = await api.get(`/api/patients.php?id=${id}`);
+                if (response?.patient) {
+                    state.apptWorkflowPatient = response.patient;
+                    state.selectedPatientId = id;
+                }
+                const mount = document.getElementById('apptPatientWorkflowMount');
+                if (mount && state.currentTab === 'appointments') {
+                    mount.innerHTML = this.renderApptPatientWorkflowPanel(state.apptWorkflowPatient);
+                }
+                const apptRes = await api.get('/api/appointments.php');
+                state.appointments = apptRes.items || [];
+                this.filterAppointmentsList();
+            } catch (err) {
+                console.error('refreshApptWorkflowPanel:', err);
+            }
+        },
+
+        async refreshAfterVisitAction(patientId) {
+            const id = Number(patientId);
+            if (state.currentTab === 'appointments') {
+                await this.refreshApptWorkflowPanel(id);
+                return;
+            }
+            if (state.currentTab === 'patient') {
+                await this.reloadPatientDetail();
+            }
+        },
+
+        setupAppointmentsPageAfterRender() {
+            const sel = document.getElementById('apptPatientSelect');
+            if (sel) {
+                if (state.selectedPatientId) {
+                    sel.value = String(state.selectedPatientId);
+                }
+                if (!sel.dataset.bound) {
+                    sel.dataset.bound = '1';
+                    sel.addEventListener('change', async () => {
+                        const pid = Number(sel.value || 0);
+                        if (pid > 0) {
+                            await this.openPatientAppointmentVisit(pid);
+                        } else {
+                            state.apptWorkflowPatient = null;
+                            state.selectedPatientId = null;
+                            const mount = document.getElementById('apptPatientWorkflowMount');
+                            if (mount) {
+                                mount.innerHTML = this.renderApptPatientWorkflowPanel(null);
+                            }
+                        }
+                    });
+                }
+            }
+
+            (async () => {
+                try {
+                    const response = await api.get('/api/appointments.php');
+                    state.appointments = response.items || [];
+                    this.filterAppointmentsList();
+                    this.setupAppointmentsFilters();
+                } catch (err) {
+                    const content = document.getElementById('appointmentsContent');
+                    if (content) {
+                        content.innerHTML = this.renderConnectionError(err);
+                    }
+                }
+            })();
+
+            const apptForm = document.getElementById('appointmentForm');
+            if (apptForm && !apptForm.dataset.bound) {
+                apptForm.dataset.bound = '1';
+                apptForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const submitBtn = apptForm.querySelector('button[type="submit"]');
+                    if (submitBtn?.disabled) {
+                        return;
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                    }
+                    const fd = new FormData(apptForm);
+                    const body = Object.fromEntries(fd.entries());
+                    body.action = 'add';
+                    try {
+                        await api.post('/api/appointments.php', body);
+                        showNotification(
+                            currentLanguage === 'sw'
+                                ? 'Miadi imepangwa. Ujumbe wa uthibitisho umetumwa kwa mgonjwa.'
+                                : 'Appointment booked. Confirmation message sent to patient.',
+                            'ok'
+                        );
+                        const pid = Number(body.patient_id || 0);
+                        if (pid > 0) {
+                            await this.refreshApptWorkflowPanel(pid);
+                        } else {
+                            const apptRes = await api.get('/api/appointments.php');
+                            state.appointments = apptRes.items || [];
+                            this.filterAppointmentsList();
+                        }
+                        apptForm.reset();
+                        if (sel && state.selectedPatientId) {
+                            sel.value = String(state.selectedPatientId);
+                        }
+                    } catch (err) {
+                        showNotification(err.message, 'error');
+                    } finally {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                        }
+                    }
+                };
+            }
         },
         
         renderRegister() {
@@ -2699,6 +2899,10 @@
                         </div>
                     </div>
 
+                    <div id="apptPatientWorkflowMount">
+                        ${this.renderApptPatientWorkflowPanel(state.apptWorkflowPatient)}
+                    </div>
+
                     <div class="card appointments-section appointments-form-card">
                         <div class="card-header">
                             <div class="card-title">
@@ -2831,7 +3035,7 @@
                                 </header>
                                 <div class="appointment-cards-grid">
                                     ${grouped[date].map(apt => `
-                                        <article class="appointment-card-v2 status-${apt.status || 'proposed'}" ${patientOpenRef(apt) ? `onclick="window.components.viewPatient(${escJsString(patientOpenRef(apt))})"` : ''}>
+                                        <article class="appointment-card-v2 status-${apt.status || 'proposed'}" ${apt.patient_id ? `data-action="open-appt-visit" data-patient-id="${apt.patient_id}" role="button" tabindex="0" style="cursor:pointer"` : ''}>
                                             <div class="appt-card-top">
                                                 <div class="appointment-patient-avatar">${(apt.full_name || 'P').charAt(0).toUpperCase()}</div>
                                                 <div class="appt-card-headline">
@@ -2854,8 +3058,8 @@
                                             ${apt.reason ? `<p class="appt-reason"><i class="fas fa-notes-medical"></i> ${escapeHtml(apt.reason)}</p>` : ''}
                                             ${this.renderReminderBadges(apt)}
                                             <div class="appt-card-actions" onclick="event.stopPropagation()">
-                                                ${patientOpenRef(apt) ? `<button class="btn-secondary btn-sm" onclick="window.components.viewPatient(${escJsString(patientOpenRef(apt))})"><i class="fas fa-user"></i> Patient</button>` : ''}
-                                                <button class="btn-primary btn-sm" onclick="window.components.viewAppointmentDetails(${apt.id})"><i class="fas fa-info-circle"></i> Details</button>
+                                                ${apt.patient_id ? `<button type="button" class="btn-primary btn-sm" data-action="open-appt-visit" data-patient-id="${apt.patient_id}"><i class="fas fa-clipboard-check"></i> ${t('appt_manage_visit')}</button>` : ''}
+                                                ${patientOpenRef(apt) ? `<button type="button" class="btn-secondary btn-sm" data-action="view-patient" data-patient-ref="${escapeHtml(patientOpenRef(apt) || '')}" data-patient-id="${apt.patient_id || 0}"><i class="fas fa-user"></i> ${t('view_record')}</button>` : ''}
                                             </div>
                                         </article>
                                     `).join('')}
@@ -3431,49 +3635,14 @@
                     if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'appointments') {
                         return;
                     }
-                    app.innerHTML = this.renderAppointmentsPage();
-                    
-                    (async () => {
+                    if (state.selectedPatientId && !state.apptWorkflowPatient) {
                         try {
-                            const response = await api.get('/api/appointments.php');
-                            state.appointments = response.items || [];
-                            this.filterAppointmentsList();
-                            this.setupAppointmentsFilters();
-                        } catch (err) {
-                            const content = document.getElementById('appointmentsContent');
-                            if (content) content.innerHTML = this.renderConnectionError(err);
-                        }
-                    })();
-
-                    const apptForm = document.getElementById('appointmentForm');
-                    if (apptForm) {
-                        if (state.selectedPatientId) {
-                            const sel = document.getElementById('apptPatientSelect');
-                            if (sel) sel.value = String(state.selectedPatientId);
-                        }
-                        apptForm.onsubmit = async (e) => {
-                            e.preventDefault();
-                            const submitBtn = apptForm.querySelector('button[type="submit"]');
-                            if (submitBtn?.disabled) return;
-                            if (submitBtn) submitBtn.disabled = true;
-                            const fd = new FormData(apptForm);
-                            const body = Object.fromEntries(fd.entries());
-                            body.action = 'add';
-                            try {
-                                await api.post('/api/appointments.php', body);
-                                showNotification(t('success'), 'ok');
-                                apptForm.reset();
-                                const response = await api.get('/api/appointments.php');
-                                state.appointments = response.items || [];
-                                const content = document.getElementById('appointmentsContent');
-                                if (content) this.filterAppointmentsList();
-                            } catch (err) {
-                                showNotification(err.message, 'error');
-                            } finally {
-                                if (submitBtn) submitBtn.disabled = false;
-                            }
-                        };
+                            const pr = await api.get(`/api/patients.php?id=${state.selectedPatientId}`);
+                            state.apptWorkflowPatient = pr.patient || null;
+                        } catch (e) { /* optional */ }
                     }
+                    app.innerHTML = this.renderAppointmentsPage();
+                    this.setupAppointmentsPageAfterRender();
                 } 
                 else if (tabAtStart === 'messages') {
                     const response = await api.get('/api/message_center.php');
@@ -3627,20 +3796,11 @@
 
         viewAppointmentDetails(id) {
             const apt = (state.appointments || []).find(a => Number(a.id) === Number(id));
-            if (!apt) {
+            if (!apt?.patient_id) {
                 showNotification('Appointment not found', 'error');
                 return;
             }
-            const lines = [
-                `Patient: ${apt.full_name || apt.patient_id}`,
-                `Date: ${formatDate(apt.scheduled_start, 'full')} ${formatTime(apt.scheduled_start)}`,
-                apt.department ? `Department: ${apt.department}` : '',
-                apt.provider_name ? `Provider: ${apt.provider_name}` : '',
-                apt.location ? `Location: ${apt.location}` : '',
-                apt.reason ? `Reason: ${apt.reason}` : '',
-                `Status: ${apt.status || 'pending'}`
-            ].filter(Boolean).join('\n');
-            alert(lines);
+            this.openPatientAppointmentVisit(apt.patient_id);
         }
     };
     
