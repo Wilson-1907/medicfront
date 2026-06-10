@@ -446,6 +446,13 @@
         return appointmentOnOrPastDay(appt);
     }
 
+    function patientHasConfirmedAppointment(appointments) {
+        return (appointments || []).some((a) => {
+            const status = (a.status || '').toLowerCase();
+            return ['confirmed', 'completed', 'no_show'].includes(status);
+        });
+    }
+
     function viaIsRecorded(p) {
         const v = (p?.via_result || '').toLowerCase();
         return v === 'positive' || v === 'negative';
@@ -523,11 +530,13 @@
 
     function getVisitWorkflowState(p, appointments) {
         const list = appointments || [];
+        const apptConfirmed = patientHasConfirmedAppointment(list);
         const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
         const firstCompleted = [...list]
             .filter((a) => (a.status || '').toLowerCase() === 'completed')
             .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
-        const needsVia = !viaIsRecorded(p)
+        const needsVia = apptConfirmed
+            && !viaIsRecorded(p)
             && Boolean(firstCompleted)
             && isFirstPatientAppointment(firstCompleted, list)
             && !pendingAttendance;
@@ -1952,10 +1961,11 @@
                             <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${posNeg(hpvDone)}</span></div>
                             ${hpvDone === 'yes' ? `<div class="detail-item"><span class="label">${t('reg_hpv_prior')}</span><span class="value">${posNeg(p.hpv_prior_result)}</span></div>` : ''}
                             <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
+                            ${patientHasConfirmedAppointment(appointments) ? `
                             <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_has_cancer')}</span><span class="value">${Number(p.has_cancer) === 1 ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
-                            <div class="detail-item"><span class="label">${t('reg_treatment_date')}</span><span class="value">${p.treatment_date ? formatDate(p.treatment_date, 'full') : '—'}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_treatment_date')}</span><span class="value">${p.treatment_date ? formatDate(p.treatment_date, 'full') : '—'}</span></div>` : ''}
                             <div class="detail-item"><span class="label">${t('screening_next_checkup')}</span><span class="value">${p.next_checkup_at ? formatDate(p.next_checkup_at, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">Registered</span><span class="value">${formatDate(p.registration_at, 'full')}</span></div>
                             <div class="detail-item full-width"><span class="label">Notes</span><span class="value">${escapeHtml(p.notes || 'None')}</span></div>
@@ -2326,7 +2336,7 @@
                             </div>
                         </div>` : ''}
 
-                        ${wf.needsVia && !wf.pendingAttendance ? `
+                        ${wf.needsVia && !wf.pendingAttendance && patientHasConfirmedAppointment(appointments) ? `
                         <div class="hpv-step-block hpv-step-active" id="viaRecordCard-${p.id}">
                             <h4 class="hpv-step-title">${t('visit_step_via')}</h4>
                             <div id="viaRecordForm-${p.id}">
@@ -2438,6 +2448,10 @@
                         <p class="muted">${t('via_unavailable')}</p>
                     </div>
                 </div>`;
+            }
+
+            if (!patientHasConfirmedAppointment(appointments)) {
+                return '';
             }
 
             const via = (p.via_result || '').toLowerCase();
