@@ -93,6 +93,7 @@
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
             hpv_confirm_need_appointment: "For HPV positive, book a follow-up appointment first — the patient message needs the date.",
+            hpv_positive_book_appt: "HPV positive recorded. Book a follow-up appointment below.",
             hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
             hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support.",
             mark_patient_called: "Mark as called",
@@ -256,6 +257,7 @@
             hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
             hpv_confirm_need_appointment: "Kwa HPV chanya, pangia miadi ya ufuatiliaji kwanza — ujumbe kwa mgonjwa unahitaji tarehe.",
+            hpv_positive_book_appt: "HPV chanya imewekwa. Panga miadi ya ufuatiliaji hapa chini.",
             hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
             hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada.",
             mark_patient_called: "Weka alipigiwa simu",
@@ -589,6 +591,7 @@
         messages: null,
         patientDetail: null,
         apptWorkflowPatient: null,
+        focusApptBookingAfterLoad: false,
         selectedPatientId: null,
         selectedPatientRef: null,
         isLoading: false,
@@ -2209,10 +2212,25 @@
                 </div>`;
         },
 
+        scrollToAppointmentBookingForm() {
+            requestAnimationFrame(() => {
+                const form = document.getElementById('appointmentForm');
+                const target = form?.closest('.appointments-form-card') || form;
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                const dateInput = form?.querySelector('[name="scheduled_start"]');
+                if (dateInput) {
+                    dateInput.focus();
+                }
+            });
+        },
+
         async setHpvResult(patientId, result) {
             const id = Number(patientId);
+            const isPositive = String(result).toLowerCase() === 'positive';
             showNotification(
-                result === 'positive' ? 'Recording HPV positive…' : 'Recording HPV negative…',
+                isPositive ? 'Recording HPV positive…' : 'Recording HPV negative…',
                 'info'
             );
             try {
@@ -2221,6 +2239,12 @@
                     patient_id: id,
                     result: String(result),
                 }, false);
+                if (isPositive) {
+                    showNotification(data.message || t('hpv_positive_book_appt'), 'ok');
+                    state.focusApptBookingAfterLoad = true;
+                    await this.openPatientAppointmentVisit(id);
+                    return;
+                }
                 showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
                 await this.reloadPatientDetail();
             } catch (err) {
@@ -2806,12 +2830,20 @@
                         app.innerHTML = this.renderAppointmentsPage();
                     }
                     this.setupAppointmentsPageAfterRender();
+                    if (state.focusApptBookingAfterLoad) {
+                        state.focusApptBookingAfterLoad = false;
+                        this.scrollToAppointmentBookingForm();
+                    }
                 }
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
                 if (state.currentTab === 'appointments' && app) {
                     app.innerHTML = this.renderAppointmentsPage();
                     this.setupAppointmentsPageAfterRender();
+                    if (state.focusApptBookingAfterLoad) {
+                        state.focusApptBookingAfterLoad = false;
+                        this.scrollToAppointmentBookingForm();
+                    }
                 }
             }
         },
@@ -3163,7 +3195,7 @@
                         ${this.renderApptPatientWorkflowPanel(state.apptWorkflowPatient)}
                     </div>
 
-                    <div class="card appointments-section appointments-form-card">
+                    <div class="card appointments-section appointments-form-card" id="appointmentsBookingCard">
                         <div class="card-header">
                             <div class="card-title">
                                 <i class="fas fa-plus-circle"></i>
