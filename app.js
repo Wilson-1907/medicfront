@@ -145,6 +145,19 @@
             visit_workflow_title: "Clinic visit — attendance & VIA",
             visit_workflow_intro: "When the appointment day arrives, confirm whether the patient came, then record the VIA test result.",
             visit_workflow_intro_followup: "Confirm whether the patient attended this follow-up appointment. VIA is only done at the first visit.",
+            care_path_title: "Afya Rafiki care pathway",
+            care_path_order_hint: "Follow in order: 1) HPV lab result → 2) Clinic visit → 3) VIA test.",
+            care_path_hpv: "HPV lab result",
+            care_path_visit: "Clinic visit",
+            care_path_via: "VIA test",
+            care_path_done: "Done",
+            care_path_action: "Action needed",
+            care_path_hpv_record: "Record HPV lab result",
+            care_path_hpv_confirm: "Confirm & notify patient (HPV result SMS)",
+            care_path_attendance: "Confirm attendance for clinic visit",
+            care_path_via_record: "Record VIA result after the test",
+            care_path_out_of_order: "VIA was recorded before the HPV result was confirmed. Confirm HPV below so the patient receives the lab result message.",
+            via_step_record: "Step 1 — Record VIA result",
             visit_step_attendance: "Step 1 — Did the patient attend?",
             visit_step_via: "Step 2 — Record VIA result from this visit",
             visit_appt_on: "Appointment:",
@@ -312,6 +325,19 @@
             visit_workflow_title: "Ziara ya kliniki — mahudhurio na VIA",
             visit_workflow_intro: "Siku ya miadi inapofika, thibitisha kama mgonjwa alifika, kisha weka matokeo ya kipimo cha VIA.",
             visit_workflow_intro_followup: "Thibitisha kama mgonjwa alihudhuria miadi hii ya ufuatiliaji. VIA hufanywa tu katika ziara ya kwanza.",
+            care_path_title: "Safari ya huduma — Afya Rafiki",
+            care_path_order_hint: "Fuata mpangilio: 1) Matokeo ya HPV → 2) Ziara ya kliniki → 3) Kipimo cha VIA.",
+            care_path_hpv: "Matokeo ya HPV",
+            care_path_visit: "Ziara ya kliniki",
+            care_path_via: "Kipimo cha VIA",
+            care_path_done: "Imekamilika",
+            care_path_action: "Inahitaji hatua",
+            care_path_hpv_record: "Weka matokeo ya HPV",
+            care_path_hpv_confirm: "Thibitisha & mjulishe mgonjwa (SMS ya HPV)",
+            care_path_attendance: "Thibitisha mahudhurio kwa miadi",
+            care_path_via_record: "Weka matokeo ya VIA baada ya kipimo",
+            care_path_out_of_order: "VIA iliwekwa kabla ya kuthibitisha HPV. Thibitisha HPV hapa chini ili mgonjwa apate ujumbe wa matokeo ya maabara.",
+            via_step_record: "Hatua 1 — Weka matokeo ya VIA",
             visit_step_attendance: "Hatua 1 — Je, mgonjwa alihudhuria?",
             visit_step_via: "Hatua 2 — Weka matokeo ya VIA kutoka ziara hii",
             visit_appt_on: "Miadi:",
@@ -536,8 +562,52 @@
         return Boolean(first && Number(first.id) === Number(appt.id));
     }
 
+    function getCarePathState(p, appointments) {
+        const list = appointments || [];
+        const result = (p.hpv_screening_result || 'pending').toLowerCase();
+        const hpvRecorded = Boolean(p.hpv_result_recorded_at) && (result === 'positive' || result === 'negative');
+        const hpvConfirmed = Boolean(p.hpv_result_confirmed_at) && hpvRecorded;
+        const viaDone = viaIsRecorded(p);
+        const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
+        const visitDone = viaDone || !pendingAttendance && list.some((a) => (a.status || '').toLowerCase() === 'completed');
+
+        let nextKey = null;
+        if (!hpvRecorded) {
+            nextKey = 'care_path_hpv_record';
+        } else if (!hpvConfirmed) {
+            nextKey = 'care_path_hpv_confirm';
+        } else if (pendingAttendance && !viaDone) {
+            nextKey = 'care_path_attendance';
+        } else if (hpvConfirmed && !viaDone && patientHasConfirmedAppointment(list)) {
+            const wf = getVisitWorkflowState(p, list);
+            if (wf.needsVia) {
+                nextKey = 'care_path_via_record';
+            }
+        }
+
+        return {
+            hpvRecorded,
+            hpvConfirmed,
+            viaDone,
+            visitDone: visitDone || viaDone,
+            pendingAttendance: Boolean(pendingAttendance) && !viaDone,
+            nextKey,
+            outOfOrder: viaDone && !hpvConfirmed,
+        };
+    }
+
     function getVisitWorkflowState(p, appointments) {
         const list = appointments || [];
+        if (viaIsRecorded(p)) {
+            return {
+                pendingAttendance: null,
+                completedVisit: null,
+                needsVia: false,
+                active: false,
+                visitAppt: null,
+                isFollowUpVisit: false,
+            };
+        }
         const apptConfirmed = patientHasConfirmedAppointment(list);
         const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
         const firstCompleted = [...list]
@@ -1981,8 +2051,9 @@
                         </div>
                     </div>
 
-                    ${this.renderVisitWorkflowCard(p, appointments)}
+                    ${this.renderCarePathBanner(p, appointments)}
                     ${this.renderHpvResultCard(p)}
+                    ${this.renderVisitWorkflowCard(p, appointments)}
                     ${this.renderViaResultCard(p, appointments)}
                     ${this.renderNyeriReferralCard(p)}
 
@@ -2122,6 +2193,38 @@
                 </div>`;
         },
 
+        renderCarePathBanner(p, appointments = []) {
+            if (p.hpv_workflow_enabled === false && p.screening_enabled === false) {
+                return '';
+            }
+            const cp = getCarePathState(p, appointments);
+            const step = (done, label) => `
+                <div class="care-path-step ${done ? 'care-path-done' : ''}">
+                    <i class="fas fa-${done ? 'check-circle' : 'circle'}"></i>
+                    <span>${escapeHtml(label)}</span>
+                    ${done ? `<span class="badge badge-success" style="margin-left:6px;">${t('care_path_done')}</span>` : ''}
+                </div>`;
+
+            return `
+                <div class="card care-path-card" style="margin-top:1rem;border-left:4px solid #0d6efd;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-route"></i> ${t('care_path_title')}</div>
+                        ${cp.nextKey ? `<span class="badge badge-warning">${t('care_path_action')}</span>` : ''}
+                    </div>
+                    <div style="padding:16px;">
+                        <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('care_path_order_hint')}</p>
+                        <div class="care-path-steps">
+                            ${step(cp.hpvConfirmed, t('care_path_hpv'))}
+                            ${step(cp.visitDone, t('care_path_visit'))}
+                            ${step(cp.viaDone, t('care_path_via'))}
+                        </div>
+                        ${cp.outOfOrder ? `<p class="hpv-confirm-disabled" style="margin:12px 0 0;"><i class="fas fa-exclamation-triangle"></i> ${t('care_path_out_of_order')}</p>` : ''}
+                        ${cp.nextKey && !cp.outOfOrder ? `<p style="margin:12px 0 0;"><strong>${t('care_path_action')}:</strong> ${t(cp.nextKey)}</p>` : ''}
+                        ${cp.nextKey && cp.outOfOrder ? `<p style="margin:12px 0 0;"><strong>${t('care_path_action')}:</strong> ${t('care_path_hpv_confirm')}</p>` : ''}
+                    </div>
+                </div>`;
+        },
+
         renderHpvResultCard(p) {
             if (p.hpv_workflow_enabled === false) {
                 return `
@@ -2180,6 +2283,7 @@
                 const summaryKey = result === 'positive' ? 'hpv_recorded_positive' : 'hpv_recorded_negative';
                 const summary = t(summaryKey).replace('{date}', dateStr);
                 const recordedBorder = result === 'positive' ? 'hpv-card-positive' : 'hpv-card-negative';
+                const viaAlready = viaIsRecorded(p);
                 return `
                 <div class="card hpv-result-card ${recordedBorder}" style="margin-top:1rem;">
                     <div class="card-header">
@@ -2187,6 +2291,7 @@
                         <span class="badge badge-warning"><i class="fas fa-clock"></i> ${t('hpv_awaiting')}</span>
                     </div>
                     <div class="hpv-result-body">
+                        ${viaAlready ? `<p class="hpv-confirm-disabled" style="margin:0 0 12px;"><i class="fas fa-exclamation-triangle"></i> ${t('care_path_out_of_order')}</p>` : ''}
                         <div class="hpv-confirmed-banner">
                             <i class="fas fa-vial"></i>
                             <p>${escapeHtml(summary)}</p>
@@ -2314,7 +2419,7 @@
                         <p class="muted hpv-result-intro">${t('via_result_hint')}</p>
                         <input type="hidden" name="via_result" value="">
                         <div class="hpv-step-block">
-                            <h4 class="hpv-step-title">${t('hpv_step_record')}</h4>
+                            <h4 class="hpv-step-title">${t('via_step_record')}</h4>
                             <div class="hpv-record-actions">
                                 <button type="button" class="btn-primary" data-action="via-pick-positive" data-patient-id="${p.id}">
                                     <i class="fas fa-plus-circle"></i> ${t('via_record_positive')}

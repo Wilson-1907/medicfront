@@ -1641,6 +1641,13 @@ body {
 .hpv-result-card.hpv-card-positive { border-left-color: #d97706; }
 .hpv-result-card.hpv-card-negative { border-left-color: #059669; }
 .hpv-result-card.hpv-card-pending { border-left-color: var(--primary-500); }
+.care-path-steps { display: flex; flex-direction: column; gap: 8px; }
+.care-path-step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.92rem; color: var(--gray-600);
+}
+.care-path-step.care-path-done { color: var(--gray-800); }
+.care-path-step.care-path-done i { color: var(--success, #059669); }
 .hpv-result-body { padding: 16px 20px 20px; }
 .hpv-result-intro { margin: 0 0 16px; }
 .hpv-step-block {
