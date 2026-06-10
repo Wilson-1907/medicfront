@@ -92,6 +92,7 @@
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle follow-up messages over time.",
             hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
+            hpv_confirm_need_appointment: "For HPV positive, book a follow-up appointment first — the patient message needs the date.",
             hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
             hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support.",
             mark_patient_called: "Mark as called",
@@ -114,6 +115,30 @@
             reg_has_cancer: "Patient has cancer — send referral to Nyeri County Referral Hospital",
             reg_treatment_date: "Date of treatment (if any)",
             reg_via_not_done: "Not done yet",
+            reg_via_after_test_hint: "VIA is recorded on the patient page after the test is done.",
+            via_result_title: "VIA (Visual Inspection) result",
+            via_result_hint: "Record the VIA result after the patient has been tested. Follow-up messages are sent when opted in.",
+            via_record_positive: "Record POSITIVE",
+            via_record_negative: "Record NEGATIVE",
+            via_record_save: "Save VIA result & notify patient",
+            via_recorded_negative: "VIA negative recorded on {date}. Annual check-up reminders scheduled.",
+            via_recorded_positive: "VIA positive recorded on {date}.",
+            via_unavailable: "VIA recording is not available on this server.",
+            book_appt_inline_title: "Book appointment",
+            book_appt_inline_hint: "Booking sends an appointment confirmation message to the patient automatically.",
+            book_appt_submit: "Book & send confirmation",
+            appt_attendance_hint: "After the appointment date, confirm whether the patient came.",
+            appt_patient_attended: "Patient attended",
+            appt_patient_missed: "Did not attend",
+            appt_attended_via_hint: "Marked as attended. Record the VIA result below.",
+            appt_missed_sent: "Marked as missed. Patient notified.",
+            appt_status_completed: "Attended",
+            appt_status_no_show: "Missed",
+            visit_workflow_title: "Clinic visit — attendance & VIA",
+            visit_workflow_intro: "When the appointment day arrives, confirm whether the patient came, then record the VIA test result.",
+            visit_step_attendance: "Step 1 — Did the patient attend?",
+            visit_step_via: "Step 2 — Record VIA result from this visit",
+            visit_appt_on: "Appointment:",
             reg_screening_section: "Clinical screening",
             reg_followup_preview: "Follow-up reminders (SMS if opted in)",
             reg_followup_via_neg: "VIA negative → annual check-up in 1 year",
@@ -210,6 +235,7 @@
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
             hpv_confirm_hint: "Uthibitisho hutuma matokeo kwa mgonjwa na kuanza ujumbe wa mwongozo polepole.",
             hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
+            hpv_confirm_need_appointment: "Kwa HPV chanya, pangia miadi ya ufuatiliaji kwanza — ujumbe kwa mgonjwa unahitaji tarehe.",
             hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
             hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada.",
             mark_patient_called: "Weka alipigiwa simu",
@@ -232,6 +258,30 @@
             reg_has_cancer: "Mgonjwa ana saratani — tuma rufaa kwa Hospitali ya Rufaa ya Kaunti ya Nyeri",
             reg_treatment_date: "Tarehe ya matibabu (ikiwa ipo)",
             reg_via_not_done: "Haijafanyika bado",
+            reg_via_after_test_hint: "VIA inawekwa kwenye ukurasa wa mgonjwa baada ya kipimo kufanyika.",
+            via_result_title: "Matokeo ya VIA",
+            via_result_hint: "Weka matokeo ya VIA baada ya mgonjwa kupimwa. Ujumbe wa ufuatiliaji hutumwa ikiwa amejisajili.",
+            via_record_positive: "Weka CHANYA",
+            via_record_negative: "Weka HASI",
+            via_record_save: "Hifadhi matokeo ya VIA & mjulishe mgonjwa",
+            via_recorded_negative: "VIA hasi imewekwa {date}. Ukumbusho wa uchunguzi wa kila mwaka umepangwa.",
+            via_recorded_positive: "VIA chanya imewekwa {date}.",
+            via_unavailable: "Kuweka matokeo ya VIA hakupatikani kwenye seva.",
+            book_appt_inline_title: "Panga miadi",
+            book_appt_inline_hint: "Kupanga miadi hutuma ujumbe wa uthibitisho kwa mgonjwa kiotomatiki.",
+            book_appt_submit: "Panga & tuma uthibitisho",
+            appt_attendance_hint: "Baada ya tarehe ya miadi, thibitisha kama mgonjwa alifika.",
+            appt_patient_attended: "Alihudhuria",
+            appt_patient_missed: "Hakuja",
+            appt_attended_via_hint: "Imewekwa alihudhuria. Weka matokeo ya VIA hapa chini.",
+            appt_missed_sent: "Imewekwa hakuhudhuria. Mgonjwa amejulishwa.",
+            appt_status_completed: "Alihudhuria",
+            appt_status_no_show: "Hakuhudhuria",
+            visit_workflow_title: "Ziara ya kliniki — mahudhurio na VIA",
+            visit_workflow_intro: "Siku ya miadi inapofika, thibitisha kama mgonjwa alifika, kisha weka matokeo ya kipimo cha VIA.",
+            visit_step_attendance: "Hatua 1 — Je, mgonjwa alihudhuria?",
+            visit_step_via: "Hatua 2 — Weka matokeo ya VIA kutoka ziara hii",
+            visit_appt_on: "Miadi:",
             reg_screening_section: "Uchunguzi wa kliniki",
             reg_followup_preview: "Ukumbusho wa ufuatiliaji (SMS ikiwa amejisajili)",
             reg_followup_via_neg: "VIA hasi → uchunguzi wa mwaka baada ya mwaka 1",
@@ -334,6 +384,63 @@
         const raw = String(dcr.reason || '').trim();
         if (!raw || isGenericDoctorReason(raw)) return '';
         return raw.replace(/^Patient wants to speak with a health specialist:\s*/i, '').trim();
+    }
+
+    function appointmentOnOrPastDay(appt) {
+        const start = new Date(appt?.scheduled_start || '');
+        if (Number.isNaN(start.getTime())) {
+            return false;
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const apptDay = new Date(start);
+        apptDay.setHours(0, 0, 0, 0);
+        return apptDay.getTime() <= today.getTime();
+    }
+
+    function appointmentNeedsAttendanceCheck(appt) {
+        const status = (appt?.status || '').toLowerCase();
+        if (!['proposed', 'confirmed'].includes(status)) {
+            return false;
+        }
+        return appointmentOnOrPastDay(appt);
+    }
+
+    function viaIsRecorded(p) {
+        const v = (p?.via_result || '').toLowerCase();
+        return v === 'positive' || v === 'negative';
+    }
+
+    function appointmentDateInputValue(scheduledStart) {
+        if (!scheduledStart) {
+            return '';
+        }
+        const d = new Date(scheduledStart);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function getVisitWorkflowState(p, appointments) {
+        const list = appointments || [];
+        const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
+        const completedVisit = list.find((a) => (a.status || '').toLowerCase() === 'completed');
+        const needsVia = !viaIsRecorded(p) && Boolean(completedVisit);
+        const active = Boolean(pendingAttendance) || needsVia;
+        const visitAppt = pendingAttendance || completedVisit || null;
+        return { pendingAttendance, completedVisit, needsVia, active, visitAppt };
+    }
+
+    function appointmentStatusLabel(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'completed') return t('appt_status_completed');
+        if (s === 'no_show') return t('appt_status_no_show');
+        if (s === 'confirmed') return currentLanguage === 'sw' ? 'Imethibitishwa' : 'Confirmed';
+        return escapeHtml(status || '—');
     }
 
     function hpvResultLabel(result) {
@@ -502,9 +609,11 @@
     
     function formatMessageType(type) {
         if (type === 'ai_reply') return 'AI';
+        if (type === 'staff_custom') return 'Custom';
         if (type === 'escalation_notice') return 'Escalation';
         if (type === 'engagement_boost') return 'Health Tip';
-        if (type === 'appointment_reminder') return 'Appointment';
+        if (type === 'appointment_booked' || type === 'appointment_rescheduled') return 'Appointment';
+        if (type === 'appointment_reminder') return 'Reminder';
         if (type === 'education_menu') return 'Menu';
         if (type === 'welcome') return 'Welcome';
         return type || 'Message';
@@ -635,30 +744,10 @@
             return;
         }
         const hpvDone = form.querySelector('[name="hpv_done_before"]')?.value || '';
-        const viaResult = form.querySelector('[name="via_result"]')?.value || '';
         const hpvPriorWrap = document.getElementById('regHpvPriorWrap');
-        const viaDateWrap = document.getElementById('regViaDateWrap');
-        const cancerWrap = document.getElementById('regCancerWrap');
-        const treatmentWrap = document.getElementById('regTreatmentWrap');
 
         if (hpvPriorWrap) {
             hpvPriorWrap.style.display = hpvDone === 'yes' ? '' : 'none';
-        }
-        const showViaDate = viaResult === 'negative' || viaResult === 'positive';
-        if (viaDateWrap) {
-            viaDateWrap.style.display = showViaDate ? '' : 'none';
-        }
-        if (cancerWrap) {
-            cancerWrap.style.display = viaResult === 'positive' ? '' : 'none';
-        }
-        if (treatmentWrap) {
-            treatmentWrap.style.display = viaResult === 'positive' ? '' : 'none';
-        }
-        if (viaResult !== 'positive') {
-            const cancerCb = form.querySelector('[name="has_cancer"]');
-            if (cancerCb) {
-                cancerCb.checked = false;
-            }
         }
         updateRegisterFollowupPreview(form);
     }
@@ -671,21 +760,13 @@
         const hiv = form.querySelector('[name="hiv_status"]')?.value || '';
         const hpvDone = form.querySelector('[name="hpv_done_before"]')?.value || '';
         const hpvPrior = form.querySelector('[name="hpv_prior_result"]')?.value || '';
-        const via = form.querySelector('[name="via_result"]')?.value || '';
-        const hasCancer = form.querySelector('[name="has_cancer"]')?.checked;
 
         const lines = [];
-        if (via === 'negative') {
-            lines.push(t('reg_followup_via_neg'));
-        }
         if (hiv === 'positive' && hpvDone === 'yes' && hpvPrior === 'negative') {
             lines.push(t('reg_followup_hiv_hpv_neg'));
         }
         if (hiv === 'positive' && hpvDone === 'yes' && hpvPrior === 'positive') {
             lines.push(t('reg_followup_hiv_hpv_pos'));
-        }
-        if (via === 'positive' && hasCancer) {
-            lines.push(t('reg_followup_referral'));
         }
         box.innerHTML = lines.length
             ? `<ul class="reg-followup-list">${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`
@@ -705,16 +786,12 @@
             dobInput.addEventListener('input', () => updateRegisterAgeDisplay(form));
         }
 
-        ['hpv_done_before', 'via_result', 'hiv_status', 'hpv_prior_result'].forEach((name) => {
+        ['hpv_done_before', 'hiv_status', 'hpv_prior_result'].forEach((name) => {
             const el = form.querySelector(`[name="${name}"]`);
             if (el) {
                 el.addEventListener('change', () => updateRegisterConditionalFields(form));
             }
         });
-        const cancerCb = form.querySelector('[name="has_cancer"]');
-        if (cancerCb) {
-            cancerCb.addEventListener('change', () => updateRegisterFollowupPreview(form));
-        }
 
         const clientSuffix = form.querySelector('#clientNoSuffix');
         const clientPreview = document.getElementById('clientIdPreview');
@@ -895,6 +972,30 @@
                 } else if (action === 'hpv-confirm' && patientId) {
                     e.preventDefault();
                     components.confirmHpvResult(patientId, result);
+                } else if (action === 'via-pick-positive' && patientId) {
+                    e.preventDefault();
+                    components.pickViaResult(patientId, 'positive');
+                } else if (action === 'via-pick-negative' && patientId) {
+                    e.preventDefault();
+                    components.pickViaResult(patientId, 'negative');
+                } else if (action === 'via-record-submit' && patientId) {
+                    e.preventDefault();
+                    components.recordViaResult(patientId);
+                } else if (action === 'book-appt-submit' && patientId) {
+                    e.preventDefault();
+                    components.bookPatientAppointment(patientId);
+                } else if (action === 'appt-mark-attended') {
+                    e.preventDefault();
+                    const apptId = Number(el.getAttribute('data-appointment-id') || 0);
+                    if (apptId > 0) {
+                        components.markAppointmentAttended(apptId, patientId);
+                    }
+                } else if (action === 'appt-mark-missed') {
+                    e.preventDefault();
+                    const apptId = Number(el.getAttribute('data-appointment-id') || 0);
+                    if (apptId > 0) {
+                        components.markAppointmentMissed(apptId, patientId);
+                    }
                 } else if (action === 'call-patient' && patientId) {
                     e.preventDefault();
                     components.callPatientAndMarkDone(patientId, escalationId, phone);
@@ -1695,7 +1796,9 @@
                         </div>
                     </div>
 
+                    ${this.renderVisitWorkflowCard(p, appointments)}
                     ${this.renderHpvResultCard(p)}
+                    ${this.renderViaResultCard(p, appointments)}
 
                     <div class="card contact-card" style="margin-top:1rem;">
                         <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
@@ -1725,19 +1828,10 @@
                     <div class="card" style="margin-top:1rem;">
                         <div class="card-header">
                             <div class="card-title"><i class="fas fa-calendar"></i> Appointments</div>
-                            <button class="btn-primary" onclick="window.components.scheduleForPatient(${p.id})">
-                                <i class="fas fa-plus"></i> Schedule
-                            </button>
                         </div>
                         <div style="padding:16px;">
-                            ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.map(a => `
-                                <div class="appointment-item" style="margin-bottom:12px;">
-                                    <strong>${formatDate(a.scheduled_start, 'full')} ${formatTime(a.scheduled_start)}</strong>
-                                    <span class="badge ${a.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${a.status}</span>
-                                    ${a.department ? `<div>${escapeHtml(a.department)}</div>` : ''}
-                                    ${a.reason ? `<div class="muted">${escapeHtml(a.reason)}</div>` : ''}
-                                </div>
-                            `).join('')}
+                            ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.map(a => this.renderPatientAppointmentItem(a, p.id)).join('')}
+                            ${this.renderPatientBookApptForm(p)}
                         </div>
                     </div>
 
@@ -1886,6 +1980,10 @@
             }
 
             const canConfirm = hasResult && !confirmed;
+            const hasUpcomingAppt = (p.appointments || []).some(
+                (a) => a.status === 'proposed' || a.status === 'confirmed'
+            );
+            const needsApptForPositive = result === 'positive' && !hasUpcomingAppt;
             const recordedLine = hasResult && recorded
                 ? t('hpv_recorded_on')
                     .replace('{date}', hpvFormatConfirmedDate(recorded))
@@ -1919,7 +2017,8 @@
                         <div class="hpv-step-block hpv-step-confirm ${canConfirm ? 'hpv-step-active' : ''}">
                             <h4 class="hpv-step-title">${t('hpv_step_confirm')}</h4>
                             <p class="muted">${t('hpv_confirm_hint')}</p>
-                            ${canConfirm ? `
+                            ${needsApptForPositive ? `
+                            <p class="hpv-confirm-disabled muted"><i class="fas fa-info-circle"></i> ${t('hpv_confirm_need_appointment')}</p>` : canConfirm ? `
                             <button type="button" class="btn-danger hpv-confirm-btn"
                                 data-action="hpv-confirm" data-patient-id="${p.id}" data-result="${result}">
                                 <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
@@ -1981,6 +2080,355 @@
         async markSpecialistCalled(patientId, escalationId) {
             const phone = getPatientPrimaryPhone(state.patientDetail);
             await this.callPatientAndMarkDone(patientId, escalationId, phone);
+        },
+
+        renderViaRecordFormBody(p, defaultViaDate = '') {
+            const dateVal = defaultViaDate || appointmentDateInputValue(new Date().toISOString());
+            return `
+                        <p class="muted hpv-result-intro">${t('via_result_hint')}</p>
+                        <input type="hidden" name="via_result" value="">
+                        <div class="hpv-step-block">
+                            <h4 class="hpv-step-title">${t('hpv_step_record')}</h4>
+                            <div class="hpv-record-actions">
+                                <button type="button" class="btn-primary" data-action="via-pick-positive" data-patient-id="${p.id}">
+                                    <i class="fas fa-plus-circle"></i> ${t('via_record_positive')}
+                                </button>
+                                <button type="button" class="btn-secondary" data-action="via-pick-negative" data-patient-id="${p.id}">
+                                    <i class="fas fa-minus-circle"></i> ${t('via_record_negative')}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:12px;">
+                            <label class="form-label">${t('reg_via_date')} *</label>
+                            <input type="date" name="via_date" class="form-input" required value="${escapeHtml(dateVal)}">
+                        </div>
+                        <div class="form-group full-width" id="viaCancerWrap-${p.id}" style="display:none;">
+                            <label class="checkbox-label reg-cancer-label">
+                                <input type="checkbox" name="has_cancer" value="1">
+                                <span>${t('reg_has_cancer')}</span>
+                            </label>
+                        </div>
+                        <div class="form-group" id="viaTreatmentWrap-${p.id}" style="display:none;">
+                            <label class="form-label">${t('reg_treatment_date')}</label>
+                            <input type="date" name="treatment_date" class="form-input">
+                        </div>
+                        <button type="button" class="btn-primary" style="margin-top:12px;"
+                            data-action="via-record-submit" data-patient-id="${p.id}">
+                            <i class="fas fa-paper-plane"></i> ${t('via_record_save')}
+                        </button>`;
+        },
+
+        renderVisitWorkflowCard(p, appointments) {
+            if (p.screening_enabled === false) {
+                return '';
+            }
+            const wf = getVisitWorkflowState(p, appointments);
+            if (!wf.active || !wf.visitAppt) {
+                return '';
+            }
+            const appt = wf.visitAppt;
+            const apptWhen = `${formatDate(appt.scheduled_start, 'full')} ${formatTime(appt.scheduled_start)}`;
+            const defaultViaDate = appointmentDateInputValue(appt.scheduled_start);
+
+            return `
+                <div class="card visit-workflow-card hpv-card-pending" style="margin-top:1rem;border-left:4px solid var(--accent);" id="visitWorkflowCard-${p.id}">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-clipboard-check"></i> ${t('visit_workflow_title')}</div>
+                        <span class="badge badge-warning">${currentLanguage === 'sw' ? 'Inahitaji hatua' : 'Action needed'}</span>
+                    </div>
+                    <div class="hpv-result-body" style="padding:16px;">
+                        <p class="muted" style="margin:0 0 12px;">${t('visit_workflow_intro')}</p>
+                        <p style="margin:0 0 16px;"><strong>${t('visit_appt_on')}</strong> ${escapeHtml(apptWhen)}</p>
+
+                        ${wf.pendingAttendance ? `
+                        <div class="hpv-step-block hpv-step-active">
+                            <h4 class="hpv-step-title">${t('visit_step_attendance')}</h4>
+                            <p class="muted" style="margin:0 0 10px;font-size:0.9rem;">${t('appt_attendance_hint')}</p>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button type="button" class="btn-primary"
+                                    data-action="appt-mark-attended" data-patient-id="${p.id}" data-appointment-id="${appt.id}">
+                                    <i class="fas fa-check"></i> ${t('appt_patient_attended')}
+                                </button>
+                                <button type="button" class="btn-secondary" style="color:var(--danger);border-color:var(--danger);"
+                                    data-action="appt-mark-missed" data-patient-id="${p.id}" data-appointment-id="${appt.id}">
+                                    <i class="fas fa-times"></i> ${t('appt_patient_missed')}
+                                </button>
+                            </div>
+                        </div>` : ''}
+
+                        ${wf.needsVia && !wf.pendingAttendance ? `
+                        <div class="hpv-step-block hpv-step-active" id="viaRecordCard-${p.id}">
+                            <h4 class="hpv-step-title">${t('visit_step_via')}</h4>
+                            <div id="viaRecordForm-${p.id}">
+                                ${this.renderViaRecordFormBody(p, defaultViaDate)}
+                            </div>
+                        </div>` : ''}
+                    </div>
+                </div>`;
+        },
+
+        renderViaResultCard(p, appointments = []) {
+            if (p.screening_enabled === false) {
+                return `
+                <div class="card via-result-card via-card-pending" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                    </div>
+                    <div class="hpv-result-body">
+                        <p class="muted">${t('via_unavailable')}</p>
+                    </div>
+                </div>`;
+            }
+
+            const via = (p.via_result || '').toLowerCase();
+            const hasRecorded = viaIsRecorded(p);
+            const wf = getVisitWorkflowState(p, appointments);
+            const borderClass = hasRecorded
+                ? (via === 'positive' ? 'hpv-card-positive' : 'hpv-card-negative')
+                : 'hpv-card-pending';
+
+            if (hasRecorded) {
+                const dateStr = p.via_date ? formatDate(p.via_date, 'full') : '—';
+                const summaryKey = via === 'positive' ? 'via_recorded_positive' : 'via_recorded_negative';
+                const summary = t(summaryKey).replace('{date}', dateStr);
+                return `
+                <div class="card via-result-card ${borderClass}" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> ${t('hpv_confirmed')}</span>
+                    </div>
+                    <div class="hpv-result-body">
+                        <div class="hpv-confirmed-banner">
+                            <i class="fas fa-check-circle"></i>
+                            <p>${escapeHtml(summary)}</p>
+                        </div>
+                        <p class="hpv-result-badge-line">
+                            <span class="badge ${via === 'positive' ? 'badge-warning' : 'badge-success'} hpv-result-badge-lg">
+                                ${escapeHtml(hpvResultLabel(via))}
+                            </span>
+                        </p>
+                        ${Number(p.has_cancer) === 1 ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
+                        ${p.next_checkup_at ? `<p class="muted">${t('screening_next_checkup')}: ${formatDate(p.next_checkup_at, 'full')}</p>` : ''}
+                    </div>
+                </div>`;
+            }
+
+            if (wf.active) {
+                return '';
+            }
+
+            return `
+                <div class="card via-result-card ${borderClass}" style="margin-top:1rem;" id="viaRecordCard-${p.id}">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                    </div>
+                    <div class="hpv-result-body" id="viaRecordForm-${p.id}">
+                        ${this.renderViaRecordFormBody(p, '')}
+                    </div>
+                </div>`;
+        },
+
+        renderPatientAppointmentItem(a, patientId) {
+            const status = (a.status || '').toLowerCase();
+            const badgeClass = status === 'completed' ? 'badge-success'
+                : status === 'no_show' ? 'badge-danger'
+                    : status === 'confirmed' ? 'badge-success' : 'badge-warning';
+            return `
+                <div class="appointment-item" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+                    <strong>${formatDate(a.scheduled_start, 'full')} ${formatTime(a.scheduled_start)}</strong>
+                    <span class="badge ${badgeClass}">${appointmentStatusLabel(a.status)}</span>
+                    ${a.department ? `<div>${escapeHtml(a.department)}</div>` : ''}
+                    ${a.reason ? `<div class="muted">${escapeHtml(a.reason)}</div>` : ''}
+                </div>`;
+        },
+
+        async markAppointmentAttended(appointmentId, patientId) {
+            showNotification(t('processing'), 'info');
+            try {
+                const data = await api.post('/api/appointments.php', {
+                    action: 'mark_attended',
+                    appointment_id: Number(appointmentId),
+                }, false);
+                showNotification(
+                    data.record_via_next ? t('appt_attended_via_hint') : t('success'),
+                    'ok'
+                );
+                await this.reloadPatientDetail();
+                if (data.record_via_next) {
+                    const visitCard = document.getElementById(`visitWorkflowCard-${patientId}`)
+                        || document.getElementById(`viaRecordCard-${patientId}`);
+                    if (visitCard) {
+                        visitCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            }
+        },
+
+        async markAppointmentMissed(appointmentId, patientId) {
+            const ok = window.confirm(
+                currentLanguage === 'sw'
+                    ? 'Weka kuwa hakuhudhuria na kumjulisha mgonjwa kwa SMS/WhatsApp?'
+                    : 'Mark as missed and notify the patient by SMS/WhatsApp?'
+            );
+            if (!ok) {
+                return;
+            }
+            showNotification(t('processing'), 'info');
+            try {
+                const data = await api.post('/api/appointments.php', {
+                    action: 'mark_missed',
+                    appointment_id: Number(appointmentId),
+                }, false);
+                showNotification(
+                    data.missed_message_sent ? t('appt_missed_sent') : t('success'),
+                    'ok'
+                );
+                await this.reloadPatientDetail();
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            }
+        },
+
+        renderPatientBookApptForm(p) {
+            return `
+                <div class="patient-book-appt" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+                    <h4 style="margin:0 0 8px;"><i class="fas fa-calendar-plus"></i> ${t('book_appt_inline_title')}</h4>
+                    <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('book_appt_inline_hint')}</p>
+                    <form id="patientBookApptForm-${p.id}" class="form-container">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Date & Time *</label>
+                                <input type="datetime-local" name="scheduled_start" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Department</label>
+                                <input type="text" name="department" class="form-input" placeholder="e.g. VIA / HPV Clinic">
+                            </div>
+                        </div>
+                        <div class="form-group full-width">
+                            <label class="form-label">Reason for Visit *</label>
+                            <textarea name="reason" class="form-textarea" required rows="2"></textarea>
+                        </div>
+                        <button type="button" class="btn-primary" data-action="book-appt-submit" data-patient-id="${p.id}">
+                            <i class="fas fa-calendar-check"></i> ${t('book_appt_submit')}
+                        </button>
+                    </form>
+                </div>`;
+        },
+
+        pickViaResult(patientId, result) {
+            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            if (!form) {
+                return;
+            }
+            const hidden = form.querySelector('[name="via_result"]');
+            if (hidden) {
+                hidden.value = result;
+            }
+            const posBtn = form.querySelector('[data-action="via-pick-positive"]');
+            const negBtn = form.querySelector('[data-action="via-pick-negative"]');
+            if (posBtn) {
+                posBtn.classList.toggle('hpv-selected', result === 'positive');
+            }
+            if (negBtn) {
+                negBtn.classList.toggle('hpv-selected', result === 'negative');
+            }
+            const cancerWrap = document.getElementById(`viaCancerWrap-${patientId}`);
+            const treatmentWrap = document.getElementById(`viaTreatmentWrap-${patientId}`);
+            const showExtra = result === 'positive';
+            if (cancerWrap) {
+                cancerWrap.style.display = showExtra ? '' : 'none';
+            }
+            if (treatmentWrap) {
+                treatmentWrap.style.display = showExtra ? '' : 'none';
+            }
+            if (!showExtra) {
+                const cancerCb = form.querySelector('[name="has_cancer"]');
+                if (cancerCb) {
+                    cancerCb.checked = false;
+                }
+            }
+        },
+
+        async recordViaResult(patientId) {
+            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            if (!form) {
+                return;
+            }
+            const viaResult = form.querySelector('[name="via_result"]')?.value || '';
+            const viaDate = form.querySelector('[name="via_date"]')?.value || '';
+            const hasCancer = form.querySelector('[name="has_cancer"]')?.checked ? 1 : 0;
+            const treatmentDate = form.querySelector('[name="treatment_date"]')?.value || '';
+            if (!viaResult || !viaDate) {
+                showNotification(
+                    currentLanguage === 'sw'
+                        ? 'Chagua matokeo ya VIA na tarehe ya kipimo.'
+                        : 'Select VIA result and test date.',
+                    'error'
+                );
+                return;
+            }
+            showNotification('Recording VIA result…', 'info');
+            try {
+                const data = await api.post('/api/via_result.php', {
+                    patient_id: Number(patientId),
+                    via_result: viaResult,
+                    via_date: viaDate,
+                    has_cancer: hasCancer,
+                    treatment_date: treatmentDate || undefined,
+                }, false);
+                let msg = currentLanguage === 'sw'
+                    ? 'Matokeo ya VIA yamehifadhiwa na ujumbe umetumwa kwa mgonjwa.'
+                    : 'VIA result recorded and message sent to patient.';
+                if (data.referral_sent) {
+                    msg += currentLanguage === 'sw' ? ' (SMS ya rufaa.)' : ' (Referral pathway.)';
+                }
+                if (data.next_checkup_at) {
+                    msg += ` ${t('screening_next_checkup')}: ${formatDate(data.next_checkup_at, 'full')}.`;
+                }
+                showNotification(msg, 'ok');
+                await this.reloadPatientDetail();
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            }
+        },
+
+        async bookPatientAppointment(patientId) {
+            const form = document.getElementById(`patientBookApptForm-${patientId}`);
+            if (!form) {
+                return;
+            }
+            const fd = new FormData(form);
+            const body = Object.fromEntries(fd.entries());
+            body.action = 'add';
+            body.patient_id = Number(patientId);
+            const btn = form.querySelector('[data-action="book-appt-submit"]');
+            if (btn?.disabled) {
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+            }
+            showNotification(t('processing'), 'info');
+            try {
+                await api.post('/api/appointments.php', body);
+                showNotification(
+                    currentLanguage === 'sw'
+                        ? 'Miadi imepangwa. Ujumbe wa uthibitisho umetumwa kwa mgonjwa.'
+                        : 'Appointment booked. Confirmation message sent to patient.',
+                    'ok'
+                );
+                form.reset();
+                await this.reloadPatientDetail();
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                }
+            }
         },
 
         async confirmHpvResult(patientId, resultHint) {
@@ -2182,33 +2630,6 @@
                                 <label class="form-label">${t('reg_residence')} *</label>
                                 <input type="text" name="place_of_residence" class="form-input" required
                                     placeholder="${currentLanguage === 'sw' ? 'Mf. Nyeri, Mweiga' : 'e.g. Nyeri Town, Mweiga'}">
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">${t('reg_via_result')} *</label>
-                                <select name="via_result" class="form-select" required>
-                                    <option value="">—</option>
-                                    <option value="not_done">${t('reg_via_not_done')}</option>
-                                    <option value="negative">${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
-                                    <option value="positive">${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group" id="regViaDateWrap" style="display:none;">
-                                <label class="form-label">${t('reg_via_date')} *</label>
-                                <input type="date" name="via_date" class="form-input">
-                            </div>
-
-                            <div class="form-group full-width" id="regCancerWrap" style="display:none;">
-                                <label class="checkbox-label reg-cancer-label">
-                                    <input type="checkbox" name="has_cancer" value="1">
-                                    <span>${t('reg_has_cancer')}</span>
-                                </label>
-                            </div>
-
-                            <div class="form-group" id="regTreatmentWrap" style="display:none;">
-                                <label class="form-label">${t('reg_treatment_date')}</label>
-                                <input type="date" name="treatment_date" class="form-input">
                             </div>
 
                             <div class="form-group full-width">
@@ -2568,7 +2989,7 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <p class="muted">Send a specific message to one patient or broadcast to all active, opted-in patients.</p>
+                            <p class="muted">Send a personalised message to one patient or broadcast to all active, opted-in patients. WhatsApp uses the approved template <code>afya_staff_message</code> (your text goes in variable {{1}}).</p>
                             <div id="customMsgNote"></div>
                             <div class="form-group">
                                 <label class="form-label">Recipients</label>
@@ -2949,7 +3370,6 @@
                                 const formData = new FormData(form);
                                 const body = Object.fromEntries(formData.entries());
                                 body.opt_in = formData.get('opt_in') ? 1 : 0;
-                                body.has_cancer = formData.get('has_cancer') ? 1 : 0;
                                 const phone = normalizeKenyaPhone(body.phone_local);
                                 if (!phone) {
                                     throw new Error(currentLanguage === 'sw'
@@ -3033,6 +3453,9 @@
                         }
                         apptForm.onsubmit = async (e) => {
                             e.preventDefault();
+                            const submitBtn = apptForm.querySelector('button[type="submit"]');
+                            if (submitBtn?.disabled) return;
+                            if (submitBtn) submitBtn.disabled = true;
                             const fd = new FormData(apptForm);
                             const body = Object.fromEntries(fd.entries());
                             body.action = 'add';
@@ -3046,6 +3469,8 @@
                                 if (content) this.filterAppointmentsList();
                             } catch (err) {
                                 showNotification(err.message, 'error');
+                            } finally {
+                                if (submitBtn) submitBtn.disabled = false;
                             }
                         };
                     }
@@ -3125,7 +3550,7 @@
                         patient_id: patientId,
                         message_text: text
                     });
-                    showNotification(`Message sent to ${res.sent} patient(s)`, 'ok');
+                    showNotification(res.failed ? `Sent to ${res.sent}, failed ${res.failed}` : `Message sent to ${res.sent} patient(s)`, res.failed ? 'error' : 'ok');
                     this.loadCurrentTab();
                 } catch (err) {
                     sendBtn.disabled = false;
