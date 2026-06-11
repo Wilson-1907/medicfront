@@ -4430,8 +4430,12 @@
             <div id="escalationDetailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="escalationModalTitle"></div>
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
-            <footer class="footer">
-                <p>© 2026 ${cfg.APP_NAME || 'Nyeri Town Health Center'} | ${cfg.APP_VERSION || 'HPV Care'} | ${API_BASE_URL}</p>
+            <footer class="footer" role="contentinfo">
+                <div class="footer-inner">
+                    <span class="footer-line footer-copyright">© 2026 ${escapeHtml(cfg.APP_NAME || 'Nyeri Town Health Center')}</span>
+                    <span class="footer-line footer-program">${escapeHtml(cfg.APP_PROGRAM || 'HPV Care')}</span>
+                    <span class="footer-line footer-credit">made by ${escapeHtml(cfg.APP_CREDIT || 'TechFlare Solutions')}</span>
+                </div>
             </footer>
         `;
         

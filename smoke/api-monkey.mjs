@@ -114,7 +114,29 @@ async function testReadEndpoints() {
     pass('GET message_center.php reachable');
 
     const msgHealth = await fetchJson('/api/messaging_health.php');
-    assertOk('GET messaging_health.php', msgHealth);
+    if (!assertOk('GET messaging_health.php', msgHealth)) {
+        return;
+    }
+    if (msgHealth.data.channels) {
+        const sms = msgHealth.data.channels.sms;
+        const wa = msgHealth.data.channels.whatsapp;
+        if (sms?.provider === 'africastalking') {
+            pass('SMS channel mapped to Africa\'s Talking');
+        } else {
+            fail('SMS channel provider', JSON.stringify(sms));
+        }
+        if (wa?.provider === 'mteja_meta_cloud' || wa?.provider === 'mteja_template_api' || wa?.provider === 'africastalking') {
+            pass(`WhatsApp provider: ${wa.provider}, ready=${wa.ready}`);
+        } else {
+            fail('WhatsApp channel provider', JSON.stringify(wa));
+        }
+        if (Array.isArray(msgHealth.data.setup_required)) {
+            pass(`Messaging setup hints: ${msgHealth.data.setup_required.length} item(s)`);
+        }
+    } else {
+        const at = msgHealth.data.africastalking || {};
+        pass(`Messaging health (deploy medicback for channel breakdown): sms_ready=${at.sms_ready}, whatsapp_ready=${at.whatsapp_ready}`);
+    }
 
     const aiHealth = await fetchJson('/api/ai_health.php');
     if (aiHealth.data?.ok) {

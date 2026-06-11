@@ -1490,12 +1490,70 @@ body {
 
 /* Footer */
 .footer {
-    background: rgba(0, 0, 0, 0.05);
-    padding: 24px;
-    text-align: center;
-    color: rgba(0, 0, 0, 0.6);
-    font-size: 0.8rem;
-    margin-top: 40px;
+    background: linear-gradient(180deg, rgba(13, 148, 136, 0.06), rgba(13, 148, 136, 0.12));
+    border-top: 1px solid rgba(13, 148, 136, 0.2);
+    padding: clamp(20px, 4vw, 36px) clamp(16px, 5vw, 40px);
+    margin-top: 48px;
+    width: 100%;
+}
+
+.footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 28px;
+}
+
+.footer-line {
+    font-size: clamp(0.875rem, 2.4vw, 1rem);
+    line-height: 1.5;
+    color: var(--gray-700, #374151);
+    letter-spacing: 0.01em;
+}
+
+.footer-copyright {
+    font-weight: 600;
+    color: var(--gray-900, #111827);
+}
+
+.footer-program {
+    font-weight: 700;
+    color: var(--primary, #0d9488);
+    text-transform: none;
+}
+
+.footer-credit {
+    font-weight: 500;
+    color: var(--gray-600, #4b5563);
+}
+
+@media (max-width: 720px) {
+    .footer-inner {
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+        gap: 10px;
+    }
+}
+
+@media (min-width: 721px) {
+    .footer-copyright {
+        flex: 1 1 auto;
+        text-align: left;
+    }
+
+    .footer-program {
+        flex: 0 1 auto;
+        text-align: center;
+    }
+
+    .footer-credit {
+        flex: 1 1 auto;
+        text-align: right;
+    }
 }
 
 /* HPV UI — Page heroes, escalations, modals */
