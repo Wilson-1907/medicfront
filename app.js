@@ -198,7 +198,9 @@
             screening_profile: "Screening profile",
             screening_next_checkup: "Next check-up",
             reg_client_no: "Client number",
-            reg_client_no_hint: "Enter only the unique digits from the lab register (e.g. 022). Full ID:",
+            reg_client_file_no: "File no.",
+            reg_client_patient_no: "Patient in file",
+            reg_client_no_hint: "Enter 2 numbers from the register. Full ID:",
             reg_hiv_not_known: "Not known",
             reg_consent_signed: "Patient signed written consent at registration (required for SMS)",
             reg_enrollment_details: "Registration details",
@@ -391,7 +393,9 @@
             screening_profile: "Wasifu wa uchunguzi",
             screening_next_checkup: "Uchunguzi ujao",
             reg_client_no: "Nambari ya mteja",
-            reg_client_no_hint: "Weka tarakimu za kipekee kutoka kwenye daftari (mf. 022). Nambari kamili:",
+            reg_client_file_no: "Namba ya faili",
+            reg_client_patient_no: "Mteja kwenye faili",
+            reg_client_no_hint: "Weka nambari 2 kutoka kwenye daftari. Nambari kamili:",
             reg_hiv_not_known: "Haijulikani",
             reg_consent_signed: "Mgonjwa amesaini fomu ya idhini kwa maandishi (inahitajika kwa SMS)",
             reg_enrollment_details: "Maelezo ya usajili",
@@ -402,7 +406,20 @@
     };
 
     function clientIdPrefix() {
-        return (window.HPV_CONFIG && window.HPV_CONFIG.CLIENT_ID_PREFIX) || 'NC/NTHC/001/';
+        return (window.HPV_CONFIG && window.HPV_CONFIG.CLIENT_ID_PREFIX) || 'NTHC/';
+    }
+
+    function normalizeClientIdPart(raw) {
+        const digits = String(raw ?? '').replace(/\D/g, '');
+        if (digits === '' || digits.length > 2) return '';
+        return digits.padStart(2, '0');
+    }
+
+    function buildClientIdFromParts(fileNo, patientNo) {
+        const file = normalizeClientIdPart(fileNo);
+        const patient = normalizeClientIdPart(patientNo);
+        if (file === '' || patient === '') return '';
+        return `${clientIdPrefix()}${file}/${patient}`;
     }
 
     function formatClientId(p) {
@@ -421,10 +438,15 @@
         const s = String(refOrPatient ?? '').trim();
         if (!s) return '';
         const prefix = clientIdPrefix();
-        if (s.startsWith(prefix)) return s.slice(prefix.length);
+        if (s.startsWith(prefix)) {
+            const rest = s.slice(prefix.length);
+            if (/^\d{2}\/\d{2}$/.test(rest)) return rest;
+            return rest;
+        }
+        if (/^\d{1,2}\/\d{1,2}$/.test(s)) return s;
         if (s.includes('/')) {
             const parts = s.split('/').filter(Boolean);
-            return parts[parts.length - 1] || '';
+            return parts.slice(-2).join('/') || parts[parts.length - 1] || '';
         }
         return (s.replace(/\D/g, '') || s);
     }
@@ -1097,17 +1119,18 @@
             }
         });
 
-        const clientSuffix = form.querySelector('#clientNoSuffix');
+        const clientFileNo = form.querySelector('#clientFileNo');
+        const clientPatientNo = form.querySelector('#clientPatientNo');
         const clientPreview = document.getElementById('clientIdPreview');
         const updateClientPreview = () => {
-            const suffix = (clientSuffix?.value || '').replace(/\D/g, '');
+            const built = buildClientIdFromParts(clientFileNo?.value, clientPatientNo?.value);
             if (clientPreview) {
-                clientPreview.textContent = suffix ? clientIdPrefix() + suffix : clientIdPrefix() + '…';
+                clientPreview.textContent = built || `${clientIdPrefix()}00/00`;
             }
         };
-        if (clientSuffix) {
-            clientSuffix.addEventListener('input', updateClientPreview);
-        }
+        [clientFileNo, clientPatientNo].forEach((el) => {
+            if (el) el.addEventListener('input', updateClientPreview);
+        });
         updateClientPreview();
 
         updateRegisterAgeDisplay(form);
@@ -3351,13 +3374,17 @@
                             
                             <div class="form-group">
                                 <label class="form-label">${t('reg_client_no')} *</label>
-                                <div class="client-id-input-group">
+                                <div class="client-id-input-group client-id-input-group--split">
                                     <span class="client-id-prefix" id="clientIdPrefix">${escapeHtml(clientIdPrefix())}</span>
-                                    <input type="text" name="client_no_suffix" id="clientNoSuffix" class="form-input client-id-suffix"
-                                           required maxlength="6" inputmode="numeric" pattern="[0-9]{1,6}"
-                                           placeholder="022" autocomplete="off">
+                                    <input type="text" name="client_file_no" id="clientFileNo" class="form-input client-id-part"
+                                           required maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}"
+                                           placeholder="01" autocomplete="off" aria-label="${t('reg_client_file_no')}">
+                                    <span class="client-id-sep">/</span>
+                                    <input type="text" name="client_patient_no" id="clientPatientNo" class="form-input client-id-part client-id-part--last"
+                                           required maxlength="2" inputmode="numeric" pattern="[0-9]{1,2}"
+                                           placeholder="05" autocomplete="off" aria-label="${t('reg_client_patient_no')}">
                                 </div>
-                                <small class="form-hint-muted">${t('reg_client_no_hint')} <strong id="clientIdPreview">${escapeHtml(clientIdPrefix())}…</strong></small>
+                                <small class="form-hint-muted">${t('reg_client_no_hint')} <strong id="clientIdPreview">${escapeHtml(clientIdPrefix())}00/00</strong></small>
                             </div>
                             
                             <div class="form-group">
@@ -4159,6 +4186,12 @@
                                 }
                                 body.phone = phone;
                                 delete body.phone_local;
+                                const clientId = buildClientIdFromParts(body.client_file_no, body.client_patient_no);
+                                if (!clientId) {
+                                    throw new Error(currentLanguage === 'sw'
+                                        ? 'Weka nambari ya faili na nambari ya mteja (mf. 01 na 05)'
+                                        : 'Enter file number and patient number (e.g. 01 and 05)');
+                                }
                                 
                                 await new Promise(resolve => setTimeout(resolve, 1500));
                                 

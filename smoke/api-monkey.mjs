@@ -68,8 +68,10 @@ function assertError(name, res, expectedStatus, needle) {
     return false;
 }
 
-function randomTestSuffix() {
-    return String(800 + Math.floor(Math.random() * 150)).padStart(3, '0');
+function randomTestClientParts() {
+    const file = String(Math.floor(Math.random() * 90) + 10);
+    const patient = String(Math.floor(Math.random() * 90) + 10);
+    return { file, patient };
 }
 
 function randomTestPhone() {
@@ -77,12 +79,13 @@ function randomTestPhone() {
     return `+2547${tail}`;
 }
 
-function minimalRegistrationBody(suffix, phone) {
+function minimalRegistrationBody(fileNo, patientNo, phone) {
     return {
-        full_name: `SMOKE TEST ${suffix}`,
+        full_name: `SMOKE TEST ${fileNo}/${patientNo}`,
         date_of_birth: '1990-01-15',
         preferred_language: 'en',
-        client_no_suffix: suffix,
+        client_file_no: fileNo,
+        client_patient_no: patientNo,
         phone,
         contact_channel: 'sms',
         opt_in: 0,
@@ -151,7 +154,8 @@ async function testValidationErrors() {
         method: 'POST',
         body: JSON.stringify({
             full_name: 'Validation Test',
-            client_no_suffix: '999',
+            client_file_no: '99',
+            client_patient_no: '99',
             phone: '+254123',
             contact_channel: 'sms',
             opt_in: 0,
@@ -166,7 +170,7 @@ async function testValidationErrors() {
 
     const noName = await fetchJson('/api/patients.php', {
         method: 'POST',
-        body: JSON.stringify({ client_no_suffix: '998', phone: '+254712345678' }),
+        body: JSON.stringify({ client_file_no: '98', client_patient_no: '98', phone: '+254712345678' }),
     });
     assertError('Missing name rejected', noName, 422, 'name');
 }
@@ -177,9 +181,9 @@ async function testRegistrationFlow() {
         return null;
     }
 
-    const suffix = randomTestSuffix();
+    const { file, patient } = randomTestClientParts();
     const phone = randomTestPhone();
-    const body = minimalRegistrationBody(suffix, phone);
+    const body = minimalRegistrationBody(file, patient, phone);
 
     const created = await fetchJson('/api/patients.php', {
         method: 'POST',
@@ -198,7 +202,8 @@ async function testRegistrationFlow() {
         body: JSON.stringify({
             ...body,
             full_name: 'SMOKE TEST DUPLICATE PHONE',
-            client_no_suffix: String(Number(suffix) + 1).padStart(3, '0'),
+            client_file_no: String(Number(file) + 1).padStart(2, '0'),
+            client_patient_no: patient,
         }),
     });
     const phoneErr = String(dupPhone.data?.error || '');
@@ -217,7 +222,8 @@ async function testRegistrationFlow() {
             ...body,
             full_name: 'SMOKE TEST DUPLICATE CLIENT',
             phone: randomTestPhone(),
-            client_no_suffix: suffix,
+            client_file_no: file,
+            client_patient_no: patient,
         }),
     });
     assertError('Duplicate client number rejected', dupClient, 422, 'client number');
@@ -225,8 +231,8 @@ async function testRegistrationFlow() {
     const byClient = await fetchJson(`/api/patients.php?client_id=${encodeURIComponent(clientId)}`);
     assertOk('GET patient by client_id', byClient, (r) => r.data.patient?.client_id === clientId);
 
-    const bySuffix = await fetchJson(`/api/patients.php?client_id=${encodeURIComponent(suffix)}`);
-    assertOk('GET patient by suffix digits', bySuffix, (r) => r.data.patient?.full_name?.includes('SMOKE TEST'));
+    const byParts = await fetchJson(`/api/patients.php?client_id=${encodeURIComponent(`${file}/${patient}`)}`);
+    assertOk('GET patient by file/patient', byParts, (r) => r.data.patient?.full_name?.includes('SMOKE TEST'));
 
     return { clientId, patientId: created.data.patient_id, phone };
 }
@@ -247,8 +253,9 @@ async function testExistingPatientDuplicate() {
     const res = await fetchJson('/api/patients.php', {
         method: 'POST',
         body: JSON.stringify({
-            ...minimalRegistrationBody('950', existing.phone),
-            client_no_suffix: '950',
+            ...minimalRegistrationBody('95', '95', existing.phone),
+            client_file_no: '95',
+            client_patient_no: '95',
             phone: existing.phone,
         }),
     });

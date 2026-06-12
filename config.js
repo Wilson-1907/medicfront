@@ -17,6 +17,6 @@ window.HPV_CONFIG = {
   APP_PROGRAM: "HPV Care",
   APP_CREDIT: "TechFlare Solutions",
   APP_VERSION: "2.9.2",
-  /** Nurse enters digits after this prefix (lab register: NC/NTHC/001/022). */
-  CLIENT_ID_PREFIX: "NC/NTHC/001/"
+  /** Full client ID: NTHC/{file}/{patient} e.g. NTHC/01/05 */
+  CLIENT_ID_PREFIX: "NTHC/"
 };
