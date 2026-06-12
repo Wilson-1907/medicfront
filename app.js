@@ -823,16 +823,27 @@
         }
     }
 
+    function parsePatientRouteFromHash(hash) {
+        const parts = String(hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
+        if (parts[0] !== 'patient' || parts.length < 2) {
+            return { ref: '', id: 0 };
+        }
+        const ref = parts.slice(1).map((p) => decodeURIComponent(p)).join('/');
+        const numericId = /^\d{1,8}$/.test(ref) ? Number(ref) : 0;
+        return { ref, id: numericId };
+    }
+
     function applyRouteFromHash() {
         const hash = (window.location.hash || '').replace(/^#\/?/, '');
         if (!hash) return;
         const parts = hash.split('/').filter(Boolean);
-        if (parts[0] === 'patient' && parts[1]) {
-            const ref = decodeURIComponent(parts[1]);
-            if (ref) {
+        if (parts[0] === 'patient' && parts.length >= 2) {
+            const route = parsePatientRouteFromHash(window.location.hash);
+            if (route.ref) {
                 state.currentTab = 'patient';
-                state.selectedPatientRef = patientClientSuffix(ref);
-                navigateToPatient(ref);
+                state.selectedPatientRef = patientClientSuffix(route.ref) || null;
+                state.selectedPatientId = route.id || resolvePatientInternalId(route.ref, 0) || null;
+                navigateToPatient(route.ref, route.id || state.selectedPatientId || 0);
                 return;
             }
         }
@@ -1242,19 +1253,23 @@
     };
 
     async function fetchPatientByRef(ref, internalIdFallback = 0) {
+        const id = resolvePatientInternalId(ref, internalIdFallback);
+        if (id > 0) {
+            try {
+                return await api.get(`/api/patients.php?id=${id}`);
+            } catch (err) {
+                /* try client number below */
+            }
+        }
         const fullId = fullClientIdFromRef(ref);
         if (fullId) {
             try {
                 return await api.get(`/api/patients.php?client_id=${encodeURIComponent(fullId)}`, false);
             } catch (err) {
-                /* try internal id below */
+                /* exhausted */
             }
         }
-        const id = resolvePatientInternalId(ref, internalIdFallback);
-        if (id > 0) {
-            return await api.get(`/api/patients.php?id=${id}`);
-        }
-        if (/^\d{1,6}$/.test(String(ref || ''))) {
+        if (/^\d{1,8}$/.test(String(ref || ''))) {
             return await api.get(`/api/patients.php?id=${Number(ref)}`);
         }
         throw new Error(t('no_client_number'));
@@ -1944,10 +1959,11 @@
                     ${recent.slice(0, 6).map(patient => {
                         const pref = patientOpenRef(patient);
                         return `
-                        <div class="patient-card ${pref ? 'clickable' : ''}" role="${pref ? 'link' : 'group'}" tabindex="${pref ? '0' : '-1'}"
-                            ${pref ? `data-action="view-patient" data-patient-ref="${escapeHtml(pref)}"` : ''}
+                        <div class="patient-card clickable" role="link" tabindex="0"
+                            data-action="view-patient"
+                            data-patient-ref="${escapeHtml(pref || '')}"
+                            data-patient-id="${patient.id}"
                             aria-label="Open ${escapeHtml(patient.full_name)}">
-                            ${pref ? '' : `<p class="muted" style="font-size:0.75rem;margin:0 0 4px">${t('no_client_number')}</p>`}
                             <div class="patient-avatar">👤</div>
                             <div class="patient-info">
                                 <div class="patient-name">${escapeHtml(patient.full_name)}</div>
@@ -3648,7 +3664,7 @@
                                             ${this.renderReminderBadges(apt)}
                                             <div class="appt-card-actions" onclick="event.stopPropagation()">
                                                 ${apt.patient_id ? `<button type="button" class="btn-primary btn-sm" data-action="open-appt-visit" data-patient-id="${apt.patient_id}"><i class="fas fa-clipboard-check"></i> ${t('appt_manage_visit')}</button>` : ''}
-                                                ${patientOpenRef(apt) ? `<button type="button" class="btn-secondary btn-sm" data-action="view-patient" data-patient-ref="${escapeHtml(patientOpenRef(apt) || '')}" data-patient-id="${apt.patient_id || 0}"><i class="fas fa-user"></i> ${t('view_record')}</button>` : ''}
+                                                ${apt.patient_id ? `<button type="button" class="btn-secondary btn-sm" data-action="view-patient" data-patient-ref="${escapeHtml(patientOpenRef(apt) || String(apt.patient_id))}" data-patient-id="${apt.patient_id}"><i class="fas fa-user"></i> ${t('view_record')}</button>` : ''}
                                             </div>
                                         </article>
                                     `).join('')}
@@ -3972,7 +3988,7 @@
                         </div>
                         
                         <div class="escalation-footer">
-                            ${patientOpenRef(esc) ? `<button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${escJsString(patientOpenRef(esc))})">
+                            ${esc.patient_id ? `<button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.components.viewPatient(${escJsString(patientOpenRef(esc) || String(esc.patient_id))}, ${Number(esc.patient_id)})">
                                 <i class="fas fa-user"></i> Patient
                             </button>` : ''}
                             ${isOpenEscalationStatus(esc.status) && esc.phone ? `
@@ -4074,7 +4090,7 @@
                             <p class="badge badge-success" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;">
                                 <i class="fas fa-check"></i> ${t('status_called')}
                             </p>`}
-                            ${patientOpenRef(escalation) ? `<button type="button" class="btn-secondary" onclick="window.components.viewPatient(${escJsString(patientOpenRef(escalation))}); window.components.closeEscalationModal();">
+                            ${escalation.patient_id ? `<button type="button" class="btn-secondary" onclick="window.components.viewPatient(${escJsString(patientOpenRef(escalation) || String(escalation.patient_id))}, ${Number(escalation.patient_id)}); window.components.closeEscalationModal();">
                                 <i class="fas fa-user"></i> View Patient Record
                             </button>` : ''}
                             <button type="button" class="btn-secondary" onclick="window.components.closeEscalationModal()">
