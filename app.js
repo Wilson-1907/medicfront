@@ -456,10 +456,40 @@
     }
 
     function fullClientIdFromRef(ref) {
+        const raw = String(ref ?? '').trim();
+        const prefix = clientIdPrefix();
+        if (raw.startsWith(prefix)) {
+            const rest = raw.slice(prefix.length);
+            if (/^\d{1,2}\/\d{1,2}$/.test(rest)) {
+                const [file, patient] = rest.split('/');
+                return buildClientIdFromParts(file, patient);
+            }
+        }
         const suffix = patientClientSuffix(ref);
         if (!suffix) return '';
+        if (/^\d{1,2}\/\d{1,2}$/.test(suffix)) {
+            const [file, patient] = suffix.split('/');
+            return buildClientIdFromParts(file, patient);
+        }
         const digits = suffix.replace(/\D/g, '');
-        return digits ? clientIdPrefix() + digits : '';
+        return digits ? prefix + digits : '';
+    }
+
+    function resolvePatientInternalId(ref, internalIdFallback = 0) {
+        const pid = Number(internalIdFallback || 0);
+        if (pid > 0) {
+            return pid;
+        }
+        const suffix = patientClientSuffix(ref);
+        const fullId = fullClientIdFromRef(ref);
+        const list = state.patients || [];
+        const hit = list.find((p) => {
+            const cid = formatClientId(p);
+            return (suffix && patientClientSuffix(p) === suffix)
+                || (fullId && cid === fullId)
+                || (suffix && cid.endsWith(suffix));
+        });
+        return hit ? Number(hit.id) : 0;
     }
 
     function patientOpenRef(p) {
@@ -1215,12 +1245,12 @@
         const fullId = fullClientIdFromRef(ref);
         if (fullId) {
             try {
-                return await api.get(`/api/patients.php?client_id=${encodeURIComponent(fullId)}`);
+                return await api.get(`/api/patients.php?client_id=${encodeURIComponent(fullId)}`, false);
             } catch (err) {
                 /* try internal id below */
             }
         }
-        const id = Number(internalIdFallback || 0);
+        const id = resolvePatientInternalId(ref, internalIdFallback);
         if (id > 0) {
             return await api.get(`/api/patients.php?id=${id}`);
         }
@@ -1355,7 +1385,7 @@
             const loadToken = bumpLoadToken();
             const app = document.getElementById('app');
             try {
-                const response = await fetchPatientByRef(ref || pid, pid);
+                const response = await fetchPatientByRef(ref || pid, resolvePatientInternalId(ref, pid));
                 const routeRef = patientOpenRef(response.patient) || patientClientSuffix(ref) || String(pid);
                 if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient') {
                     return;
@@ -1546,11 +1576,16 @@
         },
         
         renderConnectionError(error) {
+            const msg = String(error?.message || '');
+            const isNetwork = error?.name === 'AbortError'
+                || /failed to fetch|network|aborted|load failed/i.test(msg);
+            const title = isNetwork ? t('connection_error') : t('error');
             return `
                 <div class="card" style="text-align: center; padding: 60px 40px;">
                     <i class="fas fa-plug" style="font-size: 64px; color: var(--danger); margin-bottom: 20px;"></i>
-                    <h2 style="color: var(--gray-800); margin-bottom: 10px;">${t('connection_error')}</h2>
-                    <p style="color: var(--gray-600); margin-bottom: 20px;">${error.message}</p>
+                    <h2 style="color: var(--gray-800); margin-bottom: 10px;">${title}</h2>
+                    <p style="color: var(--gray-600); margin-bottom: 20px;">${escapeHtml(msg || t('connection_error'))}</p>
+                    ${isNetwork ? `<p class="muted" style="margin-bottom:20px;">${currentLanguage === 'sw' ? 'Seva inaweza kuwa imelala. Jaribu tena baada ya sekunde 30.' : 'The server may be waking up (free hosting). Wait 30 seconds and retry.'}</p>` : ''}
                     <button onclick="location.reload()" class="btn-primary">
                         <i class="fas fa-sync-alt"></i> Retry Connection
                     </button>
@@ -3029,7 +3064,7 @@
                 }
             }
             try {
-                const response = await fetchPatientByRef(ref || pid, pid);
+                const response = await fetchPatientByRef(ref || pid, resolvePatientInternalId(ref, pid));
                 if (!isLoadTokenCurrent(loadToken) || state.currentTab !== 'patient') {
                     return;
                 }
