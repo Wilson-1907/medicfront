@@ -116,7 +116,9 @@
             reg_age_hint: "Enter age directly, or pick date of birth to calculate it automatically.",
             reg_age_years: "years",
             reg_hiv_status: "HIV status",
-            reg_hpv_done: "Ever done HPV before?",
+            reg_hpv_done: "HPV screening history",
+            reg_hpv_never: "Never done",
+            reg_hpv_ever: "Ever done",
             reg_hpv_prior: "Prior HPV result",
             reg_residence: "Place of residence",
             reg_via_result: "VIA (Visual Inspection) result",
@@ -311,7 +313,9 @@
             reg_age_hint: "Weka umri moja kwa moja, au chagua tarehe ya kuzaliwa kuhesabu kiotomatiki.",
             reg_age_years: "miaka",
             reg_hiv_status: "Hali ya VVU",
-            reg_hpv_done: "Umewahi kufanya HPV hapo awali?",
+            reg_hpv_done: "Historia ya uchunguzi wa HPV",
+            reg_hpv_never: "Haijawahi kufanya",
+            reg_hpv_ever: "Imewahi kufanywa",
             reg_hpv_prior: "Matokeo ya awali ya HPV",
             reg_residence: "Mahali pa makazi",
             reg_via_result: "Matokeo ya VIA",
@@ -1056,12 +1060,11 @@
         }
     }
 
-    function updateRegisterFollowupPreview(form) {
-        const box = document.getElementById('regFollowupPreview');
-        if (!box || !form) {
-            return;
-        }
-        box.innerHTML = `<p class="muted">${currentLanguage === 'sw' ? 'Mpango wa ufuatiliaji utaonyeshwa baada ya matokeo ya HPV ya leo yathibitishwe.' : 'Follow-up plan is set after today\'s HPV result is confirmed.'}</p>`;
+    function hpvHistoryLabel(value) {
+        const v = (value || '').toLowerCase();
+        if (v === 'yes') return t('reg_hpv_ever');
+        if (v === 'no') return t('reg_hpv_never');
+        return '—';
     }
 
     function setupRegisterForm(form) {
@@ -1086,13 +1089,6 @@
             });
         }
 
-        ['hpv_done_before', 'hiv_status'].forEach((name) => {
-            const el = form.querySelector(`[name="${name}"]`);
-            if (el) {
-                el.addEventListener('change', () => updateRegisterFollowupPreview(form));
-            }
-        });
-
         const clientFileNo = form.querySelector('#clientFileNo');
         const clientPatientNo = form.querySelector('#clientPatientNo');
         const clientPreview = document.getElementById('clientIdPreview');
@@ -1108,7 +1104,6 @@
         updateClientPreview();
 
         updateRegisterAgeDisplay(form);
-        updateRegisterFollowupPreview(form);
     }
 
     function showNotification(message, type = 'info') {
@@ -2098,8 +2093,7 @@
                             <div class="detail-item"><span class="label">${t('reg_contact_channel')}</span><span class="value">${primaryContact ? String(primaryContact.channel || 'sms').toUpperCase() : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_opted_in')}</span><span class="value">${primaryContact && primaryContact.opted_in ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
-                            <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${posNeg(hpvDone)}</span></div>
-                            ${hpvDone === 'yes' && ['positive', 'negative'].includes((p.hpv_prior_result || '').toLowerCase()) ? `<div class="detail-item"><span class="label">${t('reg_hpv_prior')}</span><span class="value">${posNeg(p.hpv_prior_result)}</span></div>` : ''}
+                            <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
                             <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                             ${patientHasConfirmedAppointment(appointments) ? `
                             <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
@@ -2192,8 +2186,7 @@
                     <div class="detail-grid" style="padding:16px;">
                         <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
-                        <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${posNeg(hpvDone)}</span></div>
-                        ${hpvDone === 'yes' && ['positive', 'negative'].includes((p.hpv_prior_result || '').toLowerCase()) ? `<div class="detail-item"><span class="label">${t('reg_hpv_prior')}</span><span class="value">${posNeg(p.hpv_prior_result)}</span></div>` : ''}
+                        <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
                         <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
@@ -3387,8 +3380,8 @@
                                 <label class="form-label">${t('reg_hpv_done')} *</label>
                                 <select name="hpv_done_before" class="form-select" required>
                                     <option value="">—</option>
-                                    <option value="no">${currentLanguage === 'sw' ? 'Hapana' : 'No'}</option>
-                                    <option value="yes">${currentLanguage === 'sw' ? 'Ndiyo' : 'Yes'}</option>
+                                    <option value="no">${t('reg_hpv_never')}</option>
+                                    <option value="yes">${t('reg_hpv_ever')}</option>
                                 </select>
                             </div>
 
@@ -3396,11 +3389,6 @@
                                 <label class="form-label">${t('reg_residence')} *</label>
                                 <input type="text" name="place_of_residence" class="form-input" required
                                     placeholder="${currentLanguage === 'sw' ? 'Mf. Nyeri, Mweiga' : 'e.g. Nyeri Town, Mweiga'}">
-                            </div>
-
-                            <div class="form-group full-width">
-                                <label class="form-label">${t('reg_followup_preview')}</label>
-                                <div id="regFollowupPreview" class="reg-followup-preview card" style="padding:12px;"></div>
                             </div>
                             
                             <div class="form-group full-width">
