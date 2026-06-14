@@ -141,6 +141,19 @@
             via_recorded_negative: "VIA negative recorded on {date}. Annual check-up reminders scheduled.",
             via_recorded_positive: "VIA positive recorded on {date}.",
             via_unavailable: "VIA recording is not available on this server.",
+            via_outcome_label: "Thermal Ablation / treatment",
+            via_outcome_hint: "HPV positive + VIA positive — select return visit outcome",
+            via_outcome_select: "Return visit outcome *",
+            via_outcome_thermal_ablation: "Thermal Ablation performed",
+            via_outcome_treatment_postponed: "Treatment postponed",
+            via_outcome_referral: "Referral — LEEP / suspicious for cancer",
+            via_outcome_pending: "Treatment pending",
+            via_treatment_date_ablation: "Date Thermal Ablation was done *",
+            via_treatment_date_postponed: "Rescheduled treatment date *",
+            via_outcome_required: "Select the return visit outcome for VIA positive.",
+            via_treatment_date_required: "Enter the treatment date.",
+            via_treatment_date_past: "Thermal Ablation date must be today or earlier.",
+            via_treatment_date_future: "Postponed treatment date must be in the future.",
             book_appt_inline_title: "Book appointment",
             book_appt_inline_hint: "For HPV positive, booking sends the lab result SMS first, then the appointment confirmation. Gentle FAQ tips continue until VIA is recorded.",
             book_appt_submit: "Book & notify patient",
@@ -338,6 +351,19 @@
             via_recorded_negative: "VIA hasi imewekwa {date}. Ukumbusho wa uchunguzi wa kila mwaka umepangwa.",
             via_recorded_positive: "VIA chanya imewekwa {date}.",
             via_unavailable: "Kuweka matokeo ya VIA hakupatikani kwenye seva.",
+            via_outcome_label: "Thermal Ablation / matibabu",
+            via_outcome_hint: "HPV chanya + VIA chanya — chagua matokeo ya ziara ya kurudi",
+            via_outcome_select: "Matokeo ya ziara ya kurudi *",
+            via_outcome_thermal_ablation: "Thermal Ablation imefanyika",
+            via_outcome_treatment_postponed: "Matibabu yameahirishwa",
+            via_outcome_referral: "Rufaa — LEEP / tuhuma ya saratani",
+            via_outcome_pending: "Matibabu yanasubiri",
+            via_treatment_date_ablation: "Tarehe Thermal Ablation ilifanyika *",
+            via_treatment_date_postponed: "Tarehe mpya ya matibabu *",
+            via_outcome_required: "Chagua matokeo ya ziara ya kurudi kwa VIA chanya.",
+            via_treatment_date_required: "Weka tarehe ya matibabu.",
+            via_treatment_date_past: "Tarehe ya Thermal Ablation lazima iwe leo au kabla.",
+            via_treatment_date_future: "Tarehe ya kuahirisha matibabu lazima iwe siku zijazo.",
             book_appt_inline_title: "Panga miadi",
             book_appt_inline_hint: "Kwa HPV chanya, kupanga miadi hutuma matokeo ya maabara kwanza, kisha uthibitisho wa miadi. Vidokezo vya FAQ vinaendelea hadi VIA iwekwe.",
             book_appt_submit: "Panga & mjulishe mgonjwa",
@@ -1108,6 +1134,34 @@
         return '—';
     }
 
+    function todayIsoDate() {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    /** Derive return-visit outcome from existing DB fields (safe for patients already on file). */
+    function viaPositiveOutcomeKey(p) {
+        const via = (p?.via_result || '').toLowerCase();
+        if (via !== 'positive') {
+            return '';
+        }
+        if (Number(p?.has_cancer) === 1) {
+            return 'referral';
+        }
+        const td = String(p?.treatment_date || '').slice(0, 10);
+        if (!td) {
+            return 'pending';
+        }
+        return td > todayIsoDate() ? 'treatment_postponed' : 'thermal_ablation';
+    }
+
+    function viaPositiveOutcomeLabel(p) {
+        const key = viaPositiveOutcomeKey(p);
+        if (!key) {
+            return '—';
+        }
+        return t(`via_outcome_${key}`);
+    }
+
     function setupRegisterForm(form) {
         if (!form || form.dataset.bound === '1') {
             return;
@@ -1414,6 +1468,7 @@
                 state.currentTab = 'patient';
                 if (app) {
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
+                    this.bindPatientViaForms(response.patient.id);
                 }
                 if (state.focusApptBookingAfterLoad) {
                     state.focusApptBookingAfterLoad = false;
@@ -2149,8 +2204,9 @@
                             ${patientHasConfirmedAppointment(appointments) ? `
                             <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
-                            <div class="detail-item"><span class="label">${t('reg_has_cancer')}</span><span class="value">${Number(p.has_cancer) === 1 ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
-                            <div class="detail-item"><span class="label">${t('reg_treatment_date')}</span><span class="value">${p.treatment_date ? formatDate(p.treatment_date, 'full') : '—'}</span></div>` : ''}
+                            ${(p.via_result || '').toLowerCase() === 'positive' ? `
+                            <div class="detail-item"><span class="label">${t('via_outcome_label')}</span><span class="value">${escapeHtml(viaPositiveOutcomeLabel(p))}</span></div>
+                            ${p.treatment_date ? `<div class="detail-item"><span class="label">${viaPositiveOutcomeKey(p) === 'treatment_postponed' ? t('via_treatment_date_postponed').replace(' *', '') : t('via_treatment_date_ablation').replace(' *', '')}</span><span class="value">${formatDate(p.treatment_date, 'full')}</span></div>` : ''}` : ''}` : ''}
                             <div class="detail-item"><span class="label">${t('screening_next_checkup')}</span><span class="value">${p.next_checkup_at ? formatDate(p.next_checkup_at, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">Registered</span><span class="value">${formatDate(p.registration_at, 'full')}</span></div>
                             <div class="detail-item full-width"><span class="label">Notes</span><span class="value">${escapeHtml(p.notes || 'None')}</span></div>
@@ -2241,8 +2297,9 @@
                         <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
-                        ${Number(p.has_cancer) === 1 ? `<div class="detail-item"><span class="label">${t('reg_has_cancer')}</span><span class="badge badge-warning">Yes</span></div>` : ''}
-                        <div class="detail-item"><span class="label">${t('reg_treatment_date')}</span><span class="value">${p.treatment_date ? formatDate(p.treatment_date, 'full') : '—'}</span></div>
+                        ${(p.via_result || '').toLowerCase() === 'positive' ? `
+                        <div class="detail-item"><span class="label">${t('via_outcome_label')}</span><span class="value">${escapeHtml(viaPositiveOutcomeLabel(p))}</span></div>
+                        ${p.treatment_date ? `<div class="detail-item"><span class="label">${viaPositiveOutcomeKey(p) === 'treatment_postponed' ? t('via_treatment_date_postponed').replace(' *', '') : t('via_treatment_date_ablation').replace(' *', '')}</span><span class="value">${formatDate(p.treatment_date, 'full')}</span></div>` : ''}` : ''}
                         <div class="detail-item"><span class="label">${t('screening_next_checkup')}</span><span class="value">${p.next_checkup_at ? formatDate(p.next_checkup_at, 'full') : '—'}</span></div>
                     </div>
                 </div>`;
@@ -2587,15 +2644,21 @@
                             <label class="form-label">${t('reg_via_date')} *</label>
                             <input type="date" name="via_date" class="form-input" required value="${escapeHtml(dateVal)}">
                         </div>
-                        <div class="form-group full-width" id="viaCancerWrap-${p.id}" style="display:none;">
-                            <label class="checkbox-label reg-cancer-label">
-                                <input type="checkbox" name="has_cancer" value="1">
-                                <span>${t('reg_has_cancer')}</span>
-                            </label>
-                        </div>
-                        <div class="form-group" id="viaTreatmentWrap-${p.id}" style="display:none;">
-                            <label class="form-label">${t('reg_treatment_date')}</label>
-                            <input type="date" name="treatment_date" class="form-input">
+                        <div class="form-group full-width via-outcome-section" id="viaOutcomeWrap-${p.id}" style="display:none;">
+                            <h4 class="hpv-step-title" style="margin:0 0 8px;">${t('via_outcome_label')}</h4>
+                            <p class="muted" style="margin:0 0 10px;font-size:0.9rem;">${t('via_outcome_hint')}</p>
+                            <label class="form-label">${t('via_outcome_select')}</label>
+                            <select name="via_positive_outcome" class="form-select" data-via-outcome-select="${p.id}">
+                                <option value="">—</option>
+                                <option value="thermal_ablation">${t('via_outcome_thermal_ablation')}</option>
+                                <option value="treatment_postponed">${t('via_outcome_treatment_postponed')}</option>
+                                <option value="referral">${t('via_outcome_referral')}</option>
+                                <option value="pending">${t('via_outcome_pending')}</option>
+                            </select>
+                            <div class="form-group" id="viaTreatmentDateRow-${p.id}" style="display:none;margin-top:10px;">
+                                <label class="form-label" id="viaTreatmentDateLabel-${p.id}">${t('via_treatment_date_ablation')}</label>
+                                <input type="date" name="treatment_date" class="form-input">
+                            </div>
                         </div>
                         <button type="button" class="btn-primary" style="margin-top:12px;"
                             data-action="via-record-submit" data-patient-id="${p.id}">
@@ -2796,13 +2859,19 @@
                                 ${escapeHtml(hpvResultLabel(via))}
                             </span>
                         </p>
+                        ${notified && via === 'positive' ? `
+                        <div class="detail-item" style="margin-top:12px;padding:12px;background:var(--gray-50, #f8fafc);border-radius:8px;">
+                            <span class="label">${t('via_outcome_label')}</span>
+                            <span class="value" style="display:block;margin-top:4px;font-weight:600;">${escapeHtml(viaPositiveOutcomeLabel(p))}</span>
+                            ${p.treatment_date ? `<span class="muted" style="display:block;margin-top:4px;font-size:0.85rem;">${escapeHtml(viaPositiveOutcomeKey(p) === 'treatment_postponed' ? t('via_treatment_date_postponed').replace(' *', '') : t('via_treatment_date_ablation').replace(' *', ''))}: ${formatDate(p.treatment_date, 'full')}</span>` : ''}
+                        </div>` : ''}
                         ${needsFollowupBook ? `
                         <div class="hpv-step-block hpv-step-active" id="viaBookApptBlock-${p.id}" style="margin-top:16px;">
                             <h4 class="hpv-step-title">${t('via_step_book_followup')}</h4>
                             <p class="muted">${t('via_book_followup_hint')}</p>
                             ${this.renderPatientBookApptForm(p, { compact: true, reasonDefault: 'VIA follow-up visit' })}
                         </div>` : ''}
-                        ${notified && Number(p.has_cancer) === 1 ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
+                        ${notified && via === 'positive' && viaPositiveOutcomeKey(p) === 'referral' ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
                         ${notified && p.next_checkup_at ? `<p class="muted">${t('screening_next_checkup')}: ${formatDate(p.next_checkup_at, 'full')}</p>` : ''}
                     </div>
                 </div>`;
@@ -2918,6 +2987,29 @@
                 </div>`;
         },
 
+        updateViaOutcomeFields(patientId) {
+            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            if (!form) {
+                return;
+            }
+            const outcome = form.querySelector('[name="via_positive_outcome"]')?.value || '';
+            const dateRow = document.getElementById(`viaTreatmentDateRow-${patientId}`);
+            const dateLabel = document.getElementById(`viaTreatmentDateLabel-${patientId}`);
+            const dateInput = form.querySelector('[name="treatment_date"]');
+            const needsDate = outcome === 'thermal_ablation' || outcome === 'treatment_postponed';
+            if (dateRow) {
+                dateRow.style.display = needsDate ? '' : 'none';
+            }
+            if (dateLabel) {
+                dateLabel.textContent = outcome === 'treatment_postponed'
+                    ? t('via_treatment_date_postponed')
+                    : t('via_treatment_date_ablation');
+            }
+            if (dateInput && !needsDate) {
+                dateInput.value = '';
+            }
+        },
+
         pickViaResult(patientId, result) {
             const form = document.getElementById(`viaRecordForm-${patientId}`);
             if (!form) {
@@ -2935,20 +3027,40 @@
             if (negBtn) {
                 negBtn.classList.toggle('hpv-selected', result === 'negative');
             }
-            const cancerWrap = document.getElementById(`viaCancerWrap-${patientId}`);
-            const treatmentWrap = document.getElementById(`viaTreatmentWrap-${patientId}`);
+            const outcomeWrap = document.getElementById(`viaOutcomeWrap-${patientId}`);
             const showExtra = result === 'positive';
-            if (cancerWrap) {
-                cancerWrap.style.display = showExtra ? '' : 'none';
-            }
-            if (treatmentWrap) {
-                treatmentWrap.style.display = showExtra ? '' : 'none';
+            if (outcomeWrap) {
+                outcomeWrap.style.display = showExtra ? '' : 'none';
             }
             if (!showExtra) {
-                const cancerCb = form.querySelector('[name="has_cancer"]');
-                if (cancerCb) {
-                    cancerCb.checked = false;
+                const outcomeSelect = form.querySelector('[name="via_positive_outcome"]');
+                if (outcomeSelect) {
+                    outcomeSelect.value = '';
                 }
+                this.updateViaOutcomeFields(patientId);
+            }
+        },
+
+        bindPatientViaForms(patientId) {
+            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            if (form) {
+                this.bindViaOutcomeSelect(form);
+            }
+        },
+
+        bindViaOutcomeSelect(form) {
+            if (!form || form.dataset.viaOutcomeBound === '1') {
+                return;
+            }
+            form.dataset.viaOutcomeBound = '1';
+            const select = form.querySelector('[data-via-outcome-select]');
+            if (select) {
+                select.addEventListener('change', () => {
+                    const pid = Number(select.getAttribute('data-via-outcome-select') || 0);
+                    if (pid > 0) {
+                        this.updateViaOutcomeFields(pid);
+                    }
+                });
             }
         },
 
@@ -2959,8 +3071,9 @@
             }
             const viaResult = form.querySelector('[name="via_result"]')?.value || '';
             const viaDate = form.querySelector('[name="via_date"]')?.value || '';
-            const hasCancer = form.querySelector('[name="has_cancer"]')?.checked ? 1 : 0;
-            const treatmentDate = form.querySelector('[name="treatment_date"]')?.value || '';
+            const outcome = form.querySelector('[name="via_positive_outcome"]')?.value || '';
+            let hasCancer = 0;
+            let treatmentDate = '';
             if (!viaResult || !viaDate) {
                 showNotification(
                     currentLanguage === 'sw'
@@ -2969,6 +3082,30 @@
                     'error'
                 );
                 return;
+            }
+            if (viaResult === 'positive') {
+                if (!outcome) {
+                    showNotification(t('via_outcome_required'), 'error');
+                    return;
+                }
+                if (outcome === 'referral') {
+                    hasCancer = 1;
+                } else if (outcome === 'thermal_ablation' || outcome === 'treatment_postponed') {
+                    treatmentDate = form.querySelector('[name="treatment_date"]')?.value || '';
+                    if (!treatmentDate) {
+                        showNotification(t('via_treatment_date_required'), 'error');
+                        return;
+                    }
+                    const today = todayIsoDate();
+                    if (outcome === 'thermal_ablation' && treatmentDate > today) {
+                        showNotification(t('via_treatment_date_past'), 'error');
+                        return;
+                    }
+                    if (outcome === 'treatment_postponed' && treatmentDate <= today) {
+                        showNotification(t('via_treatment_date_future'), 'error');
+                        return;
+                    }
+                }
             }
             showNotification('Recording VIA result…', 'info');
             try {
@@ -3096,6 +3233,7 @@
                 if (app) {
                     removeAppLoadingOverlay();
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
+                    this.bindPatientViaForms(response.patient.id);
                 }
                 if (state.focusApptBookingAfterLoad) {
                     state.focusApptBookingAfterLoad = false;
@@ -3217,6 +3355,9 @@
                 const mount = document.getElementById('apptPatientWorkflowMount');
                 if (mount && state.currentTab === 'appointments') {
                     mount.innerHTML = this.renderApptPatientWorkflowPanel(state.apptWorkflowPatient);
+                    if (state.apptWorkflowPatient?.id) {
+                        this.bindPatientViaForms(state.apptWorkflowPatient.id);
+                    }
                 }
                 const apptRes = await api.get('/api/appointments.php');
                 state.appointments = apptRes.items || [];
