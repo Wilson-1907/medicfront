@@ -233,6 +233,9 @@
             reg_enrollment_details: "Registration details",
             reg_contact_channel: "Contact channel",
             reg_opted_in: "Receives SMS/WhatsApp",
+            result_given: "Result given?",
+            result_given_yes: "Yes",
+            result_given_no: "No",
             edit_registration: "Edit registration details",
             edit_registration_save: "Save details",
             edit_registration_success: "Registration details updated.",
@@ -458,6 +461,9 @@
             reg_enrollment_details: "Maelezo ya usajili",
             reg_contact_channel: "Njia ya mawasiliano",
             reg_opted_in: "Hupokea SMS/WhatsApp",
+            result_given: "Majibu yametumwa?",
+            result_given_yes: "Ndiyo",
+            result_given_no: "Hapana",
             edit_registration: "Hariri maelezo ya usajili",
             edit_registration_save: "Hifadhi maelezo",
             edit_registration_success: "Maelezo ya usajili yamehifadhiwa.",
@@ -2343,6 +2349,7 @@
                                     <th>Language</th>
                                     <th>Channel</th>
                                     <th>Status</th>
+                                    <th>${t('result_given')}</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -2360,7 +2367,7 @@
             const patients = state.patients || [];
             
             if (patients.length === 0) {
-                return '<tr><td colspan="7" class="empty-state">No patients found</td>' +
+                return '<tr><td colspan="8" class="empty-state">No patients found</td>' +
                 '<td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td>' +
                 '</tr>';
             }
@@ -2369,6 +2376,9 @@
                 const pref = patientOpenRef(patient);
                 const clientLabel = patientClientLabel(patient);
                 const routeSeg = pref || String(patient.id);
+                const hpv = String(patient.hpv_screening_result || '').toLowerCase();
+                const hasRecordedHpv = hpv === 'positive' || hpv === 'negative';
+                const given = hasRecordedHpv && Boolean(patient.hpv_result_confirmed_at);
                 return `
                 <tr class="patient-row clickable" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}"
                     aria-label="Open patient ${escapeHtml(patient.full_name)}">
@@ -2383,6 +2393,7 @@
                     <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
+                    <td>${hasRecordedHpv ? `<span class="badge ${given ? 'badge-success' : 'badge-warning'}">${given ? t('result_given_yes') : t('result_given_no')}</span>` : '—'}</td>
                     <td class="patient-row-actions">
                         <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
                             data-action="view-patient" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}">
