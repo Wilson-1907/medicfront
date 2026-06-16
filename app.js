@@ -233,6 +233,9 @@
             reg_enrollment_details: "Registration details",
             reg_contact_channel: "Contact channel",
             reg_opted_in: "Receives SMS/WhatsApp",
+            edit_registration: "Edit registration details",
+            edit_registration_save: "Save details",
+            edit_registration_success: "Registration details updated.",
             no_client_number: "No client number on file — register with a lab serial or contact admin."
         },
         sw: {
@@ -455,6 +458,9 @@
             reg_enrollment_details: "Maelezo ya usajili",
             reg_contact_channel: "Njia ya mawasiliano",
             reg_opted_in: "Hupokea SMS/WhatsApp",
+            edit_registration: "Hariri maelezo ya usajili",
+            edit_registration_save: "Hifadhi maelezo",
+            edit_registration_success: "Maelezo ya usajili yamehifadhiwa.",
             no_client_number: "Hakuna nambari ya mteja — sajili kwa serial ya maabara au wasiliana na msimamizi."
         }
     };
@@ -1317,6 +1323,26 @@
         });
         updateClientPreview();
 
+        const hpvDoneSelect = form.querySelector('[name="hpv_done_before"]');
+        const hpvPriorWrap = form.querySelector('#regHpvPriorWrap');
+        const hpvPriorSelect = form.querySelector('[name="hpv_prior_result"]');
+        const updateHpvPriorVisibility = () => {
+            const showPrior = hpvDoneSelect?.value === 'yes';
+            if (hpvPriorWrap) {
+                hpvPriorWrap.style.display = showPrior ? '' : 'none';
+            }
+            if (hpvPriorSelect) {
+                hpvPriorSelect.required = showPrior;
+                if (!showPrior) {
+                    hpvPriorSelect.value = 'unknown';
+                }
+            }
+        };
+        if (hpvDoneSelect) {
+            hpvDoneSelect.addEventListener('change', updateHpvPriorVisibility);
+        }
+        updateHpvPriorVisibility();
+
         updateRegisterAgeDisplay(form);
     }
 
@@ -1480,6 +1506,12 @@
                 } else if (action === 'hpv-record-positive' && patientId) {
                     e.preventDefault();
                     components.setHpvResult(patientId, 'positive');
+                } else if (action === 'edit-registration' && patientId) {
+                    e.preventDefault();
+                    components.openEditRegistrationModal(patientId);
+                } else if (action === 'edit-registration-close') {
+                    e.preventDefault();
+                    components.closeEditRegistrationModal();
                 } else if (action === 'hpv-record-negative' && patientId) {
                     e.preventDefault();
                     components.setHpvResult(patientId, 'negative');
@@ -1880,6 +1912,108 @@
                     </button>
                 </div>
             `;
+        },
+
+        openEditRegistrationModal(patientId) {
+            const id = Number(patientId || 0);
+            const p = Number(state.patientDetail?.id || 0) === id ? state.patientDetail : null;
+            if (!p) {
+                showNotification('Open the patient record first.', 'error');
+                return;
+            }
+            const contacts = p.contacts || [];
+            const primaryContact = contacts.find((c) => Number(c.is_primary) === 1) || contacts[0] || {};
+            const modal = document.getElementById('editRegistrationModal');
+            if (!modal) return;
+
+            const hpvDone = (p.hpv_done_before || '').toLowerCase();
+            const prior = (p.hpv_prior_result || '').toLowerCase();
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            modal.innerHTML = `
+                <div class="modal-content wipe-modal-content">
+                    <div class="modal-header">
+                        <h2>${t('edit_registration')}</h2>
+                        <button type="button" class="btn-secondary" data-action="edit-registration-close" aria-label="Close">&times;</button>
+                    </div>
+                    <form id="editRegistrationForm" class="wipe-modal-body">
+                        <input type="hidden" name="patient_id" value="${id}">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">${t('select_language')} *</label>
+                                <select name="preferred_language" class="form-select" required>
+                                    <option value="en" ${(p.preferred_language || 'en') === 'en' ? 'selected' : ''}>English</option>
+                                    <option value="sw" ${(p.preferred_language || '') === 'sw' ? 'selected' : ''}>Kiswahili</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">${t('select_channel')} *</label>
+                                <select name="contact_channel" class="form-select" required>
+                                    <option value="sms" ${(primaryContact.channel || 'sms') === 'sms' ? 'selected' : ''}>SMS</option>
+                                    <option value="whatsapp" ${(primaryContact.channel || '') === 'whatsapp' ? 'selected' : ''}>WhatsApp</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">${t('reg_hpv_done')} *</label>
+                                <select name="hpv_done_before" id="editHpvDoneBefore" class="form-select" required>
+                                    <option value="">—</option>
+                                    <option value="no" ${hpvDone === 'no' ? 'selected' : ''}>${t('reg_hpv_never')}</option>
+                                    <option value="yes" ${hpvDone === 'yes' ? 'selected' : ''}>${t('reg_hpv_ever')}</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="editHpvPriorWrap" style="display:${hpvDone === 'yes' ? '' : 'none'};">
+                                <label class="form-label">${t('reg_hpv_prior')} *</label>
+                                <select name="hpv_prior_result" id="editHpvPriorResult" class="form-select">
+                                    <option value="unknown" ${!(prior === 'positive' || prior === 'negative') ? 'selected' : ''}>—</option>
+                                    <option value="negative" ${prior === 'negative' ? 'selected' : ''}>${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
+                                    <option value="positive" ${prior === 'positive' ? 'selected' : ''}>${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="wipe-modal-actions" style="margin-top:16px;">
+                            <button type="button" class="btn-secondary" data-action="edit-registration-close">${t('cancel')}</button>
+                            <button type="submit" class="btn-primary">${t('edit_registration_save')}</button>
+                        </div>
+                    </form>
+                </div>`;
+
+            const form = document.getElementById('editRegistrationForm');
+            const doneSelect = document.getElementById('editHpvDoneBefore');
+            const priorWrap = document.getElementById('editHpvPriorWrap');
+            const priorSelect = document.getElementById('editHpvPriorResult');
+            const syncPrior = () => {
+                const show = doneSelect?.value === 'yes';
+                if (priorWrap) priorWrap.style.display = show ? '' : 'none';
+                if (priorSelect) {
+                    priorSelect.required = show;
+                    if (!show) priorSelect.value = 'unknown';
+                }
+            };
+            doneSelect?.addEventListener('change', syncPrior);
+            syncPrior();
+
+            form?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const payload = Object.fromEntries(new FormData(form).entries());
+                    await api.post('/api/patient_update.php', payload, false);
+                    this.closeEditRegistrationModal();
+                    showNotification(t('edit_registration_success'), 'ok');
+                    await this.reloadPatientDetail();
+                } catch (err) {
+                    showNotification(err.message || 'Failed to update details', 'error');
+                }
+            });
+        },
+
+        closeEditRegistrationModal() {
+            const modal = document.getElementById('editRegistrationModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.style.display = '';
+            modal.setAttribute('aria-hidden', 'true');
+            modal.innerHTML = '';
         },
 
         openWipeDataModal() {
@@ -2311,6 +2445,9 @@
                     <div class="card" style="margin-top:1rem;">
                         <div class="card-header">
                             <div class="card-title"><i class="fas fa-clipboard-list"></i> ${t('reg_enrollment_details')}</div>
+                            <button type="button" class="btn-secondary" data-action="edit-registration" data-patient-id="${p.id}">
+                                <i class="fas fa-pen"></i> ${t('edit_registration')}
+                            </button>
                         </div>
                         <div class="detail-grid" style="padding:16px;">
                             <div class="detail-item"><span class="label">${t('patient_name')}</span><span class="value">${escapeHtml(p.full_name)}</span></div>
@@ -2322,6 +2459,7 @@
                             <div class="detail-item"><span class="label">${t('reg_opted_in')}</span><span class="value">${primaryContact && primaryContact.opted_in ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
+                            ${hpvDone === 'yes' ? `<div class="detail-item"><span class="label">${t('reg_hpv_prior')}</span><span class="value">${posNeg(p.hpv_prior_result)}</span></div>` : ''}
                             ${hpvResultIsRecorded(p) ? `<div class="detail-item"><span class="label">${t('hpv_lab_result')}</span><span class="value">${escapeHtml(hpvResultLabel(p.hpv_screening_result))}</span></div>` : ''}
                             <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                             ${patientHasConfirmedAppointment(appointments) ? `
@@ -3746,6 +3884,15 @@
                                 </select>
                             </div>
 
+                            <div class="form-group" id="regHpvPriorWrap" style="display:none;">
+                                <label class="form-label">${t('reg_hpv_prior')} *</label>
+                                <select name="hpv_prior_result" class="form-select">
+                                    <option value="unknown">—</option>
+                                    <option value="negative">${currentLanguage === 'sw' ? 'Hasi' : 'Negative'}</option>
+                                    <option value="positive">${currentLanguage === 'sw' ? 'Chanya' : 'Positive'}</option>
+                                </select>
+                            </div>
+
                             <div class="form-group full-width">
                                 <label class="form-label">${t('reg_residence')} *</label>
                                 <input type="text" name="place_of_residence" class="form-input" required
@@ -4775,6 +4922,7 @@
             </main>
             
             <div id="escalationDetailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="escalationModalTitle"></div>
+            <div id="editRegistrationModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true"></div>
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
             <footer class="footer" role="contentinfo">
