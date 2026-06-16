@@ -20,6 +20,11 @@
             nav_appointments: "Appointments",
             nav_messages: "Messages",
             open_escalations: "Open Escalations",
+            failed_24h: "Failed (24h)",
+            failed_messages_title: "Failed messages (24h)",
+            failed_no_messages_24h: "No failed messages in the last 24 hours",
+            failure_reason: "Reason",
+            click_to_view: "Click to view",
             hpv_program: "HPV Patient Engagement",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
@@ -248,6 +253,11 @@
             nav_appointments: "Miadi",
             nav_messages: "Ujumbe",
             open_escalations: "Escalations Wazi",
+            failed_24h: "Imeshindwa (24h)",
+            failed_messages_title: "Ujumbe ulioshindwa (24h)",
+            failed_no_messages_24h: "Hakuna ujumbe ulioshindwa katika saa 24 zilizopita",
+            failure_reason: "Sababu",
+            click_to_view: "Bofya kuona",
             hpv_program: "Ushirikiano wa Wagonjwa wa HPV",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
@@ -1096,6 +1106,23 @@
         if (type === 'welcome') return 'Welcome';
         return type || 'Message';
     }
+
+    function formatOutboundStatus(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'delivered') return currentLanguage === 'sw' ? 'Imefika' : 'Delivered';
+        if (s === 'sent') return currentLanguage === 'sw' ? 'Imetumwa (bado)' : 'Sent (pending)';
+        if (s === 'failed') return currentLanguage === 'sw' ? 'Imeshindwa' : 'Failed';
+        if (s === 'queued') return currentLanguage === 'sw' ? 'Inasubiri' : 'Queued';
+        return status || '—';
+    }
+
+    function outboundStatusIcon(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'delivered') return 'fa-check-circle';
+        if (s === 'failed') return 'fa-exclamation-circle';
+        if (s === 'sent') return 'fa-paper-plane';
+        return 'fa-clock';
+    }
     
     function escapeHtml(text) {
         if (!text) return '';
@@ -1693,6 +1720,17 @@
             return list.filter(e => e.status === 'open' || e.status === 'triaged');
         },
 
+        getFailedOutbound24h() {
+            const fromApi = state.messages?.failed_outbound_24h;
+            if (Array.isArray(fromApi)) return fromApi;
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+            return (state.messages?.outbound || []).filter((msg) => {
+                if (msg.status !== 'failed' || !msg.created_at) return false;
+                const ts = new Date(String(msg.created_at).replace(' ', 'T')).getTime();
+                return !Number.isNaN(ts) && ts >= cutoff;
+            });
+        },
+
         findEscalationById(escId) {
             const id = Number(escId);
             const fromMessages = (state.messages?.escalations || []).find(e => Number(e.id) === id);
@@ -1761,6 +1799,102 @@
 
         closeEscalationModal() {
             const modal = document.getElementById('escalationDetailsModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.setAttribute('aria-hidden', 'true');
+            }
+        },
+
+        renderFailedMessagesDetail(messages) {
+            if (!messages || messages.length === 0) {
+                return `
+                    <div class="empty-state">
+                        <div class="empty-icon">✅</div>
+                        <div class="empty-title">${t('failed_no_messages_24h')}</div>
+                    </div>
+                `;
+            }
+
+            return `<div class="failed-messages-list">
+                ${messages.map((msg) => `
+                    <div class="failed-message-card">
+                        <div class="failed-message-header">
+                            <div>
+                                <strong>${escapeHtml(msg.full_name || 'Unknown')}</strong>
+                                ${msg.client_id ? `<span class="muted"> · ${escapeHtml(patientClientLabel({ client_id: msg.client_id, external_mrn: msg.client_id }))}</span>` : ''}
+                            </div>
+                            <div class="message-time">${formatMessageTime(msg.created_at)}</div>
+                        </div>
+                        <div class="failed-message-meta">
+                            <span class="channel-badge ${msg.channel === 'whatsapp' ? 'whatsapp' : 'sms'}">
+                                <i class="fab ${msg.channel === 'whatsapp' ? 'fa-whatsapp' : 'fa-sms'}"></i> ${escapeHtml(msg.channel || 'sms')}
+                            </span>
+                            <span class="message-type">${escapeHtml(formatMessageType(msg.message_type))}</span>
+                        </div>
+                        <div class="failed-message-body">
+                            <div class="failed-message-label">Message</div>
+                            <div class="message-preview">${escapeHtml(msg.body || '—')}</div>
+                        </div>
+                        <div class="message-error failed-message-reason">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <strong>${t('failure_reason')}:</strong>
+                                ${escapeHtml(msg.error_detail || 'No error detail recorded')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+        },
+
+        presentFailedMessages() {
+            const failed = this.getFailedOutbound24h();
+            const failedCount = state.messages?.stats?.failed_24h ?? failed.length;
+            const modal = document.getElementById('failedMessagesModal');
+
+            if (!modal) {
+                showNotification('Could not open failed messages panel', 'error');
+                return;
+            }
+
+            if (failed.length === 0) {
+                if (failedCount > 0) {
+                    modal.innerHTML = `
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2>${failedCount} ${t('failed_24h')}</h2>
+                                <button class="close-btn" onclick="window.components.closeFailedMessagesModal()"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="escalation-details">
+                                <p class="muted">The count shows ${failedCount} failed message(s), but details could not be loaded. Try refreshing the page.</p>
+                            </div>
+                        </div>`;
+                    modal.classList.remove('hidden');
+                } else {
+                    showNotification(t('failed_no_messages_24h'), 'ok');
+                }
+                return;
+            }
+
+            modal.innerHTML = `
+                <div class="modal-content modal-content-wide">
+                    <div class="modal-header">
+                        <h2><i class="fas fa-exclamation-circle"></i> ${failed.length} ${t('failed_messages_title')}</h2>
+                        <button class="close-btn" onclick="window.components.closeFailedMessagesModal()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="failed-messages-panel" style="padding:20px 24px 28px;">
+                        ${this.renderFailedMessagesDetail(failed)}
+                    </div>
+                </div>`;
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            modal.onclick = (e) => {
+                if (e.target === modal) this.closeFailedMessagesModal();
+            };
+        },
+
+        closeFailedMessagesModal() {
+            const modal = document.getElementById('failedMessagesModal');
             if (modal) {
                 modal.classList.add('hidden');
                 modal.setAttribute('aria-hidden', 'true');
@@ -4219,10 +4353,11 @@
                             <div class="stat-mini-value">${stats.outbound_24h || 0}</div>
                             <div class="stat-mini-label">Outbound (24h)</div>
                         </div>
-                        <div class="stat-mini-card warning">
+                        <div class="stat-mini-card warning ${(stats.failed_24h || 0) > 0 ? 'clickable-stat' : ''}" ${(stats.failed_24h || 0) > 0 ? 'onclick="window.components.openFailedMessages()" title="View failed message details"' : ''}>
                             <div class="stat-mini-icon">❌</div>
                             <div class="stat-mini-value">${stats.failed_24h || 0}</div>
-                            <div class="stat-mini-label">Failed (24h)</div>
+                            <div class="stat-mini-label">${t('failed_24h')}</div>
+                            ${(stats.failed_24h || 0) > 0 ? `<div class="stat-mini-hint">${t('click_to_view')}</div>` : ''}
                         </div>
                         <div class="stat-mini-card">
                             <div class="stat-mini-icon">📥</div>
@@ -4323,9 +4458,9 @@
                                                 <i class="fab ${msg.channel === 'whatsapp' ? 'fa-whatsapp' : 'fa-sms'}"></i> ${msg.channel}
                                             </span></td>
                                             <td><span class="message-type">${escapeHtml(formatMessageType(msg.message_type))}</span></td>
-                                            <td><span class="status-badge ${msg.status}">
-                                                <i class="fas ${msg.status === 'sent' ? 'fa-check-circle' : msg.status === 'failed' ? 'fa-exclamation-circle' : 'fa-clock'}"></i>
-                                                ${msg.status}
+                                            <td><span class="status-badge ${escapeHtml(msg.status || 'queued')}">
+                                                <i class="fas ${outboundStatusIcon(msg.status)}"></i>
+                                                ${escapeHtml(formatOutboundStatus(msg.status))}
                                             </span></td>
                                             <td class="message-content">
                                                 <div class="message-preview">${escapeHtml(msg.body || '-')}</div>
@@ -4757,6 +4892,10 @@
                             state._pendingEscalationOpen = false;
                             this.presentEscalations();
                         }
+                        if (state._pendingFailedOpen) {
+                            state._pendingFailedOpen = false;
+                            this.presentFailedMessages();
+                        }
                     }, 150);
                 }
                 
@@ -4826,6 +4965,19 @@
             }
             state._pendingEscalationOpen = true;
             state._scrollToEscalations = true;
+            if (state.currentTab !== 'messages') {
+                this.switchTab('messages');
+            } else {
+                this.loadCurrentTab();
+            }
+        },
+
+        openFailedMessages() {
+            if (state.currentTab === 'messages' && state.messages && !state.isLoading) {
+                this.presentFailedMessages();
+                return;
+            }
+            state._pendingFailedOpen = true;
             if (state.currentTab !== 'messages') {
                 this.switchTab('messages');
             } else {
@@ -4935,6 +5087,7 @@
             </main>
             
             <div id="escalationDetailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="escalationModalTitle"></div>
+            <div id="failedMessagesModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="failedMessagesModalTitle"></div>
             <div id="editRegistrationModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true"></div>
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             

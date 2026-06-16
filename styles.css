@@ -1229,8 +1229,8 @@ body {
 }
 
 .status-badge.sent {
-    background: var(--success-light);
-    color: #065f46;
+    background: var(--warning-light);
+    color: #92400e;
 }
 
 .status-badge.pending {
@@ -1244,8 +1244,8 @@ body {
 }
 
 .status-badge.delivered {
-    background: var(--info-light);
-    color: #1e40af;
+    background: var(--success-light);
+    color: #065f46;
 }
 
 .status-badge.open {
@@ -1274,6 +1274,55 @@ body {
     font-size: 0.7rem;
     color: #991b1b;
     display: inline-block;
+}
+
+.failed-messages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.failed-message-card {
+    border: 1px solid #fecaca;
+    border-left: 4px solid var(--danger);
+    border-radius: 12px;
+    padding: 16px 18px;
+    background: #fff;
+}
+
+.failed-message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.failed-message-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.failed-message-body {
+    margin-bottom: 10px;
+}
+
+.failed-message-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.failed-message-reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
 }
 
 /* Inbound Message Bubble */
