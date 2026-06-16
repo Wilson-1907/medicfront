@@ -29,6 +29,11 @@
             resend_stuck_hint: "Re-sends failed SMS/WhatsApp and releases queued drips from the last 7 days.",
             resend_stuck_prompt: "Enter admin password to resend stuck messages:",
             resend_stuck_done: "Stuck messages released.",
+            resend_failed: "Resend failed messages",
+            resend_failed_one: "Resend",
+            resend_failed_all: "Resend all now",
+            resend_failed_done: "Resend complete:",
+            resend_failed_working: "Resending undelivered messages…",
             hpv_program: "HPV Patient Engagement",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
@@ -266,6 +271,11 @@
             resend_stuck_hint: "Hutuma tena SMS/WhatsApp zilizoshindwa na kufungua drips zilizosubiri kwa siku 7 zilizopita.",
             resend_stuck_prompt: "Weka nenosiri la msimamizi ili kutuma tena ujumbe uliofungwa:",
             resend_stuck_done: "Ujumbe uliofungwa umetumwa tena.",
+            resend_failed: "Tuma tena ujumbe ulioshindwa",
+            resend_failed_one: "Tuma tena",
+            resend_failed_all: "Tuma tena sasa",
+            resend_failed_done: "Kutuma tena kumekamilika:",
+            resend_failed_working: "Inatumwa tena ujumbe ambao haujafika…",
             hpv_program: "Ushirikiano wa Wagonjwa wa HPV",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
@@ -1824,14 +1834,22 @@
             }
 
             return `<div class="failed-messages-list">
+                <div class="failed-messages-actions">
+                    <button type="button" class="btn-primary btn-sm" id="resendAllFailedBtn">
+                        <i class="fas fa-redo"></i> ${t('resend_failed_all')}
+                    </button>
+                </div>
                 ${messages.map((msg) => `
-                    <div class="failed-message-card">
+                    <div class="failed-message-card" data-outbound-id="${msg.id || ''}">
                         <div class="failed-message-header">
                             <div>
                                 <strong>${escapeHtml(msg.full_name || 'Unknown')}</strong>
                                 ${msg.client_id ? `<span class="muted"> · ${escapeHtml(patientClientLabel({ client_id: msg.client_id, external_mrn: msg.client_id }))}</span>` : ''}
                             </div>
-                            <div class="message-time">${formatMessageTime(msg.created_at)}</div>
+                            <div class="failed-message-header-actions">
+                                <div class="message-time">${formatMessageTime(msg.created_at)}</div>
+                                ${msg.id ? `<button type="button" class="btn-secondary btn-sm" data-resend-outbound="${msg.id}"><i class="fas fa-redo"></i> ${t('resend_failed_one')}</button>` : ''}
+                            </div>
                         </div>
                         <div class="failed-message-meta">
                             <span class="channel-badge ${msg.channel === 'whatsapp' ? 'whatsapp' : 'sms'}">
@@ -1855,15 +1873,30 @@
             </div>`;
         },
 
-        presentFailedMessages() {
-            const failed = this.getFailedOutbound24h();
-            const failedCount = state.messages?.stats?.failed_24h ?? failed.length;
+        async presentFailedMessages(autoResend = false) {
+            const failedCount = state.messages?.stats?.failed_24h ?? this.getFailedOutbound24h().length;
             const modal = document.getElementById('failedMessagesModal');
 
             if (!modal) {
                 showNotification('Could not open failed messages panel', 'error');
                 return;
             }
+
+            if (autoResend && failedCount > 0) {
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-spinner fa-spin"></i> ${t('resend_failed_working')}</h2>
+                        </div>
+                        <div class="escalation-details"><p class="muted">${t('resend_failed')}</p></div>
+                    </div>`;
+                modal.classList.remove('hidden');
+                modal.setAttribute('aria-hidden', 'false');
+                await this.resendFailedOutbound(null, true);
+                return;
+            }
+
+            const failed = this.getFailedOutbound24h();
 
             if (failed.length === 0) {
                 if (failedCount > 0) {
@@ -1874,7 +1907,7 @@
                                 <button class="close-btn" onclick="window.components.closeFailedMessagesModal()"><i class="fas fa-times"></i></button>
                             </div>
                             <div class="escalation-details">
-                                <p class="muted">The count shows ${failedCount} failed message(s), but details could not be loaded. Try refreshing the page.</p>
+                                <p class="muted">The count shows ${failedCount} undelivered message(s), but details could not be loaded. Try refreshing the page.</p>
                             </div>
                         </div>`;
                     modal.classList.remove('hidden');
@@ -1899,6 +1932,7 @@
             modal.onclick = (e) => {
                 if (e.target === modal) this.closeFailedMessagesModal();
             };
+            this.setupResendFailedButtons(modal);
         },
 
         closeFailedMessagesModal() {
@@ -4392,19 +4426,20 @@
 
                     ${(stats.failed_24h || 0) > 0 ? `
                     <div class="alert-banner warning">
-                        <i class="fas fa-redo"></i>
+                        <i class="fas fa-exclamation-circle"></i>
                         <div>
-                            <strong>${stats.failed_24h} message${stats.failed_24h === 1 ? '' : 's'} failed in the last 24 hours</strong>
-                            <p>${t('resend_stuck_hint')}</p>
+                            <strong>${stats.failed_24h} message${stats.failed_24h === 1 ? '' : 's'} not delivered (24h)</strong>
+                            <p>Click to review — undelivered messages are retried automatically (SMS fallback if WhatsApp fails).</p>
                         </div>
-                        <button class="btn-secondary btn-sm" id="resendStuckBtn">${t('resend_stuck')}</button>
-                    </div>` : `
+                        <button class="btn-secondary btn-sm" onclick="window.components.openFailedMessages()">${t('resend_failed_all')}</button>
+                    </div>` : ''}
+
                     <div class="card" style="margin-bottom: 20px;">
                         <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
                             <p class="muted" style="margin:0;">${t('resend_stuck_hint')}</p>
                             <button class="btn-secondary btn-sm" id="resendStuckBtn"><i class="fas fa-redo"></i> ${t('resend_stuck')}</button>
                         </div>
-                    </div>`}
+                    </div>
 
                     <div class="card escalations-section" id="escalationsSection">
                         <div class="card-header">
@@ -4918,8 +4953,10 @@
                             this.presentEscalations();
                         }
                         if (state._pendingFailedOpen) {
+                            const autoResend = Boolean(state._autoResendFailed);
                             state._pendingFailedOpen = false;
-                            this.presentFailedMessages();
+                            state._autoResendFailed = false;
+                            this.presentFailedMessages(autoResend);
                         }
                     }, 150);
                 }
@@ -5033,15 +5070,69 @@
 
         openFailedMessages() {
             if (state.currentTab === 'messages' && state.messages && !state.isLoading) {
-                this.presentFailedMessages();
+                this.presentFailedMessages(true);
                 return;
             }
             state._pendingFailedOpen = true;
+            state._autoResendFailed = true;
             if (state.currentTab !== 'messages') {
                 this.switchTab('messages');
             } else {
                 this.loadCurrentTab();
             }
+        },
+
+        async resendFailedOutbound(outboundIds = null, reopenModal = true) {
+            try {
+                const payload = {
+                    action: 'resend_failed',
+                    hours: 168,
+                    limit: 200
+                };
+                if (Array.isArray(outboundIds) && outboundIds.length > 0) {
+                    payload.outbound_ids = outboundIds;
+                }
+                const res = await api.post('/api/message_center.php', payload);
+                const r = res.resend || {};
+                const summary = `${r.resent || 0} sent, ${r.resend_failed || 0} still failed`;
+                showNotification(`${t('resend_failed_done')} ${summary}`, (r.resend_failed || 0) > 0 ? 'error' : 'ok');
+
+                const response = await api.get('/api/message_center.php');
+                state.messages = response;
+
+                if (state.currentTab === 'messages') {
+                    const app = document.getElementById('app');
+                    if (app) {
+                        app.innerHTML = this.renderMessages();
+                        this.setupCustomMessageForm();
+                        this.setupResendStuckButton();
+                    }
+                }
+
+                if (reopenModal) {
+                    await this.presentFailedMessages(false);
+                }
+            } catch (err) {
+                showNotification(err.message || 'Resend failed', 'error');
+                if (reopenModal) {
+                    await this.presentFailedMessages(false);
+                }
+            }
+        },
+
+        setupResendFailedButtons(root) {
+            const scope = root || document;
+            const allBtn = scope.querySelector('#resendAllFailedBtn');
+            if (allBtn) {
+                allBtn.onclick = () => this.resendFailedOutbound(null, true);
+            }
+            scope.querySelectorAll('[data-resend-outbound]').forEach((btn) => {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    const id = Number(btn.getAttribute('data-resend-outbound') || 0);
+                    if (id > 0) this.resendFailedOutbound([id], true);
+                };
+            });
         },
 
         scrollToEscalations() {

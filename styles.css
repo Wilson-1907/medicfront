@@ -1276,6 +1276,19 @@ body {
     display: inline-block;
 }
 
+.failed-messages-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.failed-message-header-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
 .failed-messages-list {
     display: flex;
     flex-direction: column;
