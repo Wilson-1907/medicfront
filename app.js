@@ -2379,6 +2379,10 @@
                 const hpv = String(patient.hpv_screening_result || '').toLowerCase();
                 const hasRecordedHpv = hpv === 'positive' || hpv === 'negative';
                 const given = hasRecordedHpv && Boolean(patient.hpv_result_confirmed_at);
+                const resultLabel = hpv === 'positive'
+                    ? (currentLanguage === 'sw' ? 'Chanya' : 'Positive')
+                    : (hpv === 'negative' ? (currentLanguage === 'sw' ? 'Hasi' : 'Negative') : '');
+                const waitingLabel = currentLanguage === 'sw' ? 'Inasubiri' : 'Waiting';
                 return `
                 <tr class="patient-row clickable" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}"
                     aria-label="Open patient ${escapeHtml(patient.full_name)}">
@@ -2393,7 +2397,11 @@
                     <td><span class="badge badge-info">${patient.preferred_language === 'sw' ? '🇹🇿 Kiswahili' : '🇬🇧 English'}</span></td>
                     <td><span class="badge badge-secondary">${patient.primary_channel || 'sms'}</span></td>
                     <td><span class="badge ${patient.status === 'active' ? 'badge-success' : 'badge-danger'}">${patient.status || 'active'}</span></td>
-                    <td>${hasRecordedHpv ? `<span class="badge ${given ? 'badge-success' : 'badge-warning'}">${given ? t('result_given_yes') : t('result_given_no')}</span>` : '—'}</td>
+                    <td>
+                        ${hasRecordedHpv
+                            ? `<span class="badge badge-secondary">${escapeHtml(resultLabel)}</span> <span class="badge ${given ? 'badge-success' : 'badge-warning'}">${given ? t('result_given_yes') : waitingLabel}</span>`
+                            : `<span class="badge badge-warning">${waitingLabel}</span>`}
+                    </td>
                     <td class="patient-row-actions">
                         <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
                             data-action="view-patient" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}">
