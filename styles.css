@@ -1688,6 +1688,7 @@ body {
 .alert-banner.danger { background: var(--danger-light); border-color: #fecaca; color: #991b1b; }
 .alert-banner i { font-size: 1.5rem; }
 .alert-banner p { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.9; }
+.alert-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .btn-sm { padding: 8px 14px !important; font-size: 0.8rem !important; }
 .card-body { padding: 0 4px 8px; }
 .escalations-section { border: 2px solid rgba(239,68,68,0.2); }

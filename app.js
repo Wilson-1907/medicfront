@@ -34,6 +34,7 @@
             resend_failed_all: "Resend all now",
             resend_failed_done: "Resend complete:",
             resend_failed_working: "Resending undelivered messages…",
+            resend_failed_hint: "Undelivered messages retry automatically every 10 minutes. Failed WhatsApp is resent via SMS when possible.",
             hpv_program: "HPV Patient Engagement",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
@@ -276,6 +277,7 @@
             resend_failed_all: "Tuma tena sasa",
             resend_failed_done: "Kutuma tena kumekamilika:",
             resend_failed_working: "Inatumwa tena ujumbe ambao haujafika…",
+            resend_failed_hint: "Ujumbe ambao haujafika hutumwa tena kiotomatiki kila dakika 10. WhatsApp iliyoshindwa hutumwa tena kwa SMS inapowezekana.",
             hpv_program: "Ushirikiano wa Wagonjwa wa HPV",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
@@ -4395,7 +4397,7 @@
                             <div class="stat-mini-value">${stats.outbound_24h || 0}</div>
                             <div class="stat-mini-label">Outbound (24h)</div>
                         </div>
-                        <div class="stat-mini-card warning ${(stats.failed_24h || 0) > 0 ? 'clickable-stat' : ''}" ${(stats.failed_24h || 0) > 0 ? 'onclick="window.components.openFailedMessages()" title="View failed message details"' : ''}>
+                        <div class="stat-mini-card warning ${(stats.failed_24h || 0) > 0 ? 'clickable-stat' : ''}" ${(stats.failed_24h || 0) > 0 ? 'onclick="window.components.viewFailedMessages()" title="View undelivered message details"' : ''}>
                             <div class="stat-mini-icon">❌</div>
                             <div class="stat-mini-value">${stats.failed_24h || 0}</div>
                             <div class="stat-mini-label">${t('failed_24h')}</div>
@@ -4429,9 +4431,12 @@
                         <i class="fas fa-exclamation-circle"></i>
                         <div>
                             <strong>${stats.failed_24h} message${stats.failed_24h === 1 ? '' : 's'} not delivered (24h)</strong>
-                            <p>Click to review — undelivered messages are retried automatically (SMS fallback if WhatsApp fails).</p>
+                            <p>${t('resend_failed_hint')}</p>
                         </div>
-                        <button class="btn-secondary btn-sm" onclick="window.components.openFailedMessages()">${t('resend_failed_all')}</button>
+                        <div class="alert-banner-actions">
+                            <button class="btn-secondary btn-sm" onclick="window.components.viewFailedMessages()">${t('click_to_view')}</button>
+                            <button class="btn-primary btn-sm" id="retryAllFailedBannerBtn"><i class="fas fa-redo"></i> ${t('resend_failed_all')}</button>
+                        </div>
                     </div>` : ''}
 
                     <div class="card" style="margin-bottom: 20px;">
@@ -4944,6 +4949,7 @@
                     app.innerHTML = this.renderMessages();
                     this.setupCustomMessageForm();
                     this.setupResendStuckButton();
+                    this.setupRetryFailedBannerButton();
                     
                     setTimeout(() => {
                         this.bindEscalationCards();
@@ -4953,10 +4959,13 @@
                             this.presentEscalations();
                         }
                         if (state._pendingFailedOpen) {
-                            const autoResend = Boolean(state._autoResendFailed);
                             state._pendingFailedOpen = false;
-                            state._autoResendFailed = false;
-                            this.presentFailedMessages(autoResend);
+                            this.viewFailedMessages();
+                        }
+                        const failedCount = state.messages?.stats?.failed_24h || 0;
+                        if (failedCount > 0 && !state._autoResendAttempted) {
+                            state._autoResendAttempted = true;
+                            this.retryAllFailedMessages(false);
                         }
                     }, 150);
                 }
@@ -5069,17 +5078,35 @@
         },
 
         openFailedMessages() {
+            this.viewFailedMessages();
+        },
+
+        viewFailedMessages() {
             if (state.currentTab === 'messages' && state.messages && !state.isLoading) {
-                this.presentFailedMessages(true);
+                this.presentFailedMessages(false);
                 return;
             }
             state._pendingFailedOpen = true;
-            state._autoResendFailed = true;
             if (state.currentTab !== 'messages') {
                 this.switchTab('messages');
             } else {
                 this.loadCurrentTab();
             }
+        },
+
+        async retryAllFailedMessages(showModalAfter = true) {
+            const failedCount = state.messages?.stats?.failed_24h ?? this.getFailedOutbound24h().length;
+            if (failedCount < 1) {
+                showNotification(t('failed_no_messages_24h'), 'ok');
+                return;
+            }
+            await this.resendFailedOutbound(null, showModalAfter);
+        },
+
+        setupRetryFailedBannerButton() {
+            const btn = document.getElementById('retryAllFailedBannerBtn');
+            if (!btn) return;
+            btn.onclick = () => this.retryAllFailedMessages(true);
         },
 
         async resendFailedOutbound(outboundIds = null, reopenModal = true) {
@@ -5106,6 +5133,7 @@
                         app.innerHTML = this.renderMessages();
                         this.setupCustomMessageForm();
                         this.setupResendStuckButton();
+                        this.setupRetryFailedBannerButton();
                     }
                 }
 
