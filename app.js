@@ -89,11 +89,11 @@
             hpv_failed: "HPV failed (inconclusive)",
             hpv_lab_result: "HPV lab result",
             hpv_confirmed_on_positive: "This patient was confirmed on {date} as HPV positive. Result and guidance were sent by SMS.",
-            hpv_confirmed_on_negative: "This patient was confirmed on {date} as HPV negative. Result and guidance were sent by SMS.",
+            hpv_confirmed_on_negative: "This patient was confirmed on {date} as HPV negative. They were told to return in 5 years — no clinic appointment.",
             hpv_confirmed_on_failed: "This patient was confirmed on {date} as HPV failed. Retest appointment message was sent.",
             hpv_recorded_on: "Lab result recorded on {date} as {result}. Confirm below to notify the patient.",
             hpv_recorded_positive: "HPV positive recorded on {date}.",
-            hpv_recorded_negative: "HPV negative recorded on {date}.",
+            hpv_recorded_negative: "HPV negative recorded on {date}. Confirm to notify — return in 5 years, no visit needed.",
             hpv_recorded_failed: "HPV failed recorded on {date}. Book retest appointment, then confirm.",
             hpv_status_recorded: "Recorded",
             hpv_step_record: "Step 1 — Record lab result",
@@ -101,6 +101,7 @@
             hpv_step_book_retest: "Step 2 — Book retest appointment",
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle FAQ tips that continue until VIA is recorded.",
+            hpv_confirm_hint_negative: "Confirmation sends one short message: HPV negative, return to the hospital in 5 years. No appointment is booked.",
             hpv_confirm_hint_failed: "Confirmation sends the failed result and retest appointment date to the patient.",
             hpv_confirm_need_result: "Record positive, negative, or failed above before you can confirm.",
             hpv_confirm_need_appointment: "Book the clinic visit below first. That sends the HPV result and appointment confirmation together.",
@@ -109,6 +110,7 @@
             hpv_failed_book_appt: "HPV failed recorded. Book the retest appointment below — then confirm to notify the patient.",
             hpv_retest_section: "After retest — record new lab result",
             hpv_retest_hint: "When the patient completes the retest, record positive, negative, or failed again.",
+            hpv_confirm_dialog_negative: "Confirm HPV negative and send the 5-year return message? (No clinic appointment.)",
             hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
             hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support.",
             mark_patient_called: "Mark as called",
@@ -310,11 +312,11 @@
             hpv_failed: "HPV imeshindwa (hakuna matokeo wazi)",
             hpv_lab_result: "Matokeo ya HPV",
             hpv_confirmed_on_positive: "Mgonjwa alithibitishwa {date} kuwa na HPV chanya. Matokeo na mwongozo yametumwa kwa SMS.",
-            hpv_confirmed_on_negative: "Mgonjwa alithibitishwa {date} kuwa na HPV hasi. Matokeo na mwongozo yametumwa kwa SMS.",
+            hpv_confirmed_on_negative: "Mgonjwa alithibitishwa {date} kuwa na HPV hasi. Ameambiwa arudi baada ya miaka 5 — hakuna miadi ya kliniki.",
             hpv_confirmed_on_failed: "Mgonjwa alithibitishwa {date} kuwa HPV imeshindwa. Ujumbe wa miadi ya kufanya tena umetumwa.",
             hpv_recorded_on: "Matokeo ya maabara yamewekwa {date} kama {result}. Thibitisha hapa chini kumjulisha mgonjwa.",
             hpv_recorded_positive: "HPV chanya imewekwa {date}.",
-            hpv_recorded_negative: "HPV hasi imewekwa {date}.",
+            hpv_recorded_negative: "HPV hasi imewekwa {date}. Thibitisha — rudi baada ya miaka 5, hakuna ziara.",
             hpv_recorded_failed: "HPV imeshindwa imewekwa {date}. Panga miadi ya kufanya tena, kisha thibitisha.",
             hpv_status_recorded: "Imewekwa",
             hpv_step_record: "Hatua 1 — Weka matokeo ya maabara",
@@ -322,6 +324,7 @@
             hpv_step_book_retest: "Hatua 2 — Panga miadi ya kufanya tena",
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
             hpv_confirm_hint: "Uthibitisha hutuma matokeo kwa mgonjwa na kuanza vidokezo vya FAQ hadi VIA iwekwe.",
+            hpv_confirm_hint_negative: "Uthibitisha hutuma ujumbe mfupi: HPV hasi, rudi hospitalini baada ya miaka 5. Hakuna miadi inayopangwa.",
             hpv_confirm_hint_failed: "Uthibitisha hutuma matokeo ya kushindwa na tarehe ya kufanya tena kwa mgonjwa.",
             hpv_confirm_need_result: "Weka chanya, hasi, au imeshindwa hapo juu kabla ya kuthibitisha.",
             hpv_confirm_need_appointment: "Panga ziara ya kliniki hapa chini kwanza. Hiyo hutuma matokeo ya HPV na uthibitisho wa miadi pamoja.",
@@ -330,6 +333,7 @@
             hpv_failed_book_appt: "HPV imeshindwa imewekwa. Panga miadi ya kufanya tena hapa chini — kisha thibitisha kumjulisha mgonjwa.",
             hpv_retest_section: "Baada ya kufanya tena — weka matokeo mapya",
             hpv_retest_hint: "Mgonjwa akimaliza kipimo cha pili, weka chanya, hasi, au imeshindwa tena.",
+            hpv_confirm_dialog_negative: "Thibitisha HPV hasi na kutuma ujumbe wa kurudi baada ya miaka 5? (Hakuna miadi ya kliniki.)",
             hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
             hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada.",
             mark_patient_called: "Weka alipigiwa simu",
@@ -2568,7 +2572,8 @@
                 const viaAlready = viaIsRecorded(p);
                 const bookStepKey = result === 'failed' ? 'hpv_step_book_retest' : 'hpv_step_book_appt';
                 const bookHintKey = result === 'failed' ? 'hpv_confirm_need_retest_appt' : 'hpv_confirm_need_appointment';
-                const confirmHintKey = result === 'failed' ? 'hpv_confirm_hint_failed' : 'hpv_confirm_hint';
+                const confirmHintKey = result === 'failed' ? 'hpv_confirm_hint_failed'
+                    : (result === 'negative' ? 'hpv_confirm_hint_negative' : 'hpv_confirm_hint');
                 const apptReason = result === 'failed' ? 'HPV retest appointment' : '';
                 return `
                 <div class="card hpv-result-card ${recordedBorder}" style="margin-top:1rem;">
@@ -3287,8 +3292,10 @@
         },
 
         async confirmHpvResult(patientId, resultHint) {
+            const r = String(resultHint || '').toLowerCase();
             const label = hpvResultLabel(resultHint || '');
-            if (!window.confirm(t('hpv_confirm_dialog').replace('{result}', label))) {
+            const dialogKey = r === 'negative' ? 'hpv_confirm_dialog_negative' : 'hpv_confirm_dialog';
+            if (!window.confirm(t(dialogKey).replace('{result}', label))) {
                 return;
             }
             showNotification('Sending result to patient…', 'info');
@@ -3297,12 +3304,12 @@
                     action: 'confirm_result',
                     patient_id: Number(patientId),
                 }, false);
-                showNotification(
-                    data.counseling_started
+                const okMsg = r === 'negative'
+                    ? 'HPV negative result sent. Patient advised to return in 5 years.'
+                    : (data.counseling_started
                         ? 'Result sent. Follow-up messages will go out gently over the next hours and days (not all at once).'
-                        : 'Result sent to patient.',
-                    'ok'
-                );
+                        : 'Result sent to patient.');
+                showNotification(data.message || okMsg, 'ok');
                 await this.reloadPatientDetail();
             } catch (err) {
                 showNotification(err.message, 'error');
