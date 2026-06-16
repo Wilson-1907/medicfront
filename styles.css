@@ -1722,6 +1722,7 @@ body {
 }
 .hpv-result-card.hpv-card-positive { border-left-color: #d97706; }
 .hpv-result-card.hpv-card-negative { border-left-color: #059669; }
+.hpv-result-card.hpv-card-failed { border-left-color: #dc2626; }
 .hpv-result-card.hpv-card-pending { border-left-color: var(--primary-500); }
 .care-path-steps { display: flex; flex-direction: column; gap: 8px; }
 .care-path-step {
@@ -1766,6 +1767,15 @@ body {
 }
 .hpv-confirmed-banner i { color: #059669; font-size: 1.5rem; margin-top: 2px; }
 .hpv-card-positive .hpv-confirmed-banner i { color: #d97706; }
+.hpv-card-failed .hpv-confirmed-banner {
+    background: linear-gradient(135deg, #fef2f2, #fff1f2);
+    border-color: #fca5a5;
+}
+.hpv-card-failed .hpv-confirmed-banner i { color: #dc2626; }
+.hpv-record-failed-btn {
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
 .hpv-confirmed-banner p { margin: 0; line-height: 1.55; font-weight: 500; color: var(--gray-800); }
 .hpv-result-badge-line { margin: 0; }
 .hpv-result-badge-lg { font-size: 0.85rem; padding: 8px 14px; }

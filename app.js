@@ -75,29 +75,40 @@
         wipe_failed: "Erase failed on the server. Try again or check Render logs.",
             wiping: "Erasing all data...",
             hpv_result_title: "HPV screening result",
-            hpv_result_hint: "Record the lab result, then confirm to notify the patient and start guidance.",
+            hpv_result_hint: "Record positive, negative, or failed (inconclusive). Then confirm to notify the patient.",
             hpv_status: "Status",
             hpv_record_positive: "Record POSITIVE",
             hpv_record_negative: "Record NEGATIVE",
+            hpv_record_failed: "Record FAILED",
             hpv_confirm_notify: "Confirm & notify patient",
             hpv_confirmed: "Sent to patient",
             hpv_awaiting: "Awaiting confirm",
             hpv_pending: "PENDING",
             hpv_positive: "HPV positive",
             hpv_negative: "HPV negative",
+            hpv_failed: "HPV failed (inconclusive)",
+            hpv_lab_result: "HPV lab result",
             hpv_confirmed_on_positive: "This patient was confirmed on {date} as HPV positive. Result and guidance were sent by SMS.",
             hpv_confirmed_on_negative: "This patient was confirmed on {date} as HPV negative. Result and guidance were sent by SMS.",
+            hpv_confirmed_on_failed: "This patient was confirmed on {date} as HPV failed. Retest appointment message was sent.",
             hpv_recorded_on: "Lab result recorded on {date} as {result}. Confirm below to notify the patient.",
             hpv_recorded_positive: "HPV positive recorded on {date}.",
             hpv_recorded_negative: "HPV negative recorded on {date}.",
+            hpv_recorded_failed: "HPV failed recorded on {date}. Book retest appointment, then confirm.",
             hpv_status_recorded: "Recorded",
             hpv_step_record: "Step 1 — Record lab result",
             hpv_step_book_appt: "Step 2 — Book clinic visit",
+            hpv_step_book_retest: "Step 2 — Book retest appointment",
             hpv_step_confirm: "Step 2 — Confirm & notify patient",
             hpv_confirm_hint: "Confirmation sends the result to the patient and starts gentle FAQ tips that continue until VIA is recorded.",
-            hpv_confirm_need_result: "Record positive or negative above before you can confirm.",
+            hpv_confirm_hint_failed: "Confirmation sends the failed result and retest appointment date to the patient.",
+            hpv_confirm_need_result: "Record positive, negative, or failed above before you can confirm.",
             hpv_confirm_need_appointment: "Book the clinic visit below first. That sends the HPV result and appointment confirmation together.",
+            hpv_confirm_need_retest_appt: "Book the retest appointment below first. That sends the failed result and retest date together.",
             hpv_positive_book_appt: "HPV positive recorded. Book the clinic visit below — that sends the result and appointment to the patient.",
+            hpv_failed_book_appt: "HPV failed recorded. Book the retest appointment below — then confirm to notify the patient.",
+            hpv_retest_section: "After retest — record new lab result",
+            hpv_retest_hint: "When the patient completes the retest, record positive, negative, or failed again.",
             hpv_confirm_dialog: "Confirm this patient as HPV {result} and send the result plus follow-up guidance by SMS?",
             hpv_unavailable: "HPV result recording could not be enabled on the server. Please try again later or contact support.",
             mark_patient_called: "Mark as called",
@@ -285,29 +296,40 @@
             wipe_failed: "Kufuta kumeshindwa kwenye seva. Jaribu tena au angalia logi za Render.",
             wiping: "Inafuta data yote...",
             hpv_result_title: "Matokeo ya uchunguzi wa HPV",
-            hpv_result_hint: "Weka matokeo ya maabara, kisha thibitisha kumjulisha mgonjwa na kuanza mwongozo.",
+            hpv_result_hint: "Weka chanya, hasi, au imeshindwa (hakuna matokeo wazi). Kisha thibitisha kumjulisha mgonjwa.",
             hpv_status: "Hali",
             hpv_record_positive: "Weka CHANYA",
             hpv_record_negative: "Weka HASI",
+            hpv_record_failed: "Weka IMESHINDWA",
             hpv_confirm_notify: "Thibitisha & mjulishe mgonjwa",
             hpv_confirmed: "Imetumwa kwa mgonjwa",
             hpv_awaiting: "Inasubiri uthibitisho",
             hpv_pending: "INASUBIRI",
             hpv_positive: "HPV chanya",
             hpv_negative: "HPV hasi",
+            hpv_failed: "HPV imeshindwa (hakuna matokeo wazi)",
+            hpv_lab_result: "Matokeo ya HPV",
             hpv_confirmed_on_positive: "Mgonjwa alithibitishwa {date} kuwa na HPV chanya. Matokeo na mwongozo yametumwa kwa SMS.",
             hpv_confirmed_on_negative: "Mgonjwa alithibitishwa {date} kuwa na HPV hasi. Matokeo na mwongozo yametumwa kwa SMS.",
+            hpv_confirmed_on_failed: "Mgonjwa alithibitishwa {date} kuwa HPV imeshindwa. Ujumbe wa miadi ya kufanya tena umetumwa.",
             hpv_recorded_on: "Matokeo ya maabara yamewekwa {date} kama {result}. Thibitisha hapa chini kumjulisha mgonjwa.",
             hpv_recorded_positive: "HPV chanya imewekwa {date}.",
             hpv_recorded_negative: "HPV hasi imewekwa {date}.",
+            hpv_recorded_failed: "HPV imeshindwa imewekwa {date}. Panga miadi ya kufanya tena, kisha thibitisha.",
             hpv_status_recorded: "Imewekwa",
             hpv_step_record: "Hatua 1 — Weka matokeo ya maabara",
             hpv_step_book_appt: "Hatua 2 — Panga ziara ya kliniki",
+            hpv_step_book_retest: "Hatua 2 — Panga miadi ya kufanya tena",
             hpv_step_confirm: "Hatua 2 — Thibitisha & mjulishe mgonjwa",
             hpv_confirm_hint: "Uthibitisha hutuma matokeo kwa mgonjwa na kuanza vidokezo vya FAQ hadi VIA iwekwe.",
-            hpv_confirm_need_result: "Weka chanya au hasi hapo juu kabla ya kuthibitisha.",
+            hpv_confirm_hint_failed: "Uthibitisha hutuma matokeo ya kushindwa na tarehe ya kufanya tena kwa mgonjwa.",
+            hpv_confirm_need_result: "Weka chanya, hasi, au imeshindwa hapo juu kabla ya kuthibitisha.",
             hpv_confirm_need_appointment: "Panga ziara ya kliniki hapa chini kwanza. Hiyo hutuma matokeo ya HPV na uthibitisho wa miadi pamoja.",
+            hpv_confirm_need_retest_appt: "Panga miadi ya kufanya tena hapa chini kwanza. Hiyo hutuma matokeo ya kushindwa na tarehe ya miadi.",
             hpv_positive_book_appt: "HPV chanya imewekwa. Panga ziara ya kliniki hapa chini — hiyo hutuma matokeo na miadi kwa mgonjwa.",
+            hpv_failed_book_appt: "HPV imeshindwa imewekwa. Panga miadi ya kufanya tena hapa chini — kisha thibitisha kumjulisha mgonjwa.",
+            hpv_retest_section: "Baada ya kufanya tena — weka matokeo mapya",
+            hpv_retest_hint: "Mgonjwa akimaliza kipimo cha pili, weka chanya, hasi, au imeshindwa tena.",
             hpv_confirm_dialog: "Thibitisha mgonjwa huyu kama HPV {result} na kutuma matokeo pamoja na mwongozo kwa SMS?",
             hpv_unavailable: "Kuweka matokeo ya HPV hakupatikani kwenye seva. Jaribu tena baadaye au wasiliana na msaada.",
             mark_patient_called: "Weka alipigiwa simu",
@@ -623,7 +645,11 @@
         if (!p) {
             return false;
         }
-        if (p.hpv_result_confirmed_at) {
+        const r = (p.hpv_screening_result || '').toLowerCase();
+        if (r === 'failed') {
+            return false;
+        }
+        if (p.hpv_result_confirmed_at && (r === 'positive' || r === 'negative')) {
             return true;
         }
         if (p.hpv_workflow_enabled === false) {
@@ -692,8 +718,9 @@
     function getCarePathState(p, appointments) {
         const list = appointments || [];
         const result = (p.hpv_screening_result || 'pending').toLowerCase();
-        const hpvRecorded = Boolean(p.hpv_result_recorded_at) && (result === 'positive' || result === 'negative');
+        const hpvRecorded = hpvResultIsRecorded(p, result);
         const hpvConfirmed = Boolean(p.hpv_result_confirmed_at) && hpvRecorded;
+        const hpvPathComplete = hpvPathwayComplete(p);
         const viaDone = viaIsRecorded(p);
         const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
         const visitDone = viaDone || !pendingAttendance && list.some((a) => (a.status || '').toLowerCase() === 'completed');
@@ -702,11 +729,15 @@
         if (!hpvRecorded) {
             nextKey = 'care_path_hpv_record';
         } else if (!hpvConfirmed) {
-            if (result === 'positive' && !patientHasUpcomingAppointment(list)) {
-                nextKey = 'care_path_book_appt';
+            if (hpvNeedsAppointmentBeforeConfirm(result) && !patientHasUpcomingAppointment(list)) {
+                nextKey = result === 'failed' ? 'hpv_step_book_retest' : 'care_path_book_appt';
             } else {
                 nextKey = 'care_path_hpv_confirm';
             }
+        } else if (result === 'failed' && hpvConfirmed) {
+            nextKey = 'care_path_hpv_record';
+        } else if (!hpvPathComplete) {
+            nextKey = null;
         } else if (pendingAttendance && !viaDone) {
             nextKey = 'care_path_attendance';
         } else if (!viaDone && patientHasBookedAppointment(list)) {
@@ -723,11 +754,12 @@
         return {
             hpvRecorded,
             hpvConfirmed,
+            hpvPathComplete,
             viaDone,
             visitDone: visitDone || viaDone,
-            pendingAttendance: Boolean(pendingAttendance) && !viaDone,
+            pendingAttendance: Boolean(pendingAttendance) && !viaDone && hpvPathComplete,
             nextKey,
-            outOfOrder: viaDone && !hpvConfirmed,
+            outOfOrder: viaDone && !hpvPathComplete,
         };
     }
 
@@ -749,6 +781,7 @@
             .filter((a) => (a.status || '').toLowerCase() === 'completed')
             .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
         const needsVia = apptConfirmed
+            && hpvPathwayComplete(p)
             && !viaIsRecorded(p)
             && Boolean(firstCompleted)
             && isFirstPatientAppointment(firstCompleted, list)
@@ -780,7 +813,60 @@
         const r = (result || '').toLowerCase();
         if (r === 'positive') return t('hpv_positive');
         if (r === 'negative') return t('hpv_negative');
+        if (r === 'failed') return t('hpv_failed');
         return t('hpv_pending');
+    }
+
+    function hpvResultIsRecorded(p, resultOverride) {
+        const r = (resultOverride || p?.hpv_screening_result || '').toLowerCase();
+        return Boolean(p?.hpv_result_recorded_at) && ['positive', 'negative', 'failed'].includes(r);
+    }
+
+    function hpvPathwayComplete(p) {
+        const r = (p?.hpv_screening_result || '').toLowerCase();
+        return Boolean(p?.hpv_result_confirmed_at) && (r === 'positive' || r === 'negative');
+    }
+
+    function hpvNeedsAppointmentBeforeConfirm(result) {
+        const r = (result || '').toLowerCase();
+        return r === 'positive' || r === 'failed';
+    }
+
+    function hpvCardBorderClass(result, confirmed) {
+        const r = (result || '').toLowerCase();
+        if (!confirmed) {
+            return 'hpv-card-pending';
+        }
+        if (r === 'positive') return 'hpv-card-positive';
+        if (r === 'negative') return 'hpv-card-negative';
+        if (r === 'failed') return 'hpv-card-failed';
+        return 'hpv-card-pending';
+    }
+
+    function hpvResultBadgeClass(result) {
+        const r = (result || '').toLowerCase();
+        if (r === 'positive') return 'badge-warning';
+        if (r === 'failed') return 'badge-danger';
+        if (r === 'negative') return 'badge-success';
+        return 'badge-secondary';
+    }
+
+    function renderHpvRecordButtons(patientId) {
+        return `
+            <div class="hpv-record-actions">
+                <button type="button" class="btn-primary"
+                    data-action="hpv-record-positive" data-patient-id="${patientId}">
+                    <i class="fas fa-plus-circle"></i> ${t('hpv_record_positive')}
+                </button>
+                <button type="button" class="btn-secondary"
+                    data-action="hpv-record-negative" data-patient-id="${patientId}">
+                    <i class="fas fa-minus-circle"></i> ${t('hpv_record_negative')}
+                </button>
+                <button type="button" class="btn-secondary hpv-record-failed-btn"
+                    data-action="hpv-record-failed" data-patient-id="${patientId}">
+                    <i class="fas fa-exclamation-triangle"></i> ${t('hpv_record_failed')}
+                </button>
+            </div>`;
     }
 
     function hpvFormatConfirmedDate(iso) {
@@ -1364,6 +1450,9 @@
                 } else if (action === 'hpv-record-negative' && patientId) {
                     e.preventDefault();
                     components.setHpvResult(patientId, 'negative');
+                } else if (action === 'hpv-record-failed' && patientId) {
+                    e.preventDefault();
+                    components.setHpvResult(patientId, 'failed');
                 } else if (action === 'hpv-confirm' && patientId) {
                     e.preventDefault();
                     components.confirmHpvResult(patientId, result);
@@ -2200,6 +2289,7 @@
                             <div class="detail-item"><span class="label">${t('reg_opted_in')}</span><span class="value">${primaryContact && primaryContact.opted_in ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
+                            ${hpvResultIsRecorded(p) ? `<div class="detail-item"><span class="label">${t('hpv_lab_result')}</span><span class="value">${escapeHtml(hpvResultLabel(p.hpv_screening_result))}</span></div>` : ''}
                             <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                             ${patientHasConfirmedAppointment(appointments) ? `
                             <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
@@ -2293,8 +2383,9 @@
                     <div class="detail-grid" style="padding:16px;">
                         <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
-                        <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
-                        <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
+                            ${hpvResultIsRecorded(p) ? `<div class="detail-item"><span class="label">${t('hpv_lab_result')}</span><span class="value">${escapeHtml(hpvResultLabel(p.hpv_screening_result))}</span></div>` : ''}
+                            <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
                         ${(p.via_result || '').toLowerCase() === 'positive' ? `
@@ -2406,11 +2497,37 @@
             const result = (p.hpv_screening_result || 'pending').toLowerCase();
             const recorded = p.hpv_result_recorded_at;
             const confirmed = p.hpv_result_confirmed_at;
-            const hasResult = result === 'positive' || result === 'negative';
+            const hasResult = hpvResultIsRecorded(p, result);
             const isConfirmed = Boolean(confirmed && hasResult);
-            const borderClass = isConfirmed
-                ? (result === 'positive' ? 'hpv-card-positive' : 'hpv-card-negative')
-                : 'hpv-card-pending';
+            const borderClass = isConfirmed ? hpvCardBorderClass(result, true) : 'hpv-card-pending';
+
+            if (isConfirmed && result === 'failed') {
+                const dateStr = hpvFormatConfirmedDate(confirmed);
+                const summary = t('hpv_confirmed_on_failed').replace('{date}', dateStr);
+                return `
+                <div class="card hpv-result-card ${borderClass}" style="margin-top:1rem;">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-vial"></i> ${t('hpv_result_title')}</div>
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> ${t('hpv_confirmed')}</span>
+                    </div>
+                    <div class="hpv-result-body">
+                        <div class="hpv-confirmed-banner">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p>${escapeHtml(summary)}</p>
+                        </div>
+                        <p class="hpv-result-badge-line">
+                            <span class="badge ${hpvResultBadgeClass(result)} hpv-result-badge-lg">
+                                ${escapeHtml(hpvResultLabel(result))}
+                            </span>
+                        </p>
+                        <div class="hpv-step-block hpv-step-active" style="margin-top:16px;">
+                            <h4 class="hpv-step-title">${t('hpv_retest_section')}</h4>
+                            <p class="muted">${t('hpv_retest_hint')}</p>
+                            ${renderHpvRecordButtons(p.id)}
+                        </div>
+                    </div>
+                </div>`;
+            }
 
             if (isConfirmed) {
                 const dateStr = hpvFormatConfirmedDate(confirmed);
@@ -2428,7 +2545,7 @@
                             <p>${escapeHtml(summary)}</p>
                         </div>
                         <p class="hpv-result-badge-line">
-                            <span class="badge ${result === 'positive' ? 'badge-warning' : 'badge-success'} hpv-result-badge-lg">
+                            <span class="badge ${hpvResultBadgeClass(result)} hpv-result-badge-lg">
                                 ${escapeHtml(hpvResultLabel(result))}
                             </span>
                         </p>
@@ -2438,15 +2555,21 @@
 
             const appointments = p.appointments || [];
             const hasUpcomingAppt = patientHasUpcomingAppointment(appointments);
-            const needsApptForPositive = result === 'positive' && !hasUpcomingAppt && !confirmed;
+            const needsApptBeforeConfirm = hpvNeedsAppointmentBeforeConfirm(result) && !hasUpcomingAppt && !confirmed;
             const recordedAwaitingConfirm = hasResult && Boolean(recorded) && !confirmed;
 
             if (recordedAwaitingConfirm) {
                 const dateStr = hpvFormatConfirmedDate(recorded);
-                const summaryKey = result === 'positive' ? 'hpv_recorded_positive' : 'hpv_recorded_negative';
+                const summaryKey = result === 'positive' ? 'hpv_recorded_positive'
+                    : (result === 'failed' ? 'hpv_recorded_failed' : 'hpv_recorded_negative');
                 const summary = t(summaryKey).replace('{date}', dateStr);
-                const recordedBorder = result === 'positive' ? 'hpv-card-positive' : 'hpv-card-negative';
+                const recordedBorder = result === 'positive' ? 'hpv-card-positive'
+                    : (result === 'failed' ? 'hpv-card-failed' : 'hpv-card-negative');
                 const viaAlready = viaIsRecorded(p);
+                const bookStepKey = result === 'failed' ? 'hpv_step_book_retest' : 'hpv_step_book_appt';
+                const bookHintKey = result === 'failed' ? 'hpv_confirm_need_retest_appt' : 'hpv_confirm_need_appointment';
+                const confirmHintKey = result === 'failed' ? 'hpv_confirm_hint_failed' : 'hpv_confirm_hint';
+                const apptReason = result === 'failed' ? 'HPV retest appointment' : '';
                 return `
                 <div class="card hpv-result-card ${recordedBorder}" style="margin-top:1rem;">
                     <div class="card-header">
@@ -2460,19 +2583,19 @@
                             <p>${escapeHtml(summary)}</p>
                         </div>
                         <p class="hpv-result-badge-line">
-                            <span class="badge ${result === 'positive' ? 'badge-warning' : 'badge-success'} hpv-result-badge-lg">
+                            <span class="badge ${hpvResultBadgeClass(result)} hpv-result-badge-lg">
                                 ${escapeHtml(hpvResultLabel(result))}
                             </span>
                         </p>
-                        ${needsApptForPositive ? `
+                        ${needsApptBeforeConfirm ? `
                         <div class="hpv-step-block hpv-step-active" id="hpvBookApptBlock-${p.id}" style="margin-top:16px;">
-                            <h4 class="hpv-step-title">${t('hpv_step_book_appt')}</h4>
-                            <p class="muted">${t('hpv_confirm_need_appointment')}</p>
-                            ${this.renderPatientBookApptForm(p, { compact: true })}
+                            <h4 class="hpv-step-title">${t(bookStepKey)}</h4>
+                            <p class="muted">${t(bookHintKey)}</p>
+                            ${this.renderPatientBookApptForm(p, { compact: true, reasonDefault: apptReason })}
                         </div>` : `
                         <div class="hpv-step-block hpv-step-confirm hpv-step-active" style="margin-top:16px;">
                             <h4 class="hpv-step-title">${t('hpv_step_confirm')}</h4>
-                            <p class="muted">${t('hpv_confirm_hint')}</p>
+                            <p class="muted">${t(confirmHintKey)}</p>
                             <button type="button" class="btn-danger hpv-confirm-btn"
                                 data-action="hpv-confirm" data-patient-id="${p.id}" data-result="${result}">
                                 <i class="fas fa-paper-plane"></i> ${t('hpv_confirm_notify')}
@@ -2491,16 +2614,7 @@
                         <p class="muted hpv-result-intro">${t('hpv_result_hint')}</p>
                         <div class="hpv-step-block hpv-step-active">
                             <h4 class="hpv-step-title">${t('hpv_step_record')}</h4>
-                            <div class="hpv-record-actions">
-                                <button type="button" class="btn-primary"
-                                    data-action="hpv-record-positive" data-patient-id="${p.id}">
-                                    <i class="fas fa-plus-circle"></i> ${t('hpv_record_positive')}
-                                </button>
-                                <button type="button" class="btn-secondary"
-                                    data-action="hpv-record-negative" data-patient-id="${p.id}">
-                                    <i class="fas fa-minus-circle"></i> ${t('hpv_record_negative')}
-                                </button>
-                            </div>
+                            ${renderHpvRecordButtons(p.id)}
                         </div>
                     </div>
                 </div>`;
@@ -2561,19 +2675,21 @@
 
         async setHpvResult(patientId, result) {
             const id = Number(patientId);
-            const isPositive = String(result).toLowerCase() === 'positive';
-            showNotification(
-                isPositive ? 'Recording HPV positive…' : 'Recording HPV negative…',
-                'info'
-            );
+            const r = String(result).toLowerCase();
+            const needsBook = r === 'positive' || r === 'failed';
+            const recordingMsg = r === 'positive'
+                ? 'Recording HPV positive…'
+                : (r === 'failed' ? 'Recording HPV failed…' : 'Recording HPV negative…');
+            showNotification(recordingMsg, 'info');
             try {
                 const data = await api.post('/api/hpv_result.php', {
                     action: 'set_result',
                     patient_id: id,
-                    result: String(result),
+                    result: r,
                 }, false);
-                if (isPositive) {
-                    showNotification(data.message || t('hpv_positive_book_appt'), 'ok');
+                if (needsBook) {
+                    const okKey = r === 'failed' ? 'hpv_failed_book_appt' : 'hpv_positive_book_appt';
+                    showNotification(data.message || t(okKey), 'ok');
                     state.focusApptBookingAfterLoad = true;
                     if (state.currentTab !== 'patient' || Number(state.patientDetail?.id) !== id) {
                         const ref = state.selectedPatientRef || patientOpenRef(state.patientDetail) || String(id);
@@ -2583,7 +2699,7 @@
                     }
                     return;
                 }
-                showNotification(data.message || `Recorded HPV ${result.toUpperCase()}`, 'ok');
+                showNotification(data.message || `Recorded HPV ${r.toUpperCase()}`, 'ok');
                 await this.reloadPatientDetail();
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
