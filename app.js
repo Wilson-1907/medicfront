@@ -25,6 +25,10 @@
             failed_no_messages_24h: "No failed messages in the last 24 hours",
             failure_reason: "Reason",
             click_to_view: "Click to view",
+            resend_stuck: "Resend stuck messages",
+            resend_stuck_hint: "Re-sends failed SMS/WhatsApp and releases queued drips from the last 7 days.",
+            resend_stuck_prompt: "Enter admin password to resend stuck messages:",
+            resend_stuck_done: "Stuck messages released.",
             hpv_program: "HPV Patient Engagement",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
@@ -258,6 +262,10 @@
             failed_no_messages_24h: "Hakuna ujumbe ulioshindwa katika saa 24 zilizopita",
             failure_reason: "Sababu",
             click_to_view: "Bofya kuona",
+            resend_stuck: "Tuma tena ujumbe uliofungwa",
+            resend_stuck_hint: "Hutuma tena SMS/WhatsApp zilizoshindwa na kufungua drips zilizosubiri kwa siku 7 zilizopita.",
+            resend_stuck_prompt: "Weka nenosiri la msimamizi ili kutuma tena ujumbe uliofungwa:",
+            resend_stuck_done: "Ujumbe uliofungwa umetumwa tena.",
             hpv_program: "Ushirikiano wa Wagonjwa wa HPV",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
@@ -4382,6 +4390,22 @@
                         <button class="btn-secondary btn-sm" onclick="window.components.openEscalations()">View now</button>
                     </div>` : ''}
 
+                    ${(stats.failed_24h || 0) > 0 ? `
+                    <div class="alert-banner warning">
+                        <i class="fas fa-redo"></i>
+                        <div>
+                            <strong>${stats.failed_24h} message${stats.failed_24h === 1 ? '' : 's'} failed in the last 24 hours</strong>
+                            <p>${t('resend_stuck_hint')}</p>
+                        </div>
+                        <button class="btn-secondary btn-sm" id="resendStuckBtn">${t('resend_stuck')}</button>
+                    </div>` : `
+                    <div class="card" style="margin-bottom: 20px;">
+                        <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                            <p class="muted" style="margin:0;">${t('resend_stuck_hint')}</p>
+                            <button class="btn-secondary btn-sm" id="resendStuckBtn"><i class="fas fa-redo"></i> ${t('resend_stuck')}</button>
+                        </div>
+                    </div>`}
+
                     <div class="card escalations-section" id="escalationsSection">
                         <div class="card-header">
                             <div class="card-title">
@@ -4884,6 +4908,7 @@
                     }
                     app.innerHTML = this.renderMessages();
                     this.setupCustomMessageForm();
+                    this.setupResendStuckButton();
                     
                     setTimeout(() => {
                         this.bindEscalationCards();
@@ -4954,6 +4979,38 @@
                     sendBtn.disabled = false;
                     note.innerHTML = `<div class="message-error">${escapeHtml(err.message)}</div>`;
                     showNotification(err.message, 'error');
+                }
+            };
+        },
+
+        setupResendStuckButton() {
+            const btn = document.getElementById('resendStuckBtn');
+            if (!btn) return;
+            btn.onclick = async () => {
+                const password = window.prompt(t('resend_stuck_prompt'));
+                if (!password) return;
+                btn.disabled = true;
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                try {
+                    const res = await api.post('/api/resend_stuck.php', {
+                        password,
+                        hours: 168,
+                        limit: 200
+                    });
+                    const r = res.resend || {};
+                    const scheduled = r.scheduled_processed || {};
+                    const summary = [
+                        `${r.scheduled_failed_requeued || 0} re-queued`,
+                        `${scheduled.sent || 0} scheduled sent`,
+                        `${r.outbound_resent || 0} failed resent`
+                    ].join(', ');
+                    showNotification(`${t('resend_stuck_done')} ${summary}`, 'ok');
+                    await this.loadCurrentTab();
+                } catch (err) {
+                    showNotification(err.message || 'Resend failed', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = original;
                 }
             };
         },
