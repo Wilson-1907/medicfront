@@ -4996,11 +4996,13 @@
                     const res = await api.post('/api/resend_stuck.php', {
                         password,
                         hours: 168,
-                        limit: 200
+                        limit: 200,
+                        force_queued: true
                     });
                     const r = res.resend || {};
                     const scheduled = r.scheduled_processed || {};
                     const summary = [
+                        `${r.scheduled_queued_forced_now || 0} released now`,
                         `${r.scheduled_failed_requeued || 0} re-queued`,
                         `${scheduled.sent || 0} scheduled sent`,
                         `${r.outbound_resent || 0} failed resent`
