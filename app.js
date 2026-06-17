@@ -163,6 +163,10 @@
             via_step_book_followup: "Step 2 — Book follow-up visit",
             via_book_followup_hint: "Book the next clinic visit below — that sends the VIA result and appointment confirmation to the patient.",
             via_recorded_book_next: "VIA recorded. Book the follow-up visit below to notify the patient.",
+            via_recorded_sent: "VIA recorded and the patient was notified immediately.",
+            reschedule_hint: "Change the date/time — the patient is notified immediately by SMS/WhatsApp.",
+            reschedule_reason: "Reason for change *",
+            reschedule_submit: "Reschedule & notify patient",
             book_appt_via_sent: "Follow-up booked. VIA result and appointment confirmation sent to patient.",
             nyeri_referral_manual_hint: "Nurse may refer at any time from this patient record when specialist care is needed.",
             nyeri_referral_manual_confirm: "Refer this patient to Nyeri County Referral Hospital even though screening is not fully complete?",
@@ -199,11 +203,14 @@
             visit_workflow_intro: "When the appointment day arrives, confirm whether the patient came, then record the VIA test result.",
             visit_workflow_intro_followup: "Confirm whether the patient attended this follow-up appointment. VIA is only done at the first visit.",
             care_path_title: "Afya Rafiki care pathway",
-            care_path_order_hint: "Follow in order: 1) HPV lab result → 2) Clinic visit → 3) VIA test.",
+            care_path_order_hint: "Follow in order: 1) HPV lab result → 2) Clinic visit → 3) VIA test → 4) Thermal Ablation (if VIA positive).",
             care_path_hpv: "HPV lab result",
             care_path_visit: "Clinic visit",
             care_path_via: "VIA test",
+            care_path_thermal_ablation: "Thermal Ablation",
             care_path_done: "Done",
+            via_lab_result: "VIA result",
+            thermal_ablation_col: "Thermal Ablation",
             care_path_action: "Action needed",
             care_path_hpv_record: "Record HPV lab result",
             care_path_book_appt: "Book clinic visit (sends HPV result + appointment SMS)",
@@ -407,6 +414,10 @@
             via_step_book_followup: "Hatua 2 — Panga ziara ya ufuatiliaji",
             via_book_followup_hint: "Panga ziara inayofuata hapa chini — hiyo hutuma matokeo ya VIA na uthibitisho wa miadi kwa mgonjwa.",
             via_recorded_book_next: "VIA imewekwa. Panga ziara ya ufuatiliaji hapa chini kumjulisha mgonjwa.",
+            via_recorded_sent: "VIA imewekwa na mgonjwa amejulishwa mara moja.",
+            reschedule_hint: "Badilisha tarehe/saa — mgonjwa atajulishwa mara moja kwa SMS/WhatsApp.",
+            reschedule_reason: "Sababu ya mabadiliko *",
+            reschedule_submit: "Badilisha miadi na mjulishe mgonjwa",
             book_appt_via_sent: "Ufuatiliaji umepangwa. Matokeo ya VIA na uthibitisho wa miadi vimetumwa kwa mgonjwa.",
             nyeri_referral_manual_hint: "Muuguzi anaweza kutoa rufaa wakati wowote kutoka rekodi hii ikiwa huduma ya daktari bingwa inahitajika.",
             nyeri_referral_manual_confirm: "Mpe rufaa mgonjwa huyu Hospitali ya Rufaa ya Nyeri hata kama uchunguzi haujakamilika?",
@@ -443,11 +454,14 @@
             visit_workflow_intro: "Siku ya miadi inapofika, thibitisha kama mgonjwa alifika, kisha weka matokeo ya kipimo cha VIA.",
             visit_workflow_intro_followup: "Thibitisha kama mgonjwa alihudhuria miadi hii ya ufuatiliaji. VIA hufanywa tu katika ziara ya kwanza.",
             care_path_title: "Safari ya huduma — Afya Rafiki",
-            care_path_order_hint: "Fuata mpangilio: 1) Matokeo ya HPV → 2) Ziara ya kliniki → 3) Kipimo cha VIA.",
+            care_path_order_hint: "Fuata mpangilio: 1) Matokeo ya HPV → 2) Ziara ya kliniki → 3) Kipimo cha VIA → 4) Thermal Ablation (ikiwa VIA ni chanya).",
             care_path_hpv: "Matokeo ya HPV",
             care_path_visit: "Ziara ya kliniki",
             care_path_via: "Kipimo cha VIA",
+            care_path_thermal_ablation: "Thermal Ablation",
             care_path_done: "Imekamilika",
+            via_lab_result: "Matokeo ya VIA",
+            thermal_ablation_col: "Thermal Ablation",
             care_path_action: "Inahitaji hatua",
             care_path_hpv_record: "Weka matokeo ya HPV",
             care_path_book_appt: "Panga ziara ya kliniki (hutuma HPV + miadi kwa SMS)",
@@ -683,8 +697,14 @@
         return viaIsRecorded(p) && Boolean(p?.via_result_notified_at);
     }
 
-    function viaNeedsFollowupBook(p) {
-        return viaIsRecorded(p) && !viaIsNotified(p);
+    function viaNeedsFollowupBook(p, appointments = []) {
+        if (!viaIsRecorded(p)) {
+            return false;
+        }
+        if (!viaIsNotified(p)) {
+            return true;
+        }
+        return !patientHasUpcomingAppointment(appointments);
     }
 
     function hpvTestComplete(p) {
@@ -725,6 +745,22 @@
             referral_appointment_date: p?.nyeri_referral_appointment_date || null,
             hospital: 'Nyeri County Referral Hospital',
         };
+    }
+
+    function appointmentDateTimeLocalValue(scheduledStart) {
+        if (!scheduledStart) {
+            return '';
+        }
+        const d = new Date(scheduledStart);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const h = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${day}T${h}:${min}`;
     }
 
     function appointmentDateInputValue(scheduledStart) {
@@ -806,15 +842,20 @@
             } else if (wf.pendingAttendance) {
                 nextKey = 'care_path_attendance';
             }
-        } else if (viaDone && viaNeedsFollowupBook(p) && !patientHasUpcomingAppointment(list)) {
+        } else if (viaDone && viaNeedsFollowupBook(p, list) && !patientHasUpcomingAppointment(list)) {
             nextKey = 'care_path_via_book';
         }
+
+        const viaResult = (p.via_result || '').toLowerCase();
+        const viaPositive = viaResult === 'positive';
 
         return {
             hpvRecorded,
             hpvConfirmed,
             hpvPathComplete,
             viaDone,
+            viaPositive,
+            viaTreatmentDone: viaTreatmentStepDone(p),
             visitDone: visitDone || viaDone,
             pendingAttendance: Boolean(pendingAttendance) && !viaDone && hpvPathComplete,
             nextKey,
@@ -1348,6 +1389,46 @@
         return t(`via_outcome_${key}`);
     }
 
+    function viaListBadge(p) {
+        const via = (p?.via_result || '').toLowerCase();
+        if (!via || via === 'not_done' || via === 'unknown') {
+            return '<span class="badge badge-danger">—</span>';
+        }
+        if (via === 'positive') {
+            return `<span class="badge badge-warning">${escapeHtml(hpvResultLabel('positive'))}</span>`;
+        }
+        if (via === 'negative') {
+            return `<span class="badge badge-success">${escapeHtml(hpvResultLabel('negative'))}</span>`;
+        }
+        return '<span class="badge badge-danger">—</span>';
+    }
+
+    function viaThermalAblationCell(p) {
+        const via = (p?.via_result || '').toLowerCase();
+        if (via !== 'positive') {
+            return '<span class="muted">—</span>';
+        }
+        const key = viaPositiveOutcomeKey(p);
+        if (!key || key === 'pending') {
+            return `<span class="badge badge-warning">${escapeHtml(t('via_outcome_pending'))}</span>`;
+        }
+        const badgeClass = key === 'referral'
+            ? 'badge-danger'
+            : key === 'treatment_postponed'
+                ? 'badge-warning'
+                : 'badge-success';
+        return `<span class="badge ${badgeClass}">${escapeHtml(viaPositiveOutcomeLabel(p))}</span>`;
+    }
+
+    function viaTreatmentStepDone(p) {
+        const via = (p?.via_result || '').toLowerCase();
+        if (via !== 'positive') {
+            return false;
+        }
+        const key = viaPositiveOutcomeKey(p);
+        return key !== '' && key !== 'pending';
+    }
+
     function setupRegisterForm(form) {
         if (!form || form.dataset.bound === '1') {
             return;
@@ -1608,6 +1689,19 @@
                     const apptId = Number(el.getAttribute('data-appointment-id') || 0);
                     if (apptId > 0) {
                         components.markAppointmentMissed(apptId, patientId);
+                    }
+                } else if (action === 'appt-reschedule-toggle') {
+                    e.preventDefault();
+                    const apptId = Number(el.getAttribute('data-appointment-id') || 0);
+                    if (apptId > 0) {
+                        components.toggleAppointmentRescheduleForm(apptId);
+                    }
+                } else if (action === 'appt-reschedule-submit') {
+                    e.preventDefault();
+                    const apptId = Number(el.getAttribute('data-appointment-id') || 0);
+                    const pid = Number(el.getAttribute('data-patient-id') || patientId || 0);
+                    if (apptId > 0 && pid > 0) {
+                        components.reschedulePatientAppointment(apptId, pid);
                     }
                 } else if (action === 'nyeri-referral-submit' && patientId) {
                     e.preventDefault();
@@ -2539,6 +2633,8 @@
                                     <th>Channel</th>
                                     <th>Status</th>
                                     <th>${t('hpv_lab_result')}</th>
+                                    <th>${t('via_lab_result')}</th>
+                                    <th>${t('thermal_ablation_col')}</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -2556,8 +2652,8 @@
             const patients = state.patients || [];
             
             if (patients.length === 0) {
-                return '<tr><td colspan="8" class="empty-state">No patients found</td>' +
-                '<td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td>' +
+                return '<tr><td colspan="10" class="empty-state">No patients found</td>' +
+                '<td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td><td style="display:none;"></td>' +
                 '</tr>';
             }
             
@@ -2585,6 +2681,8 @@
                             ? `<span class="badge badge-success">${escapeHtml(hpvResultLabel(patient.hpv_screening_result))}</span>`
                             : '<span class="badge badge-danger">—</span>'}
                     </td>
+                    <td class="patient-result-cell">${viaListBadge(patient)}</td>
+                    <td class="patient-result-cell">${viaThermalAblationCell(patient)}</td>
                     <td class="patient-row-actions">
                         <button type="button" class="btn-secondary" style="padding: 4px 12px; font-size: 0.7rem;"
                             data-action="view-patient" data-patient-ref="${escapeHtml(pref || '')}" data-patient-id="${patient.id}">
@@ -2718,7 +2816,7 @@
                                 const hpvRec = Boolean(p.hpv_result_recorded_at);
                                 const hpvConf = Boolean(p.hpv_result_confirmed_at);
                                 const hideForHpv = hpvPos && hpvRec && !hpvConf && !patientHasUpcomingAppointment(appointments);
-                                const hideForVia = viaNeedsFollowupBook(p);
+                                const hideForVia = viaNeedsFollowupBook(p, appointments);
                                 return (hideForHpv || hideForVia) ? '' : this.renderPatientBookApptForm(p);
                             })()}
                         </div>
@@ -2858,6 +2956,7 @@
                             ${step(cp.hpvConfirmed, t('care_path_hpv'))}
                             ${step(cp.visitDone, t('care_path_visit'))}
                             ${step(cp.viaDone, t('care_path_via'))}
+                            ${cp.viaPositive ? step(cp.viaTreatmentDone, t('care_path_thermal_ablation')) : ''}
                         </div>
                         ${cp.outOfOrder ? `<p class="hpv-confirm-disabled" style="margin:12px 0 0;"><i class="fas fa-exclamation-triangle"></i> ${t('care_path_out_of_order')}</p>` : ''}
                         ${cp.nextKey && !cp.outOfOrder ? `<p style="margin:12px 0 0;"><strong>${t('care_path_action')}:</strong> ${t(cp.nextKey)}</p>` : ''}
@@ -3346,7 +3445,7 @@
                 const dateStr = p.via_date ? formatDate(p.via_date, 'full') : '—';
                 const summaryKey = via === 'positive' ? 'via_recorded_positive' : 'via_recorded_negative';
                 const summary = t(summaryKey).replace('{date}', dateStr);
-                const needsFollowupBook = viaNeedsFollowupBook(p);
+                const needsFollowupBook = viaNeedsFollowupBook(p, appointments);
                 const notified = viaIsNotified(p);
                 return `
                 <div class="card via-result-card ${borderClass}" style="margin-top:1rem;" id="viaResultCard-${p.id}">
@@ -3366,12 +3465,13 @@
                                 ${escapeHtml(hpvResultLabel(via))}
                             </span>
                         </p>
-                        ${notified && via === 'positive' ? `
+                        ${via === 'positive' ? `
                         <div class="detail-item" style="margin-top:12px;padding:12px;background:var(--gray-50, #f8fafc);border-radius:8px;">
                             <span class="label">${t('via_outcome_label')}</span>
                             <span class="value" style="display:block;margin-top:4px;font-weight:600;">${escapeHtml(viaPositiveOutcomeLabel(p))}</span>
                             ${p.treatment_date ? `<span class="muted" style="display:block;margin-top:4px;font-size:0.85rem;">${escapeHtml(viaPositiveOutcomeKey(p) === 'treatment_postponed' ? t('via_treatment_date_postponed').replace(' *', '') : t('via_treatment_date_ablation').replace(' *', ''))}: ${formatDate(p.treatment_date, 'full')}</span>` : ''}
                         </div>` : ''}
+                        ${notified ? '' : `<p class="muted" style="margin-top:8px;"><i class="fas fa-info-circle"></i> ${t('via_recorded_book_next')}</p>`}
                         ${needsFollowupBook ? `
                         <div class="hpv-step-block hpv-step-active" id="viaBookApptBlock-${p.id}" style="margin-top:16px;">
                             <h4 class="hpv-step-title">${t('via_step_book_followup')}</h4>
@@ -3404,13 +3504,98 @@
             const badgeClass = status === 'completed' ? 'badge-success'
                 : status === 'no_show' ? 'badge-danger'
                     : (status === 'confirmed' || status === 'proposed') ? 'badge-success' : 'badge-warning';
+            const canReschedule = ['confirmed', 'proposed'].includes(status);
+            const startLocal = appointmentDateTimeLocalValue(a.scheduled_start);
             return `
                 <div class="appointment-item" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
                     <strong>${formatDate(a.scheduled_start, 'full')} ${formatTime(a.scheduled_start)}</strong>
                     <span class="badge ${badgeClass}">${appointmentStatusLabel(a.status)}</span>
                     ${a.department ? `<div>${escapeHtml(a.department)}</div>` : ''}
                     ${a.reason ? `<div class="muted">${escapeHtml(a.reason)}</div>` : ''}
+                    ${canReschedule ? `
+                    <div style="margin-top:10px;">
+                        <button type="button" class="btn-secondary" style="padding:4px 10px;font-size:0.75rem;"
+                            data-action="appt-reschedule-toggle" data-appointment-id="${a.id}" data-patient-id="${patientId}">
+                            <i class="fas fa-calendar-alt"></i> ${t('reschedule')}
+                        </button>
+                        <form id="apptRescheduleForm-${a.id}" class="form-container" style="display:none;margin-top:10px;"
+                            data-appointment-id="${a.id}" data-patient-id="${patientId}">
+                            <p class="muted" style="margin:0 0 8px;font-size:0.85rem;">${t('reschedule_hint')}</p>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">${currentLanguage === 'sw' ? 'Tarehe na saa mpya' : 'New date & time'} *</label>
+                                    <input type="datetime-local" name="new_scheduled_start" class="form-input" required value="${escapeHtml(startLocal)}">
+                                </div>
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">${t('reschedule_reason')}</label>
+                                <textarea name="reason" class="form-textarea" required rows="2"
+                                    placeholder="${currentLanguage === 'sw' ? 'Eleza kwa nini miadi inabadilishwa' : 'Explain why the appointment is changing'}"></textarea>
+                            </div>
+                            <button type="button" class="btn-primary" data-action="appt-reschedule-submit"
+                                data-appointment-id="${a.id}" data-patient-id="${patientId}">
+                                <i class="fas fa-paper-plane"></i> ${t('reschedule_submit')}
+                            </button>
+                        </form>
+                    </div>` : ''}
                 </div>`;
+        },
+
+        toggleAppointmentRescheduleForm(appointmentId) {
+            const form = document.getElementById(`apptRescheduleForm-${appointmentId}`);
+            if (!form) {
+                return;
+            }
+            const show = form.style.display === 'none' || form.style.display === '';
+            form.style.display = show ? 'block' : 'none';
+        },
+
+        async reschedulePatientAppointment(appointmentId, patientId) {
+            const form = document.getElementById(`apptRescheduleForm-${appointmentId}`);
+            if (!form) {
+                return;
+            }
+            const fd = new FormData(form);
+            const newStart = String(fd.get('new_scheduled_start') || '').trim();
+            const reason = String(fd.get('reason') || '').trim();
+            if (!newStart || !reason) {
+                showNotification(
+                    currentLanguage === 'sw'
+                        ? 'Weka tarehe mpya na sababu ya mabadiliko.'
+                        : 'Enter the new date/time and reason for the change.',
+                    'error'
+                );
+                return;
+            }
+            const btn = form.querySelector('[data-action="appt-reschedule-submit"]');
+            if (btn?.disabled) {
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+            }
+            showNotification(t('processing'), 'info');
+            try {
+                await api.post('/api/appointments.php', {
+                    action: 'reschedule',
+                    appointment_id: Number(appointmentId),
+                    new_scheduled_start: newStart,
+                    reason,
+                }, false);
+                showNotification(
+                    currentLanguage === 'sw'
+                        ? 'Miadi imebadilishwa na mgonjwa amejulishwa mara moja.'
+                        : 'Appointment rescheduled and patient notified immediately.',
+                    'ok'
+                );
+                await this.refreshAfterVisitAction(patientId);
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                }
+            }
         },
 
         async markAppointmentAttended(appointmentId, patientId) {
@@ -3623,8 +3808,14 @@
                     has_cancer: hasCancer,
                     treatment_date: treatmentDate || undefined,
                 }, false);
-                showNotification(data.book_followup_next ? t('via_recorded_book_next') : t('success'), 'ok');
-                state.focusViaFollowupBookingAfterLoad = true;
+                if (data.via_message_sent) {
+                    showNotification(t('via_recorded_sent'), 'ok');
+                } else if (data.book_followup_next) {
+                    showNotification(t('via_recorded_book_next'), 'ok');
+                } else {
+                    showNotification(t('success'), 'ok');
+                }
+                state.focusViaFollowupBookingAfterLoad = Boolean(data.book_followup_next);
                 if (state.currentTab === 'patient') {
                     await this.reloadPatientDetail();
                 } else {
