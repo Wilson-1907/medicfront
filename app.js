@@ -1422,13 +1422,15 @@
     const api = {
         async request(url, options = {}) {
             const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+            const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 30000;
+            const { timeoutMs: _drop, ...fetchOptions } = options;
             
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 
                 const response = await fetch(fullUrl, {
-                    ...options,
+                    ...fetchOptions,
                     signal: controller.signal,
                     headers: {
                         'Content-Type': 'application/json',
@@ -1483,11 +1485,12 @@
             }
         },
         
-        async post(url, body, retry = false) {
+        async post(url, body, retry = false, timeoutMs = 30000) {
             try {
                 const data = await this.request(url, {
                     method: 'POST',
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(body),
+                    timeoutMs
                 });
                 retryCount = 0;
                 return data;
@@ -5110,19 +5113,44 @@
         },
 
         async resendFailedOutbound(outboundIds = null, reopenModal = true) {
+            const isBatch = !Array.isArray(outboundIds) || outboundIds.length === 0;
+            const batchLimit = 15;
+            let totals = { resent: 0, resend_failed: 0, candidates: 0, batches: 0 };
+            let hasMore = false;
+
+            const setResendBusy = (busy) => {
+                document.querySelectorAll('#retryAllFailedBannerBtn, #resendAllFailedBtn, [data-resend-outbound]').forEach((el) => {
+                    el.disabled = busy;
+                });
+            };
+
             try {
-                const payload = {
-                    action: 'resend_failed',
-                    hours: 168,
-                    limit: 200
-                };
-                if (Array.isArray(outboundIds) && outboundIds.length > 0) {
-                    payload.outbound_ids = outboundIds;
-                }
-                const res = await api.post('/api/message_center.php', payload);
-                const r = res.resend || {};
-                const summary = `${r.resent || 0} sent, ${r.resend_failed || 0} still failed`;
-                showNotification(`${t('resend_failed_done')} ${summary}`, (r.resend_failed || 0) > 0 ? 'error' : 'ok');
+                setResendBusy(true);
+                showNotification(t('resend_failed_working'), 'info');
+
+                do {
+                    const payload = {
+                        action: 'resend_failed',
+                        hours: 168,
+                        limit: batchLimit
+                    };
+                    if (!isBatch && Array.isArray(outboundIds) && outboundIds.length > 0) {
+                        payload.outbound_ids = outboundIds;
+                    }
+
+                    const res = await api.post('/api/message_center.php', payload, false, 120000);
+                    const r = res.resend || {};
+                    totals.batches += 1;
+                    totals.resent += Number(r.resent || 0);
+                    totals.resend_failed += Number(r.resend_failed || 0);
+                    totals.candidates += Number(r.candidates || 0);
+                    hasMore = isBatch && Boolean(r.has_more);
+
+                    if (!isBatch) break;
+                } while (hasMore && totals.batches < 12);
+
+                const summary = `${totals.resent} sent, ${totals.resend_failed} still failed`;
+                showNotification(`${t('resend_failed_done')} ${summary}`, totals.resend_failed > 0 ? 'error' : 'ok');
 
                 const response = await api.get('/api/message_center.php');
                 state.messages = response;
@@ -5145,6 +5173,8 @@
                 if (reopenModal) {
                     await this.presentFailedMessages(false);
                 }
+            } finally {
+                setResendBusy(false);
             }
         },
 
