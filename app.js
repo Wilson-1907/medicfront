@@ -26,7 +26,7 @@
             failure_reason: "Reason",
             click_to_view: "Click to view",
             resend_stuck: "Resend stuck messages",
-            resend_stuck_hint: "Re-sends failed SMS/WhatsApp and releases queued drips from the last 7 days.",
+            resend_stuck_hint: "Release queued drip messages only (does not resend failed outbound).",
             resend_stuck_prompt: "Enter admin password to resend stuck messages:",
             resend_stuck_done: "Stuck messages released.",
             resend_failed: "Resend failed messages",
@@ -34,7 +34,8 @@
             resend_failed_all: "Resend all now",
             resend_failed_done: "Resend complete:",
             resend_failed_working: "Resending undelivered messages…",
-            resend_failed_hint: "Undelivered messages retry automatically every 10 minutes. Failed WhatsApp is resent via SMS when possible.",
+            resend_failed_hint: "Only messages that actually failed are listed. Resend manually — no automatic retries. SMS patients use plain SMS; WhatsApp patients use templates.",
+            sms_balance_low: "SMS balance is empty on Africa's Talking. Top up credits before resending — messages will keep failing until you do.",
             hpv_program: "HPV Patient Engagement",
             title_overview: "Healthcare Analytics",
             total_patients: "Total Patients",
@@ -277,7 +278,8 @@
             resend_failed_all: "Tuma tena sasa",
             resend_failed_done: "Kutuma tena kumekamilika:",
             resend_failed_working: "Inatumwa tena ujumbe ambao haujafika…",
-            resend_failed_hint: "Ujumbe ambao haujafika hutumwa tena kiotomatiki kila dakika 10. WhatsApp iliyoshindwa hutumwa tena kwa SMS inapowezekana.",
+            resend_failed_hint: "Orodha inaonyesha ujumbe ulioshindwa tu. Tuma tena kwa mkono — hakuna kujaribu kiotomatiki.",
+            sms_balance_low: "Salio la SMS limeisha kwenye Africa's Talking. Ongeza salio kabla ya kutuma tena.",
             hpv_program: "Ushirikiano wa Wagonjwa wa HPV",
             title_overview: "Takwimu za Afya",
             total_patients: "Jumla ya Wagonjwa",
@@ -1127,19 +1129,25 @@
         return type || 'Message';
     }
 
-    function formatOutboundStatus(status) {
+    function formatOutboundStatus(status, channel) {
         const s = (status || '').toLowerCase();
+        const ch = (channel || '').toLowerCase();
         if (s === 'delivered') return currentLanguage === 'sw' ? 'Imefika' : 'Delivered';
-        if (s === 'sent') return currentLanguage === 'sw' ? 'Imetumwa (bado)' : 'Sent (pending)';
+        if (s === 'sent' && ch === 'whatsapp') {
+            return currentLanguage === 'sw' ? 'Imetumwa (WhatsApp)' : 'Submitted (WhatsApp)';
+        }
+        if (s === 'sent') return currentLanguage === 'sw' ? 'Imetumwa' : 'Sent';
         if (s === 'failed') return currentLanguage === 'sw' ? 'Imeshindwa' : 'Failed';
         if (s === 'queued') return currentLanguage === 'sw' ? 'Inasubiri' : 'Queued';
         return status || '—';
     }
 
-    function outboundStatusIcon(status) {
+    function outboundStatusIcon(status, channel) {
         const s = (status || '').toLowerCase();
+        const ch = (channel || '').toLowerCase();
         if (s === 'delivered') return 'fa-check-circle';
         if (s === 'failed') return 'fa-exclamation-circle';
+        if (s === 'sent' && ch === 'whatsapp') return 'fa-check-circle';
         if (s === 'sent') return 'fa-paper-plane';
         return 'fa-clock';
     }
@@ -4429,11 +4437,20 @@
                         <button class="btn-secondary btn-sm" onclick="window.components.openEscalations()">View now</button>
                     </div>` : ''}
 
+                    ${stats.sms_balance_low ? `
+                    <div class="alert-banner danger">
+                        <i class="fas fa-wallet"></i>
+                        <div>
+                            <strong>SMS balance empty</strong>
+                            <p>${t('sms_balance_low')}</p>
+                        </div>
+                    </div>` : ''}
+
                     ${(stats.failed_24h || 0) > 0 ? `
                     <div class="alert-banner warning">
                         <i class="fas fa-exclamation-circle"></i>
                         <div>
-                            <strong>${stats.failed_24h} message${stats.failed_24h === 1 ? '' : 's'} not delivered (24h)</strong>
+                            <strong>${stats.failed_24h} message${stats.failed_24h === 1 ? '' : 's'} failed to send (24h)</strong>
                             <p>${t('resend_failed_hint')}</p>
                         </div>
                         <div class="alert-banner-actions">
@@ -4525,9 +4542,9 @@
                                                 <i class="fab ${msg.channel === 'whatsapp' ? 'fa-whatsapp' : 'fa-sms'}"></i> ${msg.channel}
                                             </span></td>
                                             <td><span class="message-type">${escapeHtml(formatMessageType(msg.message_type))}</span></td>
-                                            <td><span class="status-badge ${escapeHtml(msg.status || 'queued')}">
-                                                <i class="fas ${outboundStatusIcon(msg.status)}"></i>
-                                                ${escapeHtml(formatOutboundStatus(msg.status))}
+                                            <td><span class="status-badge ${escapeHtml(msg.status === 'sent' && msg.channel === 'whatsapp' ? 'delivered' : (msg.status || 'queued'))}">
+                                                <i class="fas ${outboundStatusIcon(msg.status, msg.channel)}"></i>
+                                                ${escapeHtml(formatOutboundStatus(msg.status, msg.channel))}
                                             </span></td>
                                             <td class="message-content">
                                                 <div class="message-preview">${escapeHtml(msg.body || '-')}</div>
@@ -4965,11 +4982,6 @@
                             state._pendingFailedOpen = false;
                             this.viewFailedMessages();
                         }
-                        const failedCount = state.messages?.stats?.failed_24h || 0;
-                        if (failedCount > 0 && !state._autoResendAttempted) {
-                            state._autoResendAttempted = true;
-                            this.retryAllFailedMessages(false);
-                        }
                     }, 150);
                 }
                 
@@ -5140,6 +5152,10 @@
 
                     const res = await api.post('/api/message_center.php', payload, false, 120000);
                     const r = res.resend || {};
+                    if (r.blocked) {
+                        showNotification(r.block_reason || t('sms_balance_low'), 'error');
+                        break;
+                    }
                     totals.batches += 1;
                     totals.resent += Number(r.resent || 0);
                     totals.resend_failed += Number(r.resend_failed || 0);
