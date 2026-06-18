@@ -266,7 +266,11 @@
             edit_contact_title: "Edit phone & channel",
             edit_contact_save: "Save phone",
             edit_contact_success: "Phone number updated.",
-            edit_contact_hint: "Appointment and result messages are sent to this number.",
+            edit_contact_replay_success: "Phone updated. {n} message(s) resent to the new number.",
+            edit_contact_replay_partial: "Phone updated. {n} message(s) resent; {f} could not be sent.",
+            edit_contact_replay_none: "Phone updated. No prior messages needed resending.",
+            edit_contact_replay_failed: "Phone updated, but messages could not be resent: {reason}",
+            edit_contact_hint: "Appointment and result messages are sent to this number. Changing the number will resend all prior clinical messages to the new number.",
             no_client_number: "No client number on file — register with a lab serial or contact admin."
         },
         sw: {
@@ -522,7 +526,11 @@
             edit_contact_title: "Hariri simu na njia",
             edit_contact_save: "Hifadhi simu",
             edit_contact_success: "Nambari ya simu imesasishwa.",
-            edit_contact_hint: "Ujumbe wa miadi na matokeo hutumwa kwa nambari hii.",
+            edit_contact_replay_success: "Nambari imesasishwa. Ujumbe {n} umetumwa tena kwa nambari mpya.",
+            edit_contact_replay_partial: "Nambari imesasishwa. Ujumbe {n} umetumwa tena; {f} haukuweza kutumwa.",
+            edit_contact_replay_none: "Nambari imesasishwa. Hakuna ujumbe wa awali wa kutuma tena.",
+            edit_contact_replay_failed: "Nambari imesasishwa, lakini ujumbe haujatumwa tena: {reason}",
+            edit_contact_hint: "Ujumbe wa miadi na matokeo hutumwa kwa nambari hii. Kubadilisha nambari kutatuma tena ujumbe wote wa awali kwa nambari mpya.",
             no_client_number: "Hakuna nambari ya mteja — sajili kwa serial ya maabara au wasiliana na msimamizi."
         }
     };
@@ -1115,6 +1123,36 @@
     // ============================================
     function t(key) {
         return translations[currentLanguage][key] || translations.en[key] || key;
+    }
+
+    function formatEditContactSuccess(res) {
+        if (!res?.phone_changed) {
+            return t('edit_contact_success');
+        }
+        const mr = res.messages_replayed;
+        if (mr && mr.ok === false && mr.error) {
+            return t('edit_contact_replay_failed').replace('{reason}', String(mr.error));
+        }
+        if (!mr) {
+            return t('edit_contact_success');
+        }
+        const n = Number(mr.resent_count ?? 0);
+        const fail = Array.isArray(mr.failed) ? mr.failed.length : 0;
+        if (n > 0 && fail === 0) {
+            return t('edit_contact_replay_success').replace('{n}', String(n));
+        }
+        if (n > 0 && fail > 0) {
+            return t('edit_contact_replay_partial').replace('{n}', String(n)).replace('{f}', String(fail));
+        }
+        return t('edit_contact_replay_none');
+    }
+
+    function editContactNotifyLevel(res) {
+        const mr = res?.messages_replayed;
+        if (mr?.ok === false || (Array.isArray(mr?.failed) && mr.failed.length > 0)) {
+            return 'warn';
+        }
+        return 'ok';
     }
     
     function formatDate(dateString, format = 'full') {
@@ -2389,9 +2427,9 @@
                 e.preventDefault();
                 try {
                     const payload = Object.fromEntries(new FormData(form).entries());
-                    await api.post('/api/patient_update.php', payload, false);
+                    const res = await api.post('/api/patient_update.php', payload, false);
                     this.closeEditContactModal();
-                    showNotification(t('edit_contact_success'), 'ok');
+                    showNotification(formatEditContactSuccess(res), editContactNotifyLevel(res));
                     await this.reloadPatientDetail();
                 } catch (err) {
                     showNotification(err.message || 'Failed to update phone', 'error');
