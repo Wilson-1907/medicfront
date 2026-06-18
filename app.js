@@ -262,6 +262,11 @@
             edit_registration: "Edit registration details",
             edit_registration_save: "Save details",
             edit_registration_success: "Registration details updated.",
+            edit_contact: "Edit phone",
+            edit_contact_title: "Edit phone & channel",
+            edit_contact_save: "Save phone",
+            edit_contact_success: "Phone number updated.",
+            edit_contact_hint: "Appointment and result messages are sent to this number.",
             no_client_number: "No client number on file — register with a lab serial or contact admin."
         },
         sw: {
@@ -513,6 +518,11 @@
             edit_registration: "Hariri maelezo ya usajili",
             edit_registration_save: "Hifadhi maelezo",
             edit_registration_success: "Maelezo ya usajili yamehifadhiwa.",
+            edit_contact: "Hariri nambari",
+            edit_contact_title: "Hariri simu na njia",
+            edit_contact_save: "Hifadhi simu",
+            edit_contact_success: "Nambari ya simu imesasishwa.",
+            edit_contact_hint: "Ujumbe wa miadi na matokeo hutumwa kwa nambari hii.",
             no_client_number: "Hakuna nambari ya mteja — sajili kwa serial ya maabara au wasiliana na msimamizi."
         }
     };
@@ -1264,6 +1274,17 @@
         return '+254' + d;
     }
 
+    function phoneLocalFromE164(phone) {
+        let d = String(phone || '').replace(/\D/g, '');
+        if (d.startsWith('254')) {
+            d = d.slice(3);
+        }
+        if (d.startsWith('0')) {
+            d = d.slice(1);
+        }
+        return d.slice(0, 9);
+    }
+
     function setupPhoneLocalInput(input) {
         if (!input) {
             return;
@@ -1654,9 +1675,15 @@
                 } else if (action === 'edit-registration' && patientId) {
                     e.preventDefault();
                     components.openEditRegistrationModal(patientId);
+                } else if (action === 'edit-contact' && patientId) {
+                    e.preventDefault();
+                    components.openEditContactModal(patientId);
                 } else if (action === 'edit-registration-close') {
                     e.preventDefault();
                     components.closeEditRegistrationModal();
+                } else if (action === 'edit-contact-close') {
+                    e.preventDefault();
+                    components.closeEditContactModal();
                 } else if (action === 'hpv-record-negative' && patientId) {
                     e.preventDefault();
                     components.setHpvResult(patientId, 'negative');
@@ -2305,6 +2332,82 @@
             modal.innerHTML = '';
         },
 
+        openEditContactModal(patientId) {
+            const id = Number(patientId || 0);
+            const p = Number(state.patientDetail?.id || 0) === id ? state.patientDetail : null;
+            if (!p) {
+                showNotification('Open the patient record first.', 'error');
+                return;
+            }
+            const contacts = p.contacts || [];
+            const primaryContact = contacts.find((c) => Number(c.is_primary) === 1) || contacts[0] || {};
+            const phoneLocal = phoneLocalFromE164(getPatientPrimaryPhone(p) || primaryContact.address || '');
+            const modal = document.getElementById('editContactModal');
+            if (!modal) return;
+
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            modal.innerHTML = `
+                <div class="modal-content wipe-modal-content">
+                    <div class="modal-header">
+                        <h2>${t('edit_contact_title')}</h2>
+                        <button type="button" class="btn-secondary" data-action="edit-contact-close" aria-label="Close">&times;</button>
+                    </div>
+                    <form id="editContactForm" class="wipe-modal-body">
+                        <input type="hidden" name="patient_id" value="${id}">
+                        <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('edit_contact_hint')}</p>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">${t('phone_number')} *</label>
+                                <div class="phone-input-group">
+                                    <span class="phone-prefix" aria-hidden="true">+254</span>
+                                    <input type="tel" name="phone_local" id="editContactPhoneLocal" class="form-input phone-local-input"
+                                        required maxlength="9" inputmode="numeric" pattern="[0-9]{9}"
+                                        placeholder="712345678" value="${escapeHtml(phoneLocal)}">
+                                </div>
+                                <div class="field-hint">${t('phone_local_hint')}</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">${t('select_channel')} *</label>
+                                <select name="contact_channel" class="form-select" required>
+                                    <option value="sms" ${(primaryContact.channel || 'sms') === 'sms' ? 'selected' : ''}>SMS</option>
+                                    <option value="whatsapp" ${(primaryContact.channel || '') === 'whatsapp' ? 'selected' : ''}>WhatsApp</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="wipe-modal-actions" style="margin-top:16px;">
+                            <button type="button" class="btn-secondary" data-action="edit-contact-close">${t('cancel')}</button>
+                            <button type="submit" class="btn-primary">${t('edit_contact_save')}</button>
+                        </div>
+                    </form>
+                </div>`;
+
+            setupPhoneLocalInput(document.getElementById('editContactPhoneLocal'));
+            const form = document.getElementById('editContactForm');
+            form?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const payload = Object.fromEntries(new FormData(form).entries());
+                    await api.post('/api/patient_update.php', payload, false);
+                    this.closeEditContactModal();
+                    showNotification(t('edit_contact_success'), 'ok');
+                    await this.reloadPatientDetail();
+                } catch (err) {
+                    showNotification(err.message || 'Failed to update phone', 'error');
+                }
+            });
+        },
+
+        closeEditContactModal() {
+            const modal = document.getElementById('editContactModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.style.display = '';
+            modal.setAttribute('aria-hidden', 'true');
+            modal.innerHTML = '';
+        },
+
         openWipeDataModal() {
             state._wipeStep = 1;
             state._wipePassword = '';
@@ -2754,7 +2857,16 @@
                             <div class="detail-item"><span class="label">${t('reg_age_label')}</span><span class="value">${ageStr}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_dob_optional')}</span><span class="value">${p.date_of_birth ? formatDate(p.date_of_birth, 'full') : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('select_language')}</span><span class="value">${p.preferred_language === 'sw' ? 'Kiswahili' : 'English'}</span></div>
-                            <div class="detail-item"><span class="label">${t('phone_number')}</span><span class="value">${escapeHtml(phone || '—')}</span></div>
+                            <div class="detail-item">
+                                <span class="label">${t('phone_number')}</span>
+                                <span class="value" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                    ${escapeHtml(phone || '—')}
+                                    <button type="button" class="btn-secondary" style="padding:2px 8px;font-size:0.72rem;"
+                                        data-action="edit-contact" data-patient-id="${p.id}">
+                                        <i class="fas fa-pen"></i> ${t('edit_contact')}
+                                    </button>
+                                </span>
+                            </div>
                             <div class="detail-item"><span class="label">${t('reg_contact_channel')}</span><span class="value">${primaryContact ? String(primaryContact.channel || 'sms').toUpperCase() : '—'}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_opted_in')}</span><span class="value">${primaryContact && primaryContact.opted_in ? (currentLanguage === 'sw' ? 'Ndiyo' : 'Yes') : (currentLanguage === 'sw' ? 'Hapana' : 'No')}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_hiv_status')}</span><span class="value">${posNeg(p.hiv_status)}</span></div>
@@ -2781,7 +2893,12 @@
                     ${this.renderNyeriReferralCard(p)}
 
                     <div class="card contact-card" style="margin-top:1rem;">
-                        <div class="card-header"><div class="card-title"><i class="fas fa-phone"></i> Contact</div></div>
+                        <div class="card-header">
+                            <div class="card-title"><i class="fas fa-phone"></i> Contact</div>
+                            <button type="button" class="btn-secondary" data-action="edit-contact" data-patient-id="${p.id}">
+                                <i class="fas fa-pen"></i> ${t('edit_contact')}
+                            </button>
+                        </div>
                         <div style="padding:16px;">
                             ${contacts.length === 0 ? '<p class="muted">No contact on file.</p>' : contacts.map(c => `
                                 <div class="meta-tag" style="margin-bottom:8px;">
@@ -5504,6 +5621,7 @@
             <div id="escalationDetailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="escalationModalTitle"></div>
             <div id="failedMessagesModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="failedMessagesModalTitle"></div>
             <div id="editRegistrationModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true"></div>
+            <div id="editContactModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true"></div>
             <div id="wipeDataModal" class="modal hidden" role="dialog" aria-labelledby="wipeModalTitle"></div>
             
             <footer class="footer" role="contentinfo">
