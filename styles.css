@@ -1229,8 +1229,8 @@ body {
 }
 
 .status-badge.sent {
-    background: var(--warning-light);
-    color: #92400e;
+    background: var(--success-light);
+    color: #065f46;
 }
 
 .status-badge.pending {
@@ -1244,8 +1244,8 @@ body {
 }
 
 .status-badge.delivered {
-    background: var(--success-light);
-    color: #065f46;
+    background: var(--info-light);
+    color: #1e40af;
 }
 
 .status-badge.open {
@@ -1274,68 +1274,6 @@ body {
     font-size: 0.7rem;
     color: #991b1b;
     display: inline-block;
-}
-
-.failed-messages-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 12px;
-}
-
-.failed-message-header-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-}
-
-.failed-messages-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.failed-message-card {
-    border: 1px solid #fecaca;
-    border-left: 4px solid var(--danger);
-    border-radius: 12px;
-    padding: 16px 18px;
-    background: #fff;
-}
-
-.failed-message-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 10px;
-}
-
-.failed-message-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.failed-message-body {
-    margin-bottom: 10px;
-}
-
-.failed-message-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--gray-500);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 4px;
-}
-
-.failed-message-reason {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    width: 100%;
 }
 
 /* Inbound Message Bubble */
@@ -1688,7 +1626,6 @@ body {
 .alert-banner.danger { background: var(--danger-light); border-color: #fecaca; color: #991b1b; }
 .alert-banner i { font-size: 1.5rem; }
 .alert-banner p { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.9; }
-.alert-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .btn-sm { padding: 8px 14px !important; font-size: 0.8rem !important; }
 .card-body { padding: 0 4px 8px; }
 .escalations-section { border: 2px solid rgba(239,68,68,0.2); }
