@@ -178,6 +178,10 @@
             nyeri_referral_manual_confirm: "Refer this patient to Nyeri County Referral Hospital even though screening is not fully complete?",
             via_recorded_negative: "VIA negative recorded on {date}. Annual check-up reminders scheduled.",
             via_recorded_positive: "VIA positive recorded on {date}.",
+            via_need_hpv_record: "Record HPV positive in the HPV lab result section above, then mark attendance, then record VIA here.",
+            via_need_appt_book: "Book a clinic appointment first. When the patient attends, mark Patient attended, then record VIA here.",
+            via_need_attendance: "Mark attendance (Patient attended) on the clinic visit first, then record VIA below.",
+            via_hpv_confirm_optional: "HPV result not yet sent to the patient — you can still record VIA now. Use Confirm & notify above when ready.",
             via_unavailable: "VIA recording is not available on this server.",
             via_outcome_label: "Thermal Ablation / treatment",
             via_outcome_hint: "HPV positive + VIA positive — select return visit outcome",
@@ -447,6 +451,10 @@
             nyeri_referral_manual_confirm: "Mpe rufaa mgonjwa huyu Hospitali ya Rufaa ya Nyeri hata kama uchunguzi haujakamilika?",
             via_recorded_negative: "VIA hasi imewekwa {date}. Ukumbusho wa uchunguzi wa kila mwaka umepangwa.",
             via_recorded_positive: "VIA chanya imewekwa {date}.",
+            via_need_hpv_record: "Weka HPV chanya katika sehemu ya matokeo ya maabara hapo juu, kisha thibitisha mahudhurio, kisha weka VIA hapa.",
+            via_need_appt_book: "Panga miadi ya kliniki kwanza. Mgonjwa akihudhuria, bonyeza Alihudhuria, kisha weka VIA hapa.",
+            via_need_attendance: "Thibitisha mahudhurio (Alihudhuria) kwanza, kisha weka matokeo ya VIA hapa chini.",
+            via_hpv_confirm_optional: "Matokeo ya HPV bado hayajatumwa kwa mgonjwa — unaweza kuweka VIA sasa. Tumia Thibitisha na mtarifu hapo juu ukiwa tayari.",
             via_unavailable: "Kuweka matokeo ya VIA hakupatikani kwenye seva.",
             via_outcome_label: "Thermal Ablation / matibabu",
             via_outcome_hint: "HPV chanya + VIA chanya — chagua matokeo ya ziara ya kurudi",
@@ -946,7 +954,7 @@
             .filter((a) => (a.status || '').toLowerCase() === 'completed')
             .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
         const needsVia = apptConfirmed
-            && hpvPathwayComplete(p)
+            && hpvReadyForVia(p)
             && !viaIsRecorded(p)
             && patientHasCompletedAppointment(list);
         const active = Boolean(pendingAttendance);
@@ -1004,7 +1012,16 @@
 
     function hpvResultIsRecorded(p, resultOverride) {
         const r = (resultOverride || p?.hpv_screening_result || '').toLowerCase();
-        return Boolean(p?.hpv_result_recorded_at) && ['positive', 'negative', 'failed'].includes(r);
+        return ['positive', 'negative', 'failed'].includes(r);
+    }
+
+    /** HPV+ (or failed sample) lab result recorded — enough to proceed to VIA after clinic attendance. */
+    function hpvReadyForVia(p) {
+        if (hpvNegativeConfirmed(p)) {
+            return false;
+        }
+        const r = (p?.hpv_screening_result || '').toLowerCase();
+        return (r === 'positive' || r === 'failed') && hpvResultIsRecorded(p, r);
     }
 
     function hpvNegativeConfirmed(p) {
@@ -3672,19 +3689,36 @@
                 </div>`;
             }
 
-            if (!patientHasConfirmedAppointment(appointments)) {
+            const hasAppt = patientHasConfirmedAppointment(appointments);
+            const hpvForVia = hpvReadyForVia(p);
+
+            if (!hasAppt && hpvForVia && !viaIsRecorded(p)) {
+                return `
+                <div class="card via-result-card hpv-card-pending" style="margin-top:1rem;" id="viaRecordCard-${p.id}">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                    </div>
+                    <div class="hpv-result-body" style="padding:16px;">
+                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${t('via_need_appt_book')}</p>
+                    </div>
+                </div>`;
+            }
+
+            if (!hasAppt) {
                 return '';
             }
 
             const via = (p.via_result || '').toLowerCase();
             const hasRecorded = viaIsRecorded(p);
-            const canRecordVia = hpvPathwayComplete(p)
+            const canRecordVia = hpvForVia
                 && !hasRecorded
                 && patientHasCompletedAppointment(appointments);
-            const awaitingAttendance = hpvPathwayComplete(p)
+            const awaitingAttendance = hpvForVia
                 && !hasRecorded
-                && patientHasConfirmedAppointment(appointments)
+                && hasAppt
                 && !patientHasCompletedAppointment(appointments);
+            const awaitingHpvLab = !hpvForVia && !hasRecorded && hasAppt;
+            const needsHpvConfirmBanner = hpvForVia && !hpvPathwayComplete(p);
             const completedAppt = [...(appointments || [])]
                 .filter((a) => (a.status || '').toLowerCase() === 'completed')
                 .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
@@ -3740,6 +3774,18 @@
                 </div>`;
             }
 
+            if (awaitingHpvLab) {
+                return `
+                <div class="card via-result-card hpv-card-pending" style="margin-top:1rem;" id="viaRecordCard-${p.id}">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                    </div>
+                    <div class="hpv-result-body" style="padding:16px;">
+                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${t('via_need_hpv_record')}</p>
+                    </div>
+                </div>`;
+            }
+
             if (awaitingAttendance) {
                 return `
                 <div class="card via-result-card hpv-card-pending" style="margin-top:1rem;" id="viaRecordCard-${p.id}">
@@ -3747,7 +3793,7 @@
                         <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
                     </div>
                     <div class="hpv-result-body" style="padding:16px;">
-                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${currentLanguage === 'sw' ? 'Weka mahudhurio (Alihudhuria) kwanza, kisha weka matokeo ya VIA.' : 'Mark attendance (Patient attended) first, then record VIA below.'}</p>
+                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${t('via_need_attendance')}</p>
                     </div>
                 </div>`;
             }
@@ -3763,6 +3809,7 @@
                         <span class="badge badge-warning">${currentLanguage === 'sw' ? 'Inahitaji hatua' : 'Action needed'}</span>
                     </div>
                     <div class="hpv-result-body" id="viaRecordMount-${p.id}">
+                        ${needsHpvConfirmBanner ? `<p class="hpv-confirm-disabled" style="margin:0 0 12px;"><i class="fas fa-info-circle"></i> ${t('via_hpv_confirm_optional')}</p>` : ''}
                         <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('visit_step_via')}</p>
                         ${this.renderViaRecordFormBody(p, defaultViaDate)}
                     </div>
@@ -4416,7 +4463,7 @@
                     </div>
                     <div style="padding:0 16px 16px;">
                         <p class="muted" style="margin:0 0 12px;">${t('appt_workflow_panel_hint')}</p>
-                        ${wf.active ? this.renderVisitWorkflowCard(p, appointments).replace('margin-top:1rem;', 'margin-top:0;') : ''}
+                        ${(wf.active || wf.needsVia) ? this.renderVisitWorkflowCard(p, appointments).replace('margin-top:1rem;', 'margin-top:0;') : ''}
                         ${this.renderViaResultCard(p, appointments).replace('margin-top:1rem;', 'margin-top:12px;')}
                         ${!wf.active && nextAppt ? `
                         <p class="muted" style="margin:0;">
