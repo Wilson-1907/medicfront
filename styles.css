@@ -2029,11 +2029,34 @@ body {
 .clinic-roster-stats {
     display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
 }
-.clinic-roster-columns {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+.clinic-roster-columns-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
 }
-@media (max-width: 960px) {
-    .clinic-roster-columns { grid-template-columns: 1fr; }
+@media (max-width: 768px) {
+    .clinic-roster-columns-2 { grid-template-columns: 1fr; }
+}
+.clinic-col-count {
+    font-weight: 700; color: var(--gray-700);
+}
+.clinic-waiting-strip {
+    margin-bottom: 14px; background: #fffbeb; border-color: #fcd34d;
+}
+.clinic-bulk-actions {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 16px; padding: 12px; background: #fef2f2; border-radius: 10px;
+    border: 1px solid #fecaca;
+}
+.clinic-bulk-used-note { font-size: 0.82rem; }
+.clinic-early-tag {
+    font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: #dbeafe; color: #1d4ed8;
+}
+.clinic-past-summary {
+    margin: 0 0 14px; font-size: 0.88rem; font-weight: 500;
+}
+.appt-day-summary { margin: 4px 0 0; font-size: 0.82rem; }
+.clinic-roster-row[role="button"]:focus-visible {
+    outline: 2px solid var(--primary-500); outline-offset: 2px;
 }
 .clinic-roster-col {
     background: var(--gray-50, #f8fafc); border: 1px solid var(--gray-200);

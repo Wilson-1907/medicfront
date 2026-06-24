@@ -61,6 +61,14 @@
             clinic_none_attended: "No attended visits yet.",
             clinic_none_missed: "No missed visits.",
             clinic_send_missed: "Send missed message",
+            clinic_send_missed_all: "Send missed message to all ({n})",
+            clinic_send_missed_all_confirm: "Send the missed-appointment message to all {n} patients who did not attend on {date}?",
+            clinic_send_missed_all_done: "Sent to {sent} patient(s).",
+            clinic_send_missed_all_done_marked: "Marked {marked} as missed and sent {sent} message(s).",
+            clinic_send_missed_all_used: "Bulk missed message already sent for this day",
+            clinic_day_summary_past: "{attended} attended · {missed} missed · {rescheduled} rescheduled",
+            clinic_early_visit: "Early check-in",
+            clinic_rescheduled: "Rescheduled",
             clinic_mark_attended: "Attended",
             clinic_mark_missed: "Missed",
             clinic_clear_via_day: "Remove all VIA records on this date",
@@ -361,6 +369,14 @@
             clinic_none_attended: "Hakuna waliohudhuria bado.",
             clinic_none_missed: "Hakuna walikosa.",
             clinic_send_missed: "Tuma ujumbe wa kukosa",
+            clinic_send_missed_all: "Tuma ujumbe wa kukosa kwa wote ({n})",
+            clinic_send_missed_all_confirm: "Tuma ujumbe wa kukosa kwa wagonjwa {n} ambao hawakuhudhuria tarehe {date}?",
+            clinic_send_missed_all_done: "Imetumwa kwa wagonjwa {sent}.",
+            clinic_send_missed_all_done_marked: "Wagonjwa {marked} wamewekwa kama walikosa na ujumbe {sent} umetumwa.",
+            clinic_send_missed_all_used: "Ujumbe wa kukosa kwa siku hii tayari umetumwa",
+            clinic_day_summary_past: "{attended} walihudhuria · {missed} walikosa · {rescheduled} walibadilisha miadi",
+            clinic_early_visit: "Alihudhuria mapema",
+            clinic_rescheduled: "Miadi ilibadilishwa",
             clinic_mark_attended: "Alihudhuria",
             clinic_mark_missed: "Hakuhudhuria",
             clinic_clear_via_day: "Futa rekodi zote za VIA za tarehe hii",
@@ -893,7 +909,13 @@
         return raw.split('T')[0] || raw.split(' ')[0] || '';
     }
 
-    function clinicRosterBucket(status) {
+    function clinicRosterBucket(statusOrApt, clinicDayIso) {
+        let status;
+        if (statusOrApt && typeof statusOrApt === 'object') {
+            status = statusOrApt.status;
+        } else {
+            status = statusOrApt;
+        }
         const s = String(status || '').toLowerCase();
         if (s === 'completed') {
             return 'attended';
@@ -902,9 +924,71 @@
             return 'missed';
         }
         if (s === 'proposed' || s === 'confirmed') {
+            const day = String(clinicDayIso || (typeof statusOrApt === 'object' ? appointmentDateIso(statusOrApt) : '') || '').trim();
+            if (day && day < todayIsoDate()) {
+                return 'missed';
+            }
             return 'waiting';
         }
         return 'other';
+    }
+
+    function isEarlyClinicCheckIn(apt) {
+        if (!apt?.attendance_recorded_at || clinicRosterBucket(apt) !== 'attended') {
+            return false;
+        }
+        const recorded = String(apt.attendance_recorded_at).split(/[T ]/)[0];
+        const apptDay = appointmentDateIso(apt);
+        return Boolean(recorded && apptDay && recorded < apptDay);
+    }
+
+    function clinicDayCounts(appointments, dateIso) {
+        const day = String(dateIso || '').trim();
+        const dayAppts = appointmentsForClinicDay(appointments, day).filter(
+            (a) => String(a.status || '').toLowerCase() !== 'cancelled'
+        );
+        let attended = 0;
+        let missed = 0;
+        let waiting = 0;
+        let rescheduled = 0;
+        dayAppts.forEach((apt) => {
+            if (Number(apt.reschedule_count || 0) > 0) {
+                rescheduled += 1;
+            }
+            const bucket = clinicRosterBucket(apt, day);
+            if (bucket === 'attended') {
+                attended += 1;
+            } else if (bucket === 'missed') {
+                missed += 1;
+            } else if (bucket === 'waiting') {
+                waiting += 1;
+            }
+        });
+        return {
+            total: dayAppts.length,
+            attended,
+            missed,
+            waiting,
+            rescheduled,
+            is_past: day < todayIsoDate(),
+            is_today: day === todayIsoDate(),
+        };
+    }
+
+    function clinicBulkWasSent(dateIso) {
+        try {
+            return localStorage.getItem(`afya_clinic_bulk_sent_${dateIso}`) === '1';
+        } catch (_err) {
+            return false;
+        }
+    }
+
+    function markClinicBulkSent(dateIso) {
+        try {
+            localStorage.setItem(`afya_clinic_bulk_sent_${dateIso}`, '1');
+        } catch (_err) {
+            /* ignore */
+        }
     }
 
     function appointmentsForClinicDay(appointments, dateIso) {
@@ -1192,8 +1276,9 @@
         apptWorkflowPatient: null,
         focusApptBookingAfterLoad: false,
         focusViaFollowupBookingAfterLoad: false,
-        serverClinicDate: null,
         openClinicToday: false,
+        clinicDayCache: null,
+        clinicDayLoading: null,
         selectedPatientId: null,
         selectedPatientRef: null,
         isLoading: false,
@@ -1598,17 +1683,6 @@
         return localIsoDate();
     }
 
-    /** Clinic day from server (Africa/Nairobi) — matches database CURDATE(). */
-    function clinicDateIso() {
-        return state.serverClinicDate || todayIsoDate();
-    }
-
-    function setServerClinicDate(iso) {
-        if (typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-            state.serverClinicDate = iso;
-        }
-    }
-
     /** Earliest datetime-local for VIA-negative 1-year booking (VIA date + 10 months). */
     function viaNegativeFollowupEarliestLocal(viaDateIso) {
         const raw = String(viaDateIso || '').trim();
@@ -1982,10 +2056,11 @@
                 } else if (action === 'clear-via' && patientId) {
                     e.preventDefault();
                     components.clearPatientViaResult(patientId);
-                } else if (action === 'clear-via-day') {
+                } else if (action === 'clinic-send-missed-all') {
                     e.preventDefault();
-                    const day = el.getAttribute('data-via-date') || document.getElementById('clinicDayPicker')?.value || '';
-                    components.clearViaResultsOnDate(day);
+                    const day = el.getAttribute('data-clinic-date') || document.getElementById('clinicDayPicker')?.value || todayIsoDate();
+                    const count = Number(el.getAttribute('data-missed-count') || 0);
+                    components.sendMissedMessagesForClinicDay(day, count);
                 } else if (action === 'appt-reschedule-toggle') {
                     e.preventDefault();
                     const apptId = Number(el.getAttribute('data-appointment-id') || 0);
@@ -4207,28 +4282,161 @@
             }
         },
 
+        async sendMissedMessagesForClinicDay(dateIso, missedCount) {
+            const day = String(dateIso || todayIsoDate()).trim();
+            const n = Number(missedCount || 0);
+            if (n < 1) {
+                showNotification(t('clinic_none_missed'), 'info');
+                return;
+            }
+            if (clinicBulkWasSent(day)) {
+                showNotification(t('clinic_send_missed_all_used'), 'info');
+                return;
+            }
+            const confirmText = t('clinic_send_missed_all_confirm')
+                .replace('{n}', String(n))
+                .replace('{date}', formatDate(day, 'full'));
+            if (!window.confirm(confirmText)) {
+                return;
+            }
+            showNotification(t('processing'), 'info');
+            try {
+                const data = await api.post('/api/appointments.php', {
+                    action: 'send_missed_messages_day',
+                    date: day,
+                }, false);
+                markClinicBulkSent(day);
+                const sent = Number(data.sent || 0);
+                const marked = Number(data.marked_missed || 0);
+                const msg = marked > 0
+                    ? t('clinic_send_missed_all_done_marked')
+                        .replace('{sent}', String(sent))
+                        .replace('{marked}', String(marked))
+                    : t('clinic_send_missed_all_done').replace('{sent}', String(sent));
+                showNotification(msg, 'ok');
+                if (Array.isArray(data.failed) && data.failed.length) {
+                    showNotification(data.failed.join('; '), 'error');
+                }
+                await this.reloadAppointmentsList();
+                await this.loadClinicDayRoster(day, true);
+            } catch (err) {
+                showNotification(err.message || t('server_error'), 'error');
+            }
+        },
+
+        bindClinicRosterRows(root) {
+            const scope = root || document;
+            scope.querySelectorAll('.clinic-roster-row[data-patient-id]').forEach((row) => {
+                const pid = Number(row.getAttribute('data-patient-id') || 0);
+                const pref = row.getAttribute('data-patient-ref') || '';
+                if (pid < 1 && !pref) {
+                    return;
+                }
+                row.style.cursor = 'pointer';
+                row.onclick = (e) => {
+                    if (e.target.closest('button, a')) {
+                        return;
+                    }
+                    e.preventDefault();
+                    navigateToPatient(pref || pid, pid);
+                };
+                row.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateToPatient(pref || pid, pid);
+                    }
+                };
+            });
+        },
+
+        async loadClinicDayRoster(dateIso, forceReload = false) {
+            const day = String(dateIso || todayIsoDate()).trim();
+            const rosterMount = document.getElementById('dailyClinicRosterMount');
+            if (!rosterMount) {
+                return;
+            }
+            if (!forceReload && state.clinicDayCache?.date === day && state.clinicDayCache?.loaded) {
+                rosterMount.innerHTML = this.renderDailyClinicRoster(
+                    state.clinicDayCache.items || [],
+                    day,
+                    state.clinicDayCache.summary || null
+                );
+                this.bindClinicRosterRows(rosterMount);
+                this.bindClinicDayPicker(day);
+                return;
+            }
+            if (state.clinicDayLoading === day) {
+                return;
+            }
+            state.clinicDayLoading = day;
+            rosterMount.innerHTML = this.renderLoadingAppointments();
+            try {
+                const res = await api.get(`/api/appointments.php?date=${encodeURIComponent(day)}`);
+                state.clinicDayCache = {
+                    date: day,
+                    items: res.items || [],
+                    summary: res.summary || clinicDayCounts(res.items || [], day),
+                    loaded: true,
+                };
+                rosterMount.innerHTML = this.renderDailyClinicRoster(
+                    state.clinicDayCache.items,
+                    day,
+                    state.clinicDayCache.summary
+                );
+                this.bindClinicRosterRows(rosterMount);
+                this.bindClinicDayPicker(day);
+            } catch (err) {
+                rosterMount.innerHTML = this.renderConnectionError(err);
+            } finally {
+                if (state.clinicDayLoading === day) {
+                    state.clinicDayLoading = null;
+                }
+            }
+        },
+
+        bindClinicDayPicker(day) {
+            const picker = document.getElementById('clinicDayPicker');
+            const filter = document.getElementById('appointmentFilter');
+            if (!picker) {
+                return;
+            }
+            picker.value = day;
+            if (!picker.dataset.bound) {
+                picker.dataset.bound = '1';
+                picker.addEventListener('change', () => {
+                    if (filter) {
+                        filter.value = 'all';
+                    }
+                    void this.loadClinicDayRoster(picker.value, true);
+                    this.filterAppointmentsList();
+                });
+            }
+        },
+
         openTodaysClinic() {
             state.openClinicToday = true;
             state._scrollToClinicRoster = true;
             this.switchTab('appointments');
         },
 
-        renderClinicRosterRow(apt) {
+        renderClinicRosterRow(apt, clinicDayIso) {
             const pid = Number(apt.patient_id || 0);
             const pref = patientOpenRef(apt) || String(pid);
-            const bucket = clinicRosterBucket(apt.status);
+            const bucket = clinicRosterBucket(apt, clinicDayIso);
             const badgeLabel = clinicAttendanceBadgeLabel(bucket);
+            const early = isEarlyClinicCheckIn(apt);
             return `
-                <div class="clinic-roster-row status-${bucket}">
+                <div class="clinic-roster-row status-${bucket}" data-patient-id="${pid}" data-patient-ref="${escapeHtml(pref)}" tabindex="0" role="button" title="${escapeHtml(t('view_record'))}">
                     <div class="clinic-roster-main">
                         <div class="clinic-roster-name-row">
                             <strong>${escapeHtml(apt.full_name || '—')}</strong>
                             <span class="clinic-att-badge ${bucket}">${escapeHtml(badgeLabel)}</span>
+                            ${early ? `<span class="clinic-early-tag">${escapeHtml(t('clinic_early_visit'))}</span>` : ''}
                         </div>
                         <span class="muted">${escapeHtml(patientClientLabel(apt))}</span>
                         <span class="clinic-roster-time"><i class="fas fa-clock"></i> ${formatTime(apt.scheduled_start)}</span>
                     </div>
-                    <div class="clinic-roster-actions">
+                    <div class="clinic-roster-actions" onclick="event.stopPropagation()">
                         ${bucket === 'waiting' ? `
                         <button type="button" class="btn-primary btn-sm" data-action="appt-mark-attended" data-appointment-id="${apt.id}" data-patient-id="${pid}">
                             <i class="fas fa-check"></i> ${t('clinic_mark_attended')}
@@ -4236,7 +4444,7 @@
                         <button type="button" class="btn-secondary btn-sm" data-action="appt-mark-missed" data-appointment-id="${apt.id}" data-patient-id="${pid}">
                             <i class="fas fa-times"></i> ${t('clinic_mark_missed')}
                         </button>` : ''}
-                        ${bucket === 'missed' ? `
+                        ${bucket === 'missed' && String(apt.status || '').toLowerCase() === 'no_show' ? `
                         <button type="button" class="btn-secondary btn-sm" data-action="appt-send-missed" data-appointment-id="${apt.id}" data-patient-id="${pid}">
                             <i class="fas fa-paper-plane"></i> ${t('clinic_send_missed')}
                         </button>` : ''}
@@ -4251,15 +4459,33 @@
                 </div>`;
         },
 
-        renderDailyClinicRoster(appointments, dateIso) {
-            const day = String(dateIso || clinicDateIso()).trim();
-            const dayAppts = appointmentsForClinicDay(appointments, day)
+        renderDailyClinicRoster(appointments, dateIso, summaryFromApi) {
+            const day = String(dateIso || todayIsoDate()).trim();
+            const dayAppts = (appointments || [])
+                .filter((a) => String(a.status || '').toLowerCase() !== 'cancelled')
                 .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b));
-            const waiting = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'waiting');
-            const attended = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'attended');
-            const missed = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'missed');
-            const isToday = day === clinicDateIso();
-            const totalLabel = t('clinic_day_total').replace('{n}', String(dayAppts.length));
+            const summary = summaryFromApi || clinicDayCounts(dayAppts, day);
+            const waiting = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'waiting');
+            const attended = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'attended');
+            const missed = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'missed');
+            const isToday = day === todayIsoDate();
+            const isPast = day < todayIsoDate();
+            const totalLabel = t('clinic_day_total').replace('{n}', String(summary.total ?? dayAppts.length));
+            const bulkUsed = clinicBulkWasSent(day);
+            const bulkLabel = t('clinic_send_missed_all').replace('{n}', String(missed.length));
+            const pastSummary = isPast
+                ? t('clinic_day_summary_past')
+                    .replace('{attended}', String(summary.attended ?? attended.length))
+                    .replace('{missed}', String(summary.missed ?? missed.length))
+                    .replace('{rescheduled}', String(summary.rescheduled ?? 0))
+                : '';
+            const renderCol = (title, items, emptyKey) => `
+                <div class="clinic-roster-col">
+                    <h4>${escapeHtml(title)} <span class="clinic-col-count">${items.length}</span></h4>
+                    ${items.length
+                        ? items.map((a) => this.renderClinicRosterRow(a, day)).join('')
+                        : `<p class="muted clinic-roster-empty">${t(emptyKey)}</p>`}
+                </div>`;
             return `
                 <div class="card clinic-roster-card" style="margin-bottom:1rem;" id="dailyClinicRosterCard">
                     <div class="card-header">
@@ -4270,26 +4496,40 @@
                         <div class="clinic-roster-toolbar">
                             <label class="muted" style="font-size:0.85rem;">${t('clinic_day_pick')}</label>
                             <input type="date" id="clinicDayPicker" class="form-input" value="${escapeHtml(day)}" style="max-width:180px;">
-                            <button type="button" class="btn-secondary btn-sm" data-action="clear-via-day" data-via-date="${escapeHtml(day)}" title="${escapeHtml(t('clinic_clear_via_day'))}">
-                                <i class="fas fa-eraser"></i> VIA
-                            </button>
                         </div>
                     </div>
                     <div style="padding:16px;">
                         <p class="muted" style="margin:0 0 14px;font-size:0.9rem;">${t('clinic_day_hint')}</p>
                         <div class="clinic-day-total-banner">
-                            <span class="clinic-day-total-number">${dayAppts.length}</span>
+                            <span class="clinic-day-total-number">${summary.total ?? dayAppts.length}</span>
                             <span class="clinic-day-total-text">${escapeHtml(totalLabel)}</span>
                         </div>
                         <div class="clinic-roster-stats">
-                            <span class="appt-stat-pill highlight"><strong>${waiting.length}</strong> ${t('clinic_waiting')}</span>
+                            ${isToday ? `<span class="appt-stat-pill highlight"><strong>${waiting.length}</strong> ${t('clinic_waiting')}</span>` : ''}
                             <span class="appt-stat-pill success"><strong>${attended.length}</strong> ${t('clinic_attended')}</span>
                             <span class="appt-stat-pill clinic-stat-missed"><strong>${missed.length}</strong> ${t('clinic_missed')}</span>
+                            ${Number(summary.rescheduled || 0) > 0 ? `<span class="appt-stat-pill"><strong>${summary.rescheduled}</strong> ${t('clinic_rescheduled')}</span>` : ''}
                         </div>
-                        <div class="clinic-roster-all-list">
-                            ${dayAppts.length
-                                ? dayAppts.map((a) => this.renderClinicRosterRow(a)).join('')
-                                : `<p class="muted clinic-roster-empty">${t('no_appointments')}</p>`}
+                        ${pastSummary ? `<p class="clinic-past-summary">${escapeHtml(pastSummary)}</p>` : ''}
+                        ${missed.length > 0 ? `
+                        <div class="clinic-bulk-actions">
+                            <button type="button" class="btn-primary btn-sm clinic-bulk-send-btn"
+                                data-action="clinic-send-missed-all"
+                                data-clinic-date="${escapeHtml(day)}"
+                                data-missed-count="${missed.length}"
+                                ${bulkUsed ? 'disabled title="' + escapeHtml(t('clinic_send_missed_all_used')) + '"' : ''}>
+                                <i class="fas fa-paper-plane"></i> ${escapeHtml(bulkLabel)}
+                            </button>
+                            ${bulkUsed ? `<span class="muted clinic-bulk-used-note">${escapeHtml(t('clinic_send_missed_all_used'))}</span>` : ''}
+                        </div>` : ''}
+                        ${isToday && waiting.length ? `
+                        <div class="clinic-roster-col clinic-waiting-strip">
+                            <h4>${t('clinic_waiting')} <span class="clinic-col-count">${waiting.length}</span></h4>
+                            ${waiting.map((a) => this.renderClinicRosterRow(a, day)).join('')}
+                        </div>` : ''}
+                        <div class="clinic-roster-columns clinic-roster-columns-2">
+                            ${renderCol(t('clinic_attended'), attended, 'clinic_none_attended')}
+                            ${renderCol(t('clinic_missed'), missed, 'clinic_none_missed')}
                         </div>
                     </div>
                 </div>`;
@@ -4299,8 +4539,9 @@
             try {
                 const apptRes = await api.get('/api/appointments.php');
                 state.appointments = apptRes.items || [];
-                setServerClinicDate(apptRes.server_date);
                 this.filterAppointmentsList();
+                const day = document.getElementById('clinicDayPicker')?.value || todayIsoDate();
+                await this.loadClinicDayRoster(day, true);
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
@@ -4842,9 +5083,10 @@
                     }
                 }
                 const apptRes = await api.get('/api/appointments.php');
-                setServerClinicDate(apptRes.server_date);
                 state.appointments = apptRes.items || [];
                 this.filterAppointmentsList();
+                const day = document.getElementById('clinicDayPicker')?.value || todayIsoDate();
+                await this.loadClinicDayRoster(day, true);
             } catch (err) {
                 console.error('refreshApptWorkflowPanel:', err);
             }
@@ -4889,7 +5131,6 @@
                 try {
                     const response = await api.get('/api/appointments.php');
                     state.appointments = response.items || [];
-                    setServerClinicDate(response.server_date);
                     this.filterAppointmentsList();
                     this.setupAppointmentsFilters();
                 } catch (err) {
@@ -4938,7 +5179,6 @@
                             }
                         } else {
                             const apptRes = await api.get('/api/appointments.php');
-                            setServerClinicDate(apptRes.server_date);
                             state.appointments = apptRes.items || [];
                             this.filterAppointmentsList();
                         }
@@ -5210,9 +5450,9 @@
         },
 
         renderAppointmentsStats(appointments) {
-            const clinicDay = clinicDateIso();
-            const todayCount = appointments.filter((a) => appointmentDateIso(a) === clinicDay).length;
-            const upcomingCount = appointments.filter((a) => appointmentDateIso(a) >= clinicDay).length;
+            const today = new Date().toISOString().split('T')[0];
+            const todayCount = appointments.filter(a => (a.scheduled_start?.split('T')[0] || a.scheduled_start?.split(' ')[0]) === today).length;
+            const upcomingCount = appointments.filter(a => (a.scheduled_start?.split('T')[0] || a.scheduled_start?.split(' ')[0]) >= today).length;
             const confirmed = appointments.filter(a => a.status === 'confirmed').length;
             return `
                 <div class="appt-stat-pill"><i class="fas fa-list"></i><strong>${appointments.length}</strong> shown</div>
@@ -5253,13 +5493,22 @@
             });
 
             const sortedDates = Object.keys(grouped).sort();
-            const clinicDay = clinicDateIso();
+            const today = new Date().toISOString().split('T')[0];
 
             return `
                 <div class="appointments-timeline-view">
                     ${sortedDates.map(date => {
-                        const isToday = date === clinicDay;
+                        const isToday = date === today;
                         const isPast = date < today;
+                        const dayCounts = clinicDayCounts(grouped[date], date);
+                        const daySummary = isPast
+                            ? t('clinic_day_summary_past')
+                                .replace('{attended}', String(dayCounts.attended))
+                                .replace('{missed}', String(dayCounts.missed))
+                                .replace('{rescheduled}', String(dayCounts.rescheduled))
+                            : (isToday
+                                ? `${dayCounts.total} ${dayCounts.total === 1 ? 'visit' : 'visits'} · ${dayCounts.attended} attended · ${dayCounts.missed} missed · ${dayCounts.waiting} waiting`
+                                : `${dayCounts.total} ${dayCounts.total === 1 ? 'visit' : 'visits'}`);
                         return `
                         <section class="appt-day-block ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}">
                             <div class="appt-day-marker">
@@ -5271,17 +5520,18 @@
                                     <div>
                                         <h3>${formatDate(date, 'full')}</h3>
                                         ${isToday ? '<span class="today-tag">Today</span>' : ''}
+                                        <p class="appt-day-summary muted">${escapeHtml(daySummary)}</p>
                                     </div>
                                     <span class="count-badge">${grouped[date].length} visit${grouped[date].length !== 1 ? 's' : ''}</span>
                                 </header>
                                 <div class="appointment-cards-grid">
                                     ${grouped[date].map(apt => {
-                                        const bucket = clinicRosterBucket(apt.status);
+                                        const bucket = clinicRosterBucket(apt, date);
                                         const cardClass = bucket === 'attended' ? 'status-completed clinic-card-attended'
                                             : (bucket === 'missed' ? 'status-no_show clinic-card-missed' : `status-${apt.status || 'proposed'}`);
                                         const badge = clinicAttendanceBadgeLabel(bucket);
                                         return `
-                                        <article class="appointment-card-v2 ${cardClass}" ${apt.patient_id ? `data-action="open-appt-visit" data-patient-id="${apt.patient_id}" role="button" tabindex="0" style="cursor:pointer"` : ''}>
+                                        <article class="appointment-card-v2 ${cardClass}" ${apt.patient_id ? `data-action="view-patient" data-patient-ref="${escapeHtml(patientOpenRef(apt) || String(apt.patient_id))}" data-patient-id="${apt.patient_id}" role="button" tabindex="0" style="cursor:pointer" title="${escapeHtml(t('view_record'))}"` : ''}>
                                             <div class="appt-card-top">
                                                 <div class="appointment-patient-avatar">${(apt.full_name || 'P').charAt(0).toUpperCase()}</div>
                                                 <div class="appt-card-headline">
@@ -5330,18 +5580,18 @@
             }
 
             let filtered = state.appointments || [];
-            const today = clinicDateIso();
+            const today = todayIsoDate();
             const q = (search?.value || '').trim().toLowerCase();
 
             if (filter?.value === 'today') {
                 filtered = filtered.filter((apt) => appointmentDateIso(apt) === today);
             } else if (filter?.value === 'upcoming') {
                 filtered = filtered.filter(apt =>
-                    appointmentDateIso(apt) >= today
+                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) >= today
                 );
             } else if (filter?.value === 'past') {
                 filtered = filtered.filter(apt =>
-                    appointmentDateIso(apt) < today
+                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) < today
                 );
             }
 
@@ -5365,28 +5615,13 @@
                 if (filter?.value === 'today') {
                     rosterDate = today;
                 }
-                rosterMount.innerHTML = this.renderDailyClinicRoster(state.appointments || [], rosterDate);
-                const picker = document.getElementById('clinicDayPicker');
-                if (picker) {
-                    if (filter?.value === 'today') {
-                        picker.value = today;
-                    }
-                    if (!picker.dataset.bound) {
-                        picker.dataset.bound = '1';
-                        picker.addEventListener('change', () => {
-                            if (filter) {
-                                filter.value = 'all';
-                            }
-                            this.filterAppointmentsList();
-                        });
-                    }
-                }
+                void this.loadClinicDayRoster(rosterDate, filter?.value === 'today' || state.openClinicToday);
                 if (state._scrollToClinicRoster) {
                     state._scrollToClinicRoster = false;
                     window.setTimeout(() => {
                         document.getElementById('dailyClinicRosterCard')
                             ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 200);
+                    }, 400);
                 }
             }
         },
@@ -5824,7 +6059,6 @@
                         return;
                     }
                     state.dashboard = response;
-                    setServerClinicDate(response.clinic_date);
                     app.innerHTML = this.renderDashboard();
                     showNotification(t('ready'), 'ok');
                 } 
