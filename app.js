@@ -49,10 +49,14 @@
             booked_appointments: "Booked Appointments",
             clinic_day_total: "{n} appointments this day",
             clinic_day_title: "Clinic day — who came & who missed",
+            clinic_day_appointed_headline: "{n} patients appointed for {date}",
+            clinic_day_subline: "{early} came early · {scheduled} still scheduled · {attended} attended · {missed} did not attend",
+            clinic_day_all_patients: "All patients for this day",
+            clinic_badge_scheduled: "Scheduled",
             clinic_badge_attended: "Attended",
             clinic_badge_missed: "Did not attend",
             clinic_badge_waiting: "Not marked yet",
-            clinic_day_hint: "Pick a date to see everyone scheduled that day. Mark attended or missed, and send missed messages in one click.",
+            clinic_day_hint: "Choose a clinic date below. Every patient booked for that day appears in one list — including anyone who came early.",
             clinic_day_pick: "Clinic date",
             clinic_waiting: "Waiting / not yet marked",
             clinic_attended: "Attended",
@@ -76,7 +80,7 @@
             clinic_clear_via_day: "Remove all VIA records on this date",
             clinic_clear_via_day_confirm: "Remove every VIA result recorded on {date}? This cannot be undone.",
             via_clear_result: "Clear VIA result",
-            via_clear_confirm: "Remove this VIA result from the record? No message will be sent.",
+            via_clear_confirm: "Remove this VIA result from the record? Admin password required.",
             via_cleared: "VIA result cleared.",
             appt_missed_message_sent: "Missed appointment message sent.",
             view_all: "View All Patients",
@@ -191,7 +195,7 @@
             via_result_hint: "Record the VIA result after the patient has been tested. Follow-up messages are sent when opted in.",
             via_record_positive: "Record POSITIVE",
             via_record_negative: "Record NEGATIVE & notify",
-            via_record_save: "Save VIA result",
+            via_record_save: "Save & send result message",
             via_record_no_notify: "Save record only — do not send SMS/WhatsApp yet",
             via_record_notify_now: "Send result message to patient when saving",
             via_recorded_no_notify: "VIA result saved. No message was sent to the patient.",
@@ -359,10 +363,14 @@
             booked_appointments: "Miadi Iliyobakwa",
             clinic_day_total: "Miadi {n} siku hii",
             clinic_day_title: "Siku ya kliniki — waliohudhuria na walikosa",
+            clinic_day_appointed_headline: "Wagonjwa {n} waliopangiwa {date}",
+            clinic_day_subline: "{early} walihudhuria mapema · {scheduled} bado wamepangiwa · {attended} walihudhuria · {missed} hawakuja",
+            clinic_day_all_patients: "Wagonjwa wote wa siku hii",
+            clinic_badge_scheduled: "Amepangiwa",
             clinic_badge_attended: "Alihudhuria",
             clinic_badge_missed: "Hakuja",
             clinic_badge_waiting: "Bado haijawekwa",
-            clinic_day_hint: "Chagua tarehe kuona wote walopangiwa siku hiyo. Weka alihudhuria au hakuhudhuria, na tuma ujumbe wa kukosa kwa urahisi.",
+            clinic_day_hint: "Chagua tarehe ya kliniki hapa chini. Wagonjwa wote waliofungwa siku hiyo wataonekana — pamoja na waliohudhuria mapema.",
             clinic_day_pick: "Tarehe ya kliniki",
             clinic_waiting: "Wanasubiri / bado hawajawekwa",
             clinic_attended: "Walihudhuria",
@@ -386,7 +394,7 @@
             clinic_clear_via_day: "Futa rekodi zote za VIA za tarehe hii",
             clinic_clear_via_day_confirm: "Futa matokeo yote ya VIA yaliyorekodiwa {date}? Haiwezi kutenduliwa.",
             via_clear_result: "Futa matokeo ya VIA",
-            via_clear_confirm: "Ondoa matokeo haya ya VIA kwenye rekodi? Hakuna ujumbe utakaotumwa.",
+            via_clear_confirm: "Ondoa matokeo haya ya VIA kwenye rekodi? Nenosiri la msimamizi linahitajika.",
             via_cleared: "Matokeo ya VIA yamefutwa.",
             appt_missed_message_sent: "Ujumbe wa kukosa miadi umetumwa.",
             view_all: "Angalia Wote",
@@ -501,7 +509,7 @@
             via_result_hint: "Weka matokeo ya VIA baada ya mgonjwa kupimwa. Ujumbe wa ufuatiliaji hutumwa ikiwa amejisajili.",
             via_record_positive: "Weka CHANYA",
             via_record_negative: "Weka HASI na mjulishe",
-            via_record_save: "Hifadhi matokeo ya VIA",
+            via_record_save: "Hifadhi na tuma ujumbe wa matokeo",
             via_record_no_notify: "Hifadhi rekodi tu — usitume SMS/WhatsApp bado",
             via_record_notify_now: "Tuma ujumbe wa matokeo kwa mgonjwa unapohifadhi",
             via_recorded_no_notify: "Matokeo ya VIA yamehifadhiwa. Hakuna ujumbe uliotumwa kwa mgonjwa.",
@@ -989,6 +997,56 @@
         } catch (_err) {
             /* ignore */
         }
+    }
+
+    function getAdminPasswordCached() {
+        try {
+            const cached = sessionStorage.getItem('afya_admin_pwd');
+            if (cached) {
+                return cached;
+            }
+        } catch (_err) {
+            /* ignore */
+        }
+        const pwd = window.prompt(t('wipe_password_prompt'));
+        if (!pwd) {
+            return '';
+        }
+        try {
+            sessionStorage.setItem('afya_admin_pwd', pwd);
+        } catch (_err) {
+            /* ignore */
+        }
+        return pwd;
+    }
+
+    function clearAdminPasswordCache() {
+        try {
+            sessionStorage.removeItem('afya_admin_pwd');
+        } catch (_err) {
+            /* ignore */
+        }
+    }
+
+    function clinicRosterStatusLabel(apt, clinicDayIso) {
+        const bucket = clinicRosterBucket(apt, clinicDayIso);
+        if (isEarlyClinicCheckIn(apt)) {
+            return t('clinic_early_visit');
+        }
+        if (bucket === 'attended') {
+            return t('clinic_badge_attended');
+        }
+        if (bucket === 'missed') {
+            return t('clinic_badge_missed');
+        }
+        if (bucket === 'waiting') {
+            const day = String(clinicDayIso || appointmentDateIso(apt) || '').trim();
+            if (day && day > todayIsoDate()) {
+                return t('clinic_badge_scheduled');
+            }
+            return t('clinic_badge_waiting');
+        }
+        return t('clinic_badge_waiting');
     }
 
     function appointmentsForClinicDay(appointments, dateIso) {
@@ -3733,12 +3791,7 @@
                         <button type="button" class="btn-primary" style="margin-top:12px;"
                             data-action="via-record-submit" data-patient-id="${p.id}">
                             <i class="fas fa-save"></i> ${t('via_record_save')}
-                        </button>
-                        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-weight:normal;cursor:pointer;">
-                            <input type="checkbox" name="via_notify_patient" value="1" style="margin-top:3px;">
-                            <span>${t('via_record_notify_now')}</span>
-                        </label>
-                        <p class="muted" style="margin:6px 0 0;font-size:0.85rem;">${t('via_record_no_notify')}</p>`;
+                        </button>`;
         },
 
         renderVisitWorkflowCard(p, appointments) {
@@ -4246,11 +4299,16 @@
             if (!window.confirm(t('via_clear_confirm'))) {
                 return;
             }
+            const password = getAdminPasswordCached();
+            if (!password) {
+                return;
+            }
             showNotification(t('processing'), 'info');
             try {
                 await api.post('/api/via_result.php', {
                     action: 'clear',
                     patient_id: Number(patientId),
+                    password,
                 }, false);
                 showNotification(t('via_cleared'), 'ok');
                 if (state.currentTab === 'patient') {
@@ -4259,6 +4317,9 @@
                     await this.refreshAfterVisitAction(patientId);
                 }
             } catch (err) {
+                if (String(err.message || '').toLowerCase().includes('password')) {
+                    clearAdminPasswordCache();
+                }
                 showNotification(err.message || t('server_error'), 'error');
             }
         },
@@ -4273,7 +4334,7 @@
             if (!window.confirm(msg)) {
                 return;
             }
-            const password = window.prompt(t('wipe_password_prompt') || 'Admin password:');
+            const password = getAdminPasswordCached();
             if (!password) {
                 return;
             }
@@ -4293,6 +4354,9 @@
                 }
                 await this.reloadAppointmentsList();
             } catch (err) {
+                if (String(err.message || '').toLowerCase().includes('password')) {
+                    clearAdminPasswordCache();
+                }
                 showNotification(err.message || t('server_error'), 'error');
             }
         },
@@ -4438,12 +4502,13 @@
             const pid = Number(apt.patient_id || 0);
             const pref = patientOpenRef(apt) || String(pid);
             const bucket = clinicRosterBucket(apt, clinicDayIso);
-            const badgeLabel = clinicAttendanceBadgeLabel(bucket);
+            const badgeLabel = clinicRosterStatusLabel(apt, clinicDayIso);
             const statusLower = String(apt.status || '').toLowerCase();
             const canMarkMissed = statusLower === 'proposed' || statusLower === 'confirmed';
             const early = isEarlyClinicCheckIn(apt);
+            const rowClass = early ? 'clinic-row-early' : '';
             return `
-                <div class="clinic-roster-row status-${bucket}" data-patient-id="${pid}" data-patient-ref="${escapeHtml(pref)}" tabindex="0" role="button" title="${escapeHtml(t('view_record'))}">
+                <div class="clinic-roster-row status-${bucket} ${rowClass}" data-patient-id="${pid}" data-patient-ref="${escapeHtml(pref)}" tabindex="0" role="button" title="${escapeHtml(t('view_record'))}">
                     <div class="clinic-roster-main">
                         <div class="clinic-roster-name-row">
                             <strong>${escapeHtml(apt.full_name || '—')}</strong>
@@ -4485,29 +4550,21 @@
             const waiting = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'waiting');
             const attended = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'attended');
             const missed = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'missed');
+            const earlyCount = attended.filter((a) => isEarlyClinicCheckIn(a)).length;
+            const total = summary.total ?? dayAppts.length;
             const isToday = day === todayIsoDate();
             const isPast = day < todayIsoDate();
-            const isFuture = day > todayIsoDate();
-            const totalLabel = t('clinic_day_total').replace('{n}', String(summary.total ?? dayAppts.length));
             const bulkUsed = clinicBulkWasSent(day);
             const bulkLabel = t('clinic_send_missed_all').replace('{n}', String(missed.length));
-            const waitingTitle = isPast ? t('clinic_not_marked') : t('clinic_scheduled');
-            const pastSummary = isPast
-                ? t('clinic_day_summary_past')
-                    .replace('{attended}', String(summary.attended ?? attended.length))
-                    .replace('{missed}', String(summary.missed ?? missed.length))
-                    .replace('{waiting}', String(summary.waiting ?? waiting.length))
-                    .replace('{rescheduled}', String(summary.rescheduled ?? 0))
-                : (isFuture || isToday
-                    ? `${summary.total ?? dayAppts.length} ${(summary.total ?? dayAppts.length) === 1 ? 'visit' : 'visits'} · ${attended.length} ${t('clinic_attended').toLowerCase()} · ${waiting.length} ${t('clinic_scheduled').toLowerCase()} · ${missed.length} ${t('clinic_missed').toLowerCase()}`
-                    : '');
-            const renderCol = (title, items, emptyKey) => `
-                <div class="clinic-roster-col">
-                    <h4>${escapeHtml(title)} <span class="clinic-col-count">${items.length}</span></h4>
-                    ${items.length
-                        ? items.map((a) => this.renderClinicRosterRow(a, day)).join('')
-                        : `<p class="muted clinic-roster-empty">${t(emptyKey)}</p>`}
-                </div>`;
+            const headline = t('clinic_day_appointed_headline')
+                .replace('{n}', String(total))
+                .replace('{date}', formatDate(day, 'full'));
+            const subline = t('clinic_day_subline')
+                .replace('{early}', String(earlyCount))
+                .replace('{scheduled}', String(waiting.length))
+                .replace('{attended}', String(attended.length))
+                .replace('{missed}', String(missed.length));
+            const allPatientsTitle = `${t('clinic_day_all_patients')} (${total})`;
             return `
                 <div class="card clinic-roster-card" style="margin-bottom:1rem;" id="dailyClinicRosterCard">
                     <div class="card-header">
@@ -4522,17 +4579,17 @@
                     </div>
                     <div style="padding:16px;">
                         <p class="muted" style="margin:0 0 14px;font-size:0.9rem;">${t('clinic_day_hint')}</p>
-                        <div class="clinic-day-total-banner">
-                            <span class="clinic-day-total-number">${summary.total ?? dayAppts.length}</span>
-                            <span class="clinic-day-total-text">${escapeHtml(totalLabel)}</span>
+                        <div class="clinic-day-headline-block">
+                            <h3 class="clinic-day-headline">${escapeHtml(headline)}</h3>
+                            <p class="clinic-day-subline">${escapeHtml(subline)}</p>
                         </div>
                         <div class="clinic-roster-stats">
-                            ${waiting.length ? `<span class="appt-stat-pill highlight"><strong>${waiting.length}</strong> ${isPast ? t('clinic_not_marked') : t('clinic_scheduled')}</span>` : ''}
+                            <span class="appt-stat-pill highlight"><strong>${total}</strong> ${t('clinic_scheduled')}</span>
+                            ${earlyCount ? `<span class="appt-stat-pill"><strong>${earlyCount}</strong> ${t('clinic_early_visit')}</span>` : ''}
                             <span class="appt-stat-pill success"><strong>${attended.length}</strong> ${t('clinic_attended')}</span>
+                            ${waiting.length ? `<span class="appt-stat-pill"><strong>${waiting.length}</strong> ${isPast ? t('clinic_not_marked') : t('clinic_badge_scheduled')}</span>` : ''}
                             <span class="appt-stat-pill clinic-stat-missed"><strong>${missed.length}</strong> ${t('clinic_missed')}</span>
-                            ${Number(summary.rescheduled || 0) > 0 ? `<span class="appt-stat-pill"><strong>${summary.rescheduled}</strong> ${t('clinic_rescheduled')}</span>` : ''}
                         </div>
-                        ${pastSummary ? `<p class="clinic-past-summary">${escapeHtml(pastSummary)}</p>` : ''}
                         ${missed.length > 0 && (isPast || isToday) ? `
                         <div class="clinic-bulk-actions">
                             <button type="button" class="btn-primary btn-sm clinic-bulk-send-btn"
@@ -4544,14 +4601,11 @@
                             </button>
                             ${bulkUsed ? `<span class="muted clinic-bulk-used-note">${escapeHtml(t('clinic_send_missed_all_used'))}</span>` : ''}
                         </div>` : ''}
-                        ${waiting.length ? `
-                        <div class="clinic-roster-col clinic-waiting-strip ${isPast ? 'clinic-not-marked-strip' : ''}">
-                            <h4>${escapeHtml(waitingTitle)} <span class="clinic-col-count">${waiting.length}</span></h4>
-                            ${waiting.map((a) => this.renderClinicRosterRow(a, day)).join('')}
-                        </div>` : ''}
-                        <div class="clinic-roster-columns clinic-roster-columns-2">
-                            ${renderCol(t('clinic_attended'), attended, 'clinic_none_attended')}
-                            ${renderCol(t('clinic_missed'), missed, 'clinic_none_missed')}
+                        <div class="clinic-all-appointed">
+                            <h4 class="clinic-all-appointed-title">${escapeHtml(allPatientsTitle)}</h4>
+                            ${dayAppts.length
+                                ? `<div class="clinic-all-list">${dayAppts.map((a) => this.renderClinicRosterRow(a, day)).join('')}</div>`
+                                : `<p class="muted clinic-roster-empty">${t('no_appointments')}</p>`}
                         </div>
                     </div>
                 </div>`;
@@ -4822,7 +4876,7 @@
             form.dataset.viaSubmitting = '1';
             const notifyPatient = overrides.notifyPatient !== undefined
                 ? Boolean(overrides.notifyPatient)
-                : Boolean(form.querySelector('[name="via_notify_patient"]')?.checked);
+                : true;
             showNotification('Recording VIA result…', 'info');
             try {
                 const data = await api.post('/api/via_result.php', {
@@ -4833,12 +4887,17 @@
                     treatment_date: treatmentDate || undefined,
                     notify_patient: notifyPatient,
                 }, false);
-                if (data.recorded_only) {
-                    showNotification(t('via_recorded_no_notify'), 'ok');
-                } else if (data.via_message_sent) {
+                if (data.via_message_sent) {
                     showNotification(t('via_recorded_sent'), 'ok');
                 } else if (data.book_followup_next) {
                     showNotification(t('via_recorded_book_next'), 'ok');
+                } else if (data.ok) {
+                    showNotification(
+                        currentLanguage === 'sw'
+                            ? 'Matokeo ya VIA yamehifadhiwa. Ujumbe haukutumwa — angalia nambari ya mgonjwa.'
+                            : 'VIA saved. Message was not sent — check patient phone and opt-in.',
+                        'error'
+                    );
                 } else {
                     showNotification(t('success'), 'ok');
                 }
@@ -5614,6 +5673,11 @@
                 filtered = filtered.filter(apt =>
                     (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) < today
                 );
+            }
+
+            const clinicDay = document.getElementById('clinicDayPicker')?.value?.trim() || '';
+            if (clinicDay && filter?.value === 'all') {
+                filtered = filtered.filter((apt) => appointmentDateIso(apt) === clinicDay);
             }
 
             if (q) {
