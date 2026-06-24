@@ -192,7 +192,7 @@
             book_appt_hpv_sent: "Appointment booked. HPV result and appointment confirmation sent to patient.",
             book_appt_confirm_only: "Appointment confirmation sent to patient.",
             reg_open_patient_hint: "Open the patient record to record today's HPV lab result.",
-            appt_attendance_hint: "After the appointment date, confirm whether the patient came.",
+            appt_attendance_hint: "Confirm whether the patient attended this booked visit (including if they came before the scheduled date).",
             appt_patient_attended: "Patient attended",
             appt_patient_missed: "Did not attend",
             appt_attended_via_hint: "Marked as attended. Record the VIA result below.",
@@ -226,7 +226,7 @@
             visit_appt_on: "Appointment:",
             appt_manage_visit: "Manage visit",
             appt_workflow_panel_hint: "First visit: confirm attendance, then record VIA. Follow-up visits: attendance only. Messages are sent automatically.",
-            appt_workflow_upcoming: "Next appointment is scheduled. Return on that day to confirm attendance and record VIA.",
+            appt_workflow_upcoming: "Next appointment is scheduled. Confirm attendance when the patient arrives, then record VIA if needed.",
             appt_select_patient_workflow: "Select a patient to confirm attendance and record VIA results.",
             reg_screening_section: "Clinical screening",
             reg_followup_preview: "Follow-up reminders (SMS if opted in)",
@@ -452,7 +452,7 @@
             book_appt_hpv_sent: "Miadi imepangwa. Matokeo ya HPV na uthibitisho wa miadi vimetumwa kwa mgonjwa.",
             book_appt_confirm_only: "Ujumbe wa uthibitisho wa miadi umetumwa kwa mgonjwa.",
             reg_open_patient_hint: "Fungua rekodi ya mgonjwa kuweka matokeo ya HPV ya leo.",
-            appt_attendance_hint: "Baada ya tarehe ya miadi, thibitisha kama mgonjwa alifika.",
+            appt_attendance_hint: "Thibitisha kama mgonjwa alihudhuria (hata akija kabla ya tarehe iliyopangwa).",
             appt_patient_attended: "Alihudhuria",
             appt_patient_missed: "Hakuja",
             appt_attended_via_hint: "Imewekwa alihudhuria. Weka matokeo ya VIA hapa chini.",
@@ -486,7 +486,7 @@
             visit_appt_on: "Miadi:",
             appt_manage_visit: "Simamia ziara",
             appt_workflow_panel_hint: "Ziara ya kwanza: thibitisha mahudhurio, kisha weka VIA. Miadi ya ufuatiliaji: mahudhurio tu. Ujumbe hutumwa kiotomatiki.",
-            appt_workflow_upcoming: "Miadi ijayo imepangwa. Rudi siku ya miadi kuthibitisha mahudhurio na kuweka VIA.",
+            appt_workflow_upcoming: "Miadi ijayo imepangwa. Thibitisha mahudhurio mgonjwa akifika, kisha weka VIA ikiwa inahitajika.",
             appt_select_patient_workflow: "Chagua mgonjwa kuthibitisha mahudhurio na kuweka matokeo ya VIA.",
             reg_screening_section: "Uchunguzi wa kliniki",
             reg_followup_preview: "Ukumbusho wa ufuatiliaji (SMS ikiwa amejisajili)",
@@ -682,10 +682,13 @@
 
     function appointmentNeedsAttendanceCheck(appt) {
         const status = (appt?.status || '').toLowerCase();
-        if (!['proposed', 'confirmed'].includes(status)) {
-            return false;
-        }
-        return appointmentOnOrPastDay(appt);
+        return ['proposed', 'confirmed'].includes(status);
+    }
+
+    function earliestPendingAttendanceAppointment(appointments) {
+        return [...(appointments || [])]
+            .filter((a) => appointmentNeedsAttendanceCheck(a))
+            .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
     }
 
     function patientHasBookedAppointment(appointments) {
@@ -837,7 +840,7 @@
 
         const hpvPathComplete = hpvPathwayComplete(p);
         const viaDone = viaIsRecorded(p);
-        const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
+        const pendingAttendance = earliestPendingAttendanceAppointment(list);
         const visitDone = viaDone || !pendingAttendance && list.some((a) => (a.status || '').toLowerCase() === 'completed');
 
         let nextKey = null;
@@ -904,7 +907,7 @@
             };
         }
         const apptConfirmed = patientHasConfirmedAppointment(list);
-        const pendingAttendance = list.find((a) => appointmentNeedsAttendanceCheck(a));
+        const pendingAttendance = earliestPendingAttendanceAppointment(list);
         const firstCompleted = [...list]
             .filter((a) => (a.status || '').toLowerCase() === 'completed')
             .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
