@@ -160,8 +160,14 @@
             via_record_positive: "Record POSITIVE",
             via_record_negative: "Record NEGATIVE & notify",
             via_record_save: "Save VIA result",
+            via_positive: "VIA positive",
+            via_negative: "VIA negative",
+            via_notified: "Sent to patient",
+            via_awaiting_notify: "Recorded — book follow-up to notify",
+            via_step_record: "Step 1 — Record VIA result",
             via_step_book_followup: "Step 2 — Book follow-up visit",
             via_book_followup_hint: "Book the 1-year HPV repeat visit below — that sends the VIA result and appointment confirmation to the patient.",
+            via_followup_date_too_soon: "Follow-up must be about 1 year after the VIA test date (at least 10 months later). The form was reset to the correct date.",
             via_recorded_book_next: "VIA recorded. Book the follow-up visit below to notify the patient.",
             via_recorded_sent: "VIA recorded and the patient was notified immediately.",
             reschedule_hint: "Change the date/time — the patient is notified immediately by SMS/WhatsApp.",
@@ -423,8 +429,14 @@
             via_record_positive: "Weka CHANYA",
             via_record_negative: "Weka HASI na mjulishe",
             via_record_save: "Hifadhi matokeo ya VIA",
+            via_positive: "VIA chanya",
+            via_negative: "VIA hasi",
+            via_notified: "Imetumwa kwa mgonjwa",
+            via_awaiting_notify: "Imewekwa — panga ufuatiliaji ili kumjulisha",
+            via_step_record: "Hatua 1 — Weka matokeo ya VIA",
             via_step_book_followup: "Hatua 2 — Panga ziara ya ufuatiliaji",
             via_book_followup_hint: "Panga ziara ya kipimo cha HPV baada ya mwaka 1 hapa chini — hiyo hutuma matokeo ya VIA na uthibitisho wa miadi kwa mgonjwa.",
+            via_followup_date_too_soon: "Ufuatiliaji lazima uwe takriban mwaka 1 baada ya tarehe ya VIA (angalau miezi 10 baadaye). Fomu imewekwa upya kwa tarehe sahihi.",
             via_recorded_book_next: "VIA imewekwa. Panga ziara ya ufuatiliaji hapa chini kumjulisha mgonjwa.",
             via_recorded_sent: "VIA imewekwa na mgonjwa amejulishwa mara moja.",
             reschedule_hint: "Badilisha tarehe/saa — mgonjwa atajulishwa mara moja kwa SMS/WhatsApp.",
@@ -968,6 +980,28 @@
         return t('hpv_pending');
     }
 
+    function viaResultLabel(result) {
+        const r = String(result || '').toLowerCase().trim();
+        if (r === 'positive') {
+            return currentLanguage === 'sw' ? 'VIA chanya' : 'VIA positive';
+        }
+        if (r === 'negative') {
+            return currentLanguage === 'sw' ? 'VIA hasi' : 'VIA negative';
+        }
+        return '—';
+    }
+
+    function viaDetailLabel(p) {
+        const via = String(p?.via_result || '').toLowerCase().trim();
+        if (via === 'positive' || via === 'negative') {
+            return viaResultLabel(via);
+        }
+        if (via === 'not_done' || via === 'unknown' || !via) {
+            return t('reg_via_not_done');
+        }
+        return String(p?.via_result || '—');
+    }
+
     function hpvResultIsRecorded(p, resultOverride) {
         const r = (resultOverride || p?.hpv_screening_result || '').toLowerCase();
         return Boolean(p?.hpv_result_recorded_at) && ['positive', 'negative', 'failed'].includes(r);
@@ -1454,6 +1488,40 @@
         return localIsoDate();
     }
 
+    /** Earliest datetime-local for VIA-negative 1-year booking (VIA date + 10 months). */
+    function viaNegativeFollowupEarliestLocal(viaDateIso) {
+        const raw = String(viaDateIso || '').trim();
+        const anchor = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : todayIsoDate();
+        const parts = anchor.split('-').map(Number);
+        const d = new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        d.setMonth(d.getMonth() + 10);
+        return appointmentDateTimeLocalValue(d);
+    }
+
+    function isViaNegativeFollowupBooking(p, form) {
+        if ((p?.via_result || '').toLowerCase() !== 'negative' || p?.via_result_notified_at) {
+            return false;
+        }
+        const reason = String(form?.querySelector('[name="reason"]')?.value || '').toLowerCase();
+        return reason.includes('1-year') || reason.includes('follow-up') || reason.includes('ufuatiliaji');
+    }
+
+    /** Default 1-year follow-up datetime-local from VIA date (or today + 1 year). */
+    function viaOneYearFollowupDateTimeLocal(viaDateIso) {
+        const raw = String(viaDateIso || '').trim();
+        const anchor = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : todayIsoDate();
+        const parts = anchor.split('-').map(Number);
+        const d = new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0);
+        if (Number.isNaN(d.getTime())) {
+            return '';
+        }
+        d.setFullYear(d.getFullYear() + 1);
+        return appointmentDateTimeLocalValue(d);
+    }
+
     /** Derive return-visit outcome from existing DB fields (safe for patients already on file). */
     function viaPositiveOutcomeKey(p) {
         const via = (p?.via_result || '').toLowerCase();
@@ -1479,15 +1547,13 @@
     }
 
     function viaListBadge(p) {
-        const via = (p?.via_result || '').toLowerCase();
+        const via = String(p?.via_result || '').toLowerCase().trim();
         if (!via || via === 'not_done' || via === 'unknown') {
             return '<span class="badge badge-danger">—</span>';
         }
-        if (via === 'positive') {
-            return `<span class="badge badge-warning">${escapeHtml(hpvResultLabel('positive'))}</span>`;
-        }
-        if (via === 'negative') {
-            return `<span class="badge badge-success">${escapeHtml(hpvResultLabel('negative'))}</span>`;
+        if (via === 'positive' || via === 'negative') {
+            const badgeClass = via === 'positive' ? 'badge-warning' : 'badge-success';
+            return `<span class="badge ${badgeClass}">${escapeHtml(viaResultLabel(via))}</span>`;
         }
         return '<span class="badge badge-danger">—</span>';
     }
@@ -2943,7 +3009,7 @@
                             ${hpvResultIsRecorded(p) ? `<div class="detail-item"><span class="label">${t('hpv_lab_result')}</span><span class="value">${escapeHtml(hpvResultLabel(p.hpv_screening_result))}</span></div>` : ''}
                             <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
                             ${patientHasConfirmedAppointment(appointments) ? `
-                            <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
+                            <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${escapeHtml(viaDetailLabel(p))}</span></div>
                             <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
                             ${(p.via_result || '').toLowerCase() === 'positive' ? `
                             <div class="detail-item"><span class="label">${t('via_outcome_label')}</span><span class="value">${escapeHtml(viaPositiveOutcomeLabel(p))}</span></div>
@@ -3042,7 +3108,7 @@
                             <div class="detail-item"><span class="label">${t('reg_hpv_done')}</span><span class="value">${escapeHtml(hpvHistoryLabel(hpvDone))}</span></div>
                             ${hpvResultIsRecorded(p) ? `<div class="detail-item"><span class="label">${t('hpv_lab_result')}</span><span class="value">${escapeHtml(hpvResultLabel(p.hpv_screening_result))}</span></div>` : ''}
                             <div class="detail-item full-width"><span class="label">${t('reg_residence')}</span><span class="value">${escapeHtml(p.place_of_residence || '—')}</span></div>
-                        <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${posNeg(p.via_result)}</span></div>
+                        <div class="detail-item"><span class="label">${t('reg_via_result')}</span><span class="value">${escapeHtml(viaDetailLabel(p))}</span></div>
                         <div class="detail-item"><span class="label">${t('reg_via_date')}</span><span class="value">${p.via_date ? formatDate(p.via_date, 'full') : '—'}</span></div>
                         ${(p.via_result || '').toLowerCase() === 'positive' ? `
                         <div class="detail-item"><span class="label">${t('via_outcome_label')}</span><span class="value">${escapeHtml(viaPositiveOutcomeLabel(p))}</span></div>
@@ -3638,8 +3704,8 @@
                     <div class="card-header">
                         <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
                         ${notified
-                            ? `<span class="badge badge-success"><i class="fas fa-check-circle"></i> ${t('hpv_confirmed')}</span>`
-                            : `<span class="badge badge-warning"><i class="fas fa-clock"></i> ${t('hpv_awaiting')}</span>`}
+                            ? `<span class="badge badge-success"><i class="fas fa-check-circle"></i> ${t('via_notified')}</span>`
+                            : `<span class="badge badge-warning"><i class="fas fa-clock"></i> ${t('via_awaiting_notify')}</span>`}
                     </div>
                     <div class="hpv-result-body">
                         <div class="hpv-confirmed-banner">
@@ -3648,7 +3714,7 @@
                         </div>
                         <p class="hpv-result-badge-line">
                             <span class="badge ${via === 'positive' ? 'badge-warning' : 'badge-success'} hpv-result-badge-lg">
-                                ${escapeHtml(hpvResultLabel(via))}
+                                ${escapeHtml(viaResultLabel(via))}
                             </span>
                         </p>
                         ${via === 'positive' ? `
@@ -3662,7 +3728,11 @@
                         <div class="hpv-step-block hpv-step-active" id="viaBookApptBlock-${p.id}" style="margin-top:16px;">
                             <h4 class="hpv-step-title">${t('via_step_book_followup')}</h4>
                             <p class="muted">${t('via_book_followup_hint')}</p>
-                            ${this.renderPatientBookApptForm(p, { compact: true, reasonDefault: '1-year HPV repeat follow-up (VIA)' })}
+                            ${this.renderPatientBookApptForm(p, {
+                                compact: true,
+                                reasonDefault: '1-year HPV repeat follow-up (VIA)',
+                                defaultScheduledStart: viaOneYearFollowupDateTimeLocal(p.via_date),
+                            })}
                         </div>` : ''}
                         ${notified && via === 'positive' && viaPositiveOutcomeKey(p) === 'referral' ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
                         ${notified && p.next_checkup_at ? `<p class="muted">${t('screening_next_checkup')}: ${formatDate(p.next_checkup_at, 'full')}</p>` : ''}
@@ -3850,6 +3920,7 @@
         renderPatientBookApptForm(p, options = {}) {
             const compact = Boolean(options.compact);
             const reasonDefault = options.reasonDefault || '';
+            const defaultStart = options.defaultScheduledStart || '';
             const wrapStyle = compact
                 ? 'margin-top:12px;'
                 : 'margin-top:16px;padding-top:16px;border-top:1px solid var(--border);';
@@ -3861,7 +3932,7 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label class="form-label">Date & Time *</label>
-                                <input type="datetime-local" name="scheduled_start" class="form-input" required>
+                                <input type="datetime-local" name="scheduled_start" class="form-input" required${defaultStart ? ` value="${escapeHtml(defaultStart)}"` : ''}>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Department</label>
@@ -4133,10 +4204,23 @@
             if (!form) {
                 return;
             }
+            const p = state.patientDetail?.id === Number(patientId) ? state.patientDetail : null;
             const fd = new FormData(form);
             const body = Object.fromEntries(fd.entries());
             body.action = 'add';
             body.patient_id = Number(patientId);
+            if (p && isViaNegativeFollowupBooking(p, form)) {
+                const earliest = viaNegativeFollowupEarliestLocal(p.via_date);
+                const chosen = String(body.scheduled_start || '').trim();
+                if (earliest && chosen && chosen < earliest) {
+                    showNotification(t('via_followup_date_too_soon'), 'error');
+                    const dateInput = form.querySelector('[name="scheduled_start"]');
+                    if (dateInput) {
+                        dateInput.value = viaOneYearFollowupDateTimeLocal(p.via_date);
+                    }
+                    return;
+                }
+            }
             const btn = form.querySelector('[data-action="book-appt-submit"]');
             if (btn?.disabled) {
                 return;
