@@ -161,7 +161,7 @@
             via_record_negative: "Record NEGATIVE & notify",
             via_record_save: "Save VIA result",
             via_step_book_followup: "Step 2 — Book follow-up visit",
-            via_book_followup_hint: "Book the next clinic visit below — that sends the VIA result and appointment confirmation to the patient.",
+            via_book_followup_hint: "Book the 1-year HPV repeat visit below — that sends the VIA result and appointment confirmation to the patient.",
             via_recorded_book_next: "VIA recorded. Book the follow-up visit below to notify the patient.",
             via_recorded_sent: "VIA recorded and the patient was notified immediately.",
             reschedule_hint: "Change the date/time — the patient is notified immediately by SMS/WhatsApp.",
@@ -424,7 +424,7 @@
             via_record_negative: "Weka HASI na mjulishe",
             via_record_save: "Hifadhi matokeo ya VIA",
             via_step_book_followup: "Hatua 2 — Panga ziara ya ufuatiliaji",
-            via_book_followup_hint: "Panga ziara inayofuata hapa chini — hiyo hutuma matokeo ya VIA na uthibitisho wa miadi kwa mgonjwa.",
+            via_book_followup_hint: "Panga ziara ya kipimo cha HPV baada ya mwaka 1 hapa chini — hiyo hutuma matokeo ya VIA na uthibitisho wa miadi kwa mgonjwa.",
             via_recorded_book_next: "VIA imewekwa. Panga ziara ya ufuatiliaji hapa chini kumjulisha mgonjwa.",
             via_recorded_sent: "VIA imewekwa na mgonjwa amejulishwa mara moja.",
             reschedule_hint: "Badilisha tarehe/saa — mgonjwa atajulishwa mara moja kwa SMS/WhatsApp.",
@@ -3662,7 +3662,7 @@
                         <div class="hpv-step-block hpv-step-active" id="viaBookApptBlock-${p.id}" style="margin-top:16px;">
                             <h4 class="hpv-step-title">${t('via_step_book_followup')}</h4>
                             <p class="muted">${t('via_book_followup_hint')}</p>
-                            ${this.renderPatientBookApptForm(p, { compact: true, reasonDefault: 'VIA follow-up visit' })}
+                            ${this.renderPatientBookApptForm(p, { compact: true, reasonDefault: '1-year HPV repeat follow-up (VIA)' })}
                         </div>` : ''}
                         ${notified && via === 'positive' && viaPositiveOutcomeKey(p) === 'referral' ? `<p class="muted">${escapeHtml(t('reg_followup_referral'))}</p>` : ''}
                         ${notified && p.next_checkup_at ? `<p class="muted">${t('screening_next_checkup')}: ${formatDate(p.next_checkup_at, 'full')}</p>` : ''}
