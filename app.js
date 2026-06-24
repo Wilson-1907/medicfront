@@ -1192,6 +1192,8 @@
         apptWorkflowPatient: null,
         focusApptBookingAfterLoad: false,
         focusViaFollowupBookingAfterLoad: false,
+        serverClinicDate: null,
+        openClinicToday: false,
         selectedPatientId: null,
         selectedPatientRef: null,
         isLoading: false,
@@ -1594,6 +1596,17 @@
 
     function todayIsoDate() {
         return localIsoDate();
+    }
+
+    /** Clinic day from server (Africa/Nairobi) — matches database CURDATE(). */
+    function clinicDateIso() {
+        return state.serverClinicDate || todayIsoDate();
+    }
+
+    function setServerClinicDate(iso) {
+        if (typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+            state.serverClinicDate = iso;
+        }
     }
 
     /** Earliest datetime-local for VIA-negative 1-year booking (VIA date + 10 months). */
@@ -4239,13 +4252,13 @@
         },
 
         renderDailyClinicRoster(appointments, dateIso) {
-            const day = String(dateIso || todayIsoDate()).trim();
+            const day = String(dateIso || clinicDateIso()).trim();
             const dayAppts = appointmentsForClinicDay(appointments, day)
                 .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b));
             const waiting = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'waiting');
             const attended = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'attended');
             const missed = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'missed');
-            const isToday = day === todayIsoDate();
+            const isToday = day === clinicDateIso();
             const totalLabel = t('clinic_day_total').replace('{n}', String(dayAppts.length));
             return `
                 <div class="card clinic-roster-card" style="margin-bottom:1rem;" id="dailyClinicRosterCard">
@@ -4286,6 +4299,7 @@
             try {
                 const apptRes = await api.get('/api/appointments.php');
                 state.appointments = apptRes.items || [];
+                setServerClinicDate(apptRes.server_date);
                 this.filterAppointmentsList();
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
@@ -4828,6 +4842,7 @@
                     }
                 }
                 const apptRes = await api.get('/api/appointments.php');
+                setServerClinicDate(apptRes.server_date);
                 state.appointments = apptRes.items || [];
                 this.filterAppointmentsList();
             } catch (err) {
@@ -4874,6 +4889,7 @@
                 try {
                     const response = await api.get('/api/appointments.php');
                     state.appointments = response.items || [];
+                    setServerClinicDate(response.server_date);
                     this.filterAppointmentsList();
                     this.setupAppointmentsFilters();
                 } catch (err) {
@@ -4922,6 +4938,7 @@
                             }
                         } else {
                             const apptRes = await api.get('/api/appointments.php');
+                            setServerClinicDate(apptRes.server_date);
                             state.appointments = apptRes.items || [];
                             this.filterAppointmentsList();
                         }
@@ -5193,9 +5210,9 @@
         },
 
         renderAppointmentsStats(appointments) {
-            const today = new Date().toISOString().split('T')[0];
-            const todayCount = appointments.filter(a => (a.scheduled_start?.split('T')[0] || a.scheduled_start?.split(' ')[0]) === today).length;
-            const upcomingCount = appointments.filter(a => (a.scheduled_start?.split('T')[0] || a.scheduled_start?.split(' ')[0]) >= today).length;
+            const clinicDay = clinicDateIso();
+            const todayCount = appointments.filter((a) => appointmentDateIso(a) === clinicDay).length;
+            const upcomingCount = appointments.filter((a) => appointmentDateIso(a) >= clinicDay).length;
             const confirmed = appointments.filter(a => a.status === 'confirmed').length;
             return `
                 <div class="appt-stat-pill"><i class="fas fa-list"></i><strong>${appointments.length}</strong> shown</div>
@@ -5236,12 +5253,12 @@
             });
 
             const sortedDates = Object.keys(grouped).sort();
-            const today = new Date().toISOString().split('T')[0];
+            const clinicDay = clinicDateIso();
 
             return `
                 <div class="appointments-timeline-view">
                     ${sortedDates.map(date => {
-                        const isToday = date === today;
+                        const isToday = date === clinicDay;
                         const isPast = date < today;
                         return `
                         <section class="appt-day-block ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}">
@@ -5313,18 +5330,18 @@
             }
 
             let filtered = state.appointments || [];
-            const today = todayIsoDate();
+            const today = clinicDateIso();
             const q = (search?.value || '').trim().toLowerCase();
 
             if (filter?.value === 'today') {
                 filtered = filtered.filter((apt) => appointmentDateIso(apt) === today);
             } else if (filter?.value === 'upcoming') {
                 filtered = filtered.filter(apt =>
-                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) >= today
+                    appointmentDateIso(apt) >= today
                 );
             } else if (filter?.value === 'past') {
                 filtered = filtered.filter(apt =>
-                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) < today
+                    appointmentDateIso(apt) < today
                 );
             }
 
@@ -5807,6 +5824,7 @@
                         return;
                     }
                     state.dashboard = response;
+                    setServerClinicDate(response.clinic_date);
                     app.innerHTML = this.renderDashboard();
                     showNotification(t('ready'), 'ok');
                 } 
