@@ -158,7 +158,7 @@
             via_result_title: "VIA (Visual Inspection) result",
             via_result_hint: "Record the VIA result after the patient has been tested. Follow-up messages are sent when opted in.",
             via_record_positive: "Record POSITIVE",
-            via_record_negative: "Record NEGATIVE",
+            via_record_negative: "Record NEGATIVE & notify",
             via_record_save: "Save VIA result",
             via_step_book_followup: "Step 2 — Book follow-up visit",
             via_book_followup_hint: "Book the next clinic visit below — that sends the VIA result and appointment confirmation to the patient.",
@@ -418,7 +418,7 @@
             via_result_title: "Matokeo ya VIA",
             via_result_hint: "Weka matokeo ya VIA baada ya mgonjwa kupimwa. Ujumbe wa ufuatiliaji hutumwa ikiwa amejisajili.",
             via_record_positive: "Weka CHANYA",
-            via_record_negative: "Weka HASI",
+            via_record_negative: "Weka HASI na mjulishe",
             via_record_save: "Hifadhi matokeo ya VIA",
             via_step_book_followup: "Hatua 2 — Panga ziara ya ufuatiliaji",
             via_book_followup_hint: "Panga ziara inayofuata hapa chini — hiyo hutuma matokeo ya VIA na uthibitisho wa miadi kwa mgonjwa.",
@@ -768,6 +768,11 @@
         };
     }
 
+    function viaRecordRoot(patientId) {
+        return document.getElementById(`viaRecordMount-${patientId}`)
+            || document.getElementById(`viaRecordForm-${patientId}`);
+    }
+
     function appointmentDateTimeLocalValue(scheduledStart) {
         if (!scheduledStart) {
             return '';
@@ -914,8 +919,10 @@
         const needsVia = apptConfirmed
             && hpvPathwayComplete(p)
             && !viaIsRecorded(p)
-            && Boolean(firstCompleted)
-            && isFirstPatientAppointment(firstCompleted, list);
+            && (
+                (Boolean(firstCompleted) && isFirstPatientAppointment(firstCompleted, list))
+                || (Boolean(pendingAttendance) && isFirstPatientAppointment(pendingAttendance, list))
+            );
         const active = Boolean(pendingAttendance) || needsVia;
         const visitAppt = pendingAttendance || (needsVia ? firstCompleted : null);
         const isFollowUpVisit = Boolean(pendingAttendance)
@@ -1739,6 +1746,7 @@
                 } else if (action === 'via-pick-negative' && patientId) {
                     e.preventDefault();
                     components.pickViaResult(patientId, 'negative');
+                    components.recordViaResult(patientId);
                 } else if (action === 'via-record-submit' && patientId) {
                     e.preventDefault();
                     components.recordViaResult(patientId);
@@ -3466,7 +3474,7 @@
                         ${wf.needsVia && patientHasConfirmedAppointment(appointments) ? `
                         <div class="hpv-step-block hpv-step-active" id="viaRecordCard-${p.id}">
                             <h4 class="hpv-step-title">${t('visit_step_via')}</h4>
-                            <div id="viaRecordForm-${p.id}">
+                            <div id="viaRecordMount-${p.id}">
                                 ${this.renderViaRecordFormBody(p, defaultViaDate)}
                             </div>
                         </div>` : ''}
@@ -3652,7 +3660,7 @@
                     <div class="card-header">
                         <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
                     </div>
-                    <div class="hpv-result-body" id="viaRecordForm-${p.id}">
+                    <div class="hpv-result-body" id="viaRecordMount-${p.id}">
                         ${this.renderViaRecordFormBody(p, '')}
                     </div>
                 </div>`;
@@ -3839,7 +3847,7 @@
         },
 
         updateViaOutcomeFields(patientId) {
-            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            const form = viaRecordRoot(patientId);
             if (!form) {
                 return;
             }
@@ -3862,7 +3870,7 @@
         },
 
         pickViaResult(patientId, result) {
-            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            const form = viaRecordRoot(patientId);
             if (!form) {
                 return;
             }
@@ -3893,7 +3901,7 @@
         },
 
         bindPatientViaForms(patientId) {
-            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            const form = viaRecordRoot(patientId);
             if (form) {
                 this.bindViaOutcomeSelect(form);
             }
@@ -3916,8 +3924,17 @@
         },
 
         async recordViaResult(patientId) {
-            const form = document.getElementById(`viaRecordForm-${patientId}`);
+            const form = viaRecordRoot(patientId);
             if (!form) {
+                showNotification(
+                    currentLanguage === 'sw'
+                        ? 'Fomu ya VIA haipatikani — fungua rekodi ya mgonjwa upya.'
+                        : 'VIA form not found — refresh the patient record.',
+                    'error'
+                );
+                return;
+            }
+            if (form.dataset.viaSubmitting === '1') {
                 return;
             }
             const viaResult = form.querySelector('[name="via_result"]')?.value || '';
@@ -3958,6 +3975,7 @@
                     }
                 }
             }
+            form.dataset.viaSubmitting = '1';
             showNotification('Recording VIA result…', 'info');
             try {
                 const data = await api.post('/api/via_result.php', {
@@ -3982,6 +4000,10 @@
                 }
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
+            } finally {
+                if (form) {
+                    delete form.dataset.viaSubmitting;
+                }
             }
         },
 
