@@ -195,12 +195,12 @@
             appt_attendance_hint: "Confirm whether the patient attended this booked visit (including if they came before the scheduled date).",
             appt_patient_attended: "Patient attended",
             appt_patient_missed: "Did not attend",
-            appt_attended_via_hint: "Marked as attended. Record the VIA result below — the patient is notified when you save VIA.",
+            appt_attended_via_hint: "Marked as attended. Now record VIA below — the patient is notified when you save.",
             appt_missed_sent: "Marked as missed. Patient notified.",
             appt_status_completed: "Attended",
             appt_status_no_show: "Missed",
             visit_workflow_title: "Clinic visit — attendance & VIA",
-            visit_workflow_intro: "Confirm attendance when the patient arrives, then record the VIA test result. The VIA result message is sent when you save VIA.",
+            visit_workflow_intro: "Mark attendance when the patient arrives, then record VIA. The VIA result SMS is sent when you save VIA.",
             visit_workflow_intro_followup: "Confirm whether the patient attended this follow-up appointment. VIA is only done at the first visit.",
             care_path_title: "Afya Rafiki care pathway",
             care_path_order_hint: "Follow in order: 1) HPV lab result → 2) Clinic visit → 3) VIA test → 4) Thermal Ablation (if VIA positive).",
@@ -919,10 +919,8 @@
         const needsVia = apptConfirmed
             && hpvPathwayComplete(p)
             && !viaIsRecorded(p)
-            && (
-                (Boolean(firstCompleted) && isFirstPatientAppointment(firstCompleted, list))
-                || (Boolean(pendingAttendance) && isFirstPatientAppointment(pendingAttendance, list))
-            );
+            && Boolean(firstCompleted)
+            && isFirstPatientAppointment(firstCompleted, list);
         const active = Boolean(pendingAttendance) || needsVia;
         const visitAppt = pendingAttendance || (needsVia ? firstCompleted : null);
         const isFollowUpVisit = Boolean(pendingAttendance)
