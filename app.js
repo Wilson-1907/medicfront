@@ -160,6 +160,11 @@
             via_record_positive: "Record POSITIVE",
             via_record_negative: "Record NEGATIVE & notify",
             via_record_save: "Save VIA result",
+            via_record_no_notify: "Save record only — do not send SMS/WhatsApp yet",
+            via_record_notify_now: "Send result message to patient when saving",
+            via_recorded_no_notify: "VIA result saved. No message was sent to the patient.",
+            attendance_prompt_title: "Did {name} attend the clinic visit?",
+            attendance_prompt_body: "Appointment: {when}\n\nClick OK if the patient attended (you can then record VIA). Click Cancel if not yet.",
             via_positive: "VIA positive",
             via_negative: "VIA negative",
             via_notified: "Sent to patient",
@@ -433,6 +438,11 @@
             via_record_positive: "Weka CHANYA",
             via_record_negative: "Weka HASI na mjulishe",
             via_record_save: "Hifadhi matokeo ya VIA",
+            via_record_no_notify: "Hifadhi rekodi tu — usitume SMS/WhatsApp bado",
+            via_record_notify_now: "Tuma ujumbe wa matokeo kwa mgonjwa unapohifadhi",
+            via_recorded_no_notify: "Matokeo ya VIA yamehifadhiwa. Hakuna ujumbe uliotumwa kwa mgonjwa.",
+            attendance_prompt_title: "Je, {name} alihudhuria ziara ya kliniki?",
+            attendance_prompt_body: "Miadi: {when}\n\nBonyeza SAWA ikiwa mgonjwa alihudhuria (kisha weka VIA). Ghairi ikiwa bado.",
             via_positive: "VIA chanya",
             via_negative: "VIA hasi",
             via_notified: "Imetumwa kwa mgonjwa",
@@ -1958,7 +1968,7 @@
                 state.currentTab = 'patient';
                 if (app) {
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
-                    this.bindPatientViaForms(response.patient.id);
+                    this.afterPatientDetailRendered(response.patient);
                 }
                 if (state.focusApptBookingAfterLoad) {
                     state.focusApptBookingAfterLoad = false;
@@ -3531,8 +3541,13 @@
                         </div>
                         <button type="button" class="btn-primary" style="margin-top:12px;"
                             data-action="via-record-submit" data-patient-id="${p.id}">
-                            <i class="fas fa-paper-plane"></i> ${t('via_record_save')}
-                        </button>`;
+                            <i class="fas fa-save"></i> ${t('via_record_save')}
+                        </button>
+                        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-weight:normal;cursor:pointer;">
+                            <input type="checkbox" name="via_notify_patient" value="1" style="margin-top:3px;">
+                            <span>${t('via_record_notify_now')}</span>
+                        </label>
+                        <p class="muted" style="margin:6px 0 0;font-size:0.85rem;">${t('via_record_no_notify')}</p>`;
         },
 
         renderVisitWorkflowCard(p, appointments) {
@@ -3926,7 +3941,11 @@
                     data.record_via_next || data.needs_via_record ? t('appt_attended_via_hint') : t('success'),
                     'ok'
                 );
-                await this.refreshAfterVisitAction(patientId);
+                if (state.currentTab === 'patient') {
+                    await this.reloadPatientDetail();
+                } else {
+                    await this.refreshAfterVisitAction(patientId);
+                }
                 if (data.record_via_next || data.needs_via_record) {
                     const visitCard = document.getElementById(`visitWorkflowCard-${patientId}`)
                         || document.getElementById(`viaRecordCard-${patientId}`);
@@ -3937,6 +3956,42 @@
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
+        },
+
+        maybePromptAttendanceOnLoad(patient) {
+            if (!patient || viaIsRecorded(patient)) {
+                return;
+            }
+            const appointments = patient.appointments || [];
+            const wf = getVisitWorkflowState(patient, appointments);
+            if (!wf.active || !wf.visitAppt || !hpvReadyForVia(patient)) {
+                return;
+            }
+            const appt = wf.visitAppt;
+            const apptWhen = `${formatDate(appt.scheduled_start, 'full')} ${formatTime(appt.scheduled_start)}`;
+            const name = String(patient.full_name || '').trim();
+            const title = t('attendance_prompt_title').replace('{name}', name);
+            const body = t('attendance_prompt_body').replace('{when}', apptWhen);
+            window.setTimeout(() => {
+                if (Number(state.patientDetail?.id) !== Number(patient.id)) {
+                    return;
+                }
+                const stillPending = getVisitWorkflowState(state.patientDetail, state.patientDetail.appointments || []).active;
+                if (!stillPending) {
+                    return;
+                }
+                if (window.confirm(`${title}\n\n${body}`)) {
+                    this.markAppointmentAttended(appt.id, patient.id);
+                }
+            }, 400);
+        },
+
+        afterPatientDetailRendered(patient) {
+            if (!patient?.id) {
+                return;
+            }
+            this.bindPatientViaForms(patient.id);
+            this.maybePromptAttendanceOnLoad(patient);
         },
 
         async markAppointmentMissed(appointmentId, patientId) {
@@ -4215,6 +4270,9 @@
                 }
             }
             form.dataset.viaSubmitting = '1';
+            const notifyPatient = overrides.notifyPatient !== undefined
+                ? Boolean(overrides.notifyPatient)
+                : Boolean(form.querySelector('[name="via_notify_patient"]')?.checked);
             showNotification('Recording VIA result…', 'info');
             try {
                 const data = await api.post('/api/via_result.php', {
@@ -4223,8 +4281,11 @@
                     via_date: viaDate,
                     has_cancer: hasCancer,
                     treatment_date: treatmentDate || undefined,
+                    notify_patient: notifyPatient,
                 }, false);
-                if (data.via_message_sent) {
+                if (data.recorded_only) {
+                    showNotification(t('via_recorded_no_notify'), 'ok');
+                } else if (data.via_message_sent) {
                     showNotification(t('via_recorded_sent'), 'ok');
                 } else if (data.book_followup_next) {
                     showNotification(t('via_recorded_book_next'), 'ok');
@@ -4366,7 +4427,7 @@
                 if (app) {
                     removeAppLoadingOverlay();
                     app.innerHTML = safeRender(() => this.renderPatientDetail(), 'Could not display patient');
-                    this.bindPatientViaForms(response.patient.id);
+                    this.afterPatientDetailRendered(response.patient);
                 }
                 if (state.focusApptBookingAfterLoad) {
                     state.focusApptBookingAfterLoad = false;
