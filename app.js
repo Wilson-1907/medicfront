@@ -808,8 +808,14 @@
         return Number.isFinite(ts) ? ts : Number(a?.id) || 0;
     }
 
+    function patientHasCompletedAppointment(appointments) {
+        return (appointments || []).some((a) => (a.status || '').toLowerCase() === 'completed');
+    }
+
     function getFirstPatientAppointment(appointments) {
-        return [...(appointments || [])].sort((a, b) => {
+        return [...(appointments || [])]
+            .filter((a) => (a.status || '').toLowerCase() !== 'cancelled')
+            .sort((a, b) => {
             const diff = appointmentSortKey(a) - appointmentSortKey(b);
             return diff !== 0 ? diff : (Number(a?.id) || 0) - (Number(b?.id) || 0);
         })[0] || null;
@@ -919,10 +925,9 @@
         const needsVia = apptConfirmed
             && hpvPathwayComplete(p)
             && !viaIsRecorded(p)
-            && Boolean(firstCompleted)
-            && isFirstPatientAppointment(firstCompleted, list);
-        const active = Boolean(pendingAttendance) || needsVia;
-        const visitAppt = pendingAttendance || (needsVia ? firstCompleted : null);
+            && patientHasCompletedAppointment(list);
+        const active = Boolean(pendingAttendance);
+        const visitAppt = pendingAttendance;
         const isFollowUpVisit = Boolean(pendingAttendance)
             && !isFirstPatientAppointment(pendingAttendance, list);
         return {
@@ -3438,9 +3443,7 @@
                 return '';
             }
             const appt = wf.visitAppt;
-            const viaAppt = wf.completedVisit || appt;
             const apptWhen = `${formatDate(appt.scheduled_start, 'full')} ${formatTime(appt.scheduled_start)}`;
-            const defaultViaDate = appointmentDateInputValue(viaAppt?.scheduled_start || appt.scheduled_start);
 
             return `
                 <div class="card visit-workflow-card hpv-card-pending" style="margin-top:1rem;border-left:4px solid var(--accent);" id="visitWorkflowCard-${p.id}">
@@ -3449,11 +3452,9 @@
                         <span class="badge badge-warning">${currentLanguage === 'sw' ? 'Inahitaji hatua' : 'Action needed'}</span>
                     </div>
                     <div class="hpv-result-body" style="padding:16px;">
-                        <p class="muted" style="margin:0 0 12px;">${t(wf.isFollowUpVisit && !wf.needsVia ? 'visit_workflow_intro_followup' : 'visit_workflow_intro')}</p>
-                        ${wf.pendingAttendance ? `<p style="margin:0 0 16px;"><strong>${t('visit_appt_on')}</strong> ${escapeHtml(apptWhen)}</p>` : ''}
-                        ${wf.needsVia && wf.completedVisit ? `<p style="margin:0 0 16px;"><strong>${currentLanguage === 'sw' ? 'Ziara iliyohudhuriwa:' : 'Attended visit:'}</strong> ${escapeHtml(`${formatDate(wf.completedVisit.scheduled_start, 'full')} ${formatTime(wf.completedVisit.scheduled_start)}`)}</p>` : ''}
+                        <p class="muted" style="margin:0 0 12px;">${t(wf.isFollowUpVisit ? 'visit_workflow_intro_followup' : 'visit_workflow_intro')}</p>
+                        <p style="margin:0 0 16px;"><strong>${t('visit_appt_on')}</strong> ${escapeHtml(apptWhen)}</p>
 
-                        ${wf.pendingAttendance ? `
                         <div class="hpv-step-block hpv-step-active">
                             <h4 class="hpv-step-title">${t('visit_step_attendance')}</h4>
                             <p class="muted" style="margin:0 0 10px;font-size:0.9rem;">${t('appt_attendance_hint')}</p>
@@ -3467,15 +3468,7 @@
                                     <i class="fas fa-times"></i> ${t('appt_patient_missed')}
                                 </button>
                             </div>
-                        </div>` : ''}
-
-                        ${wf.needsVia && patientHasConfirmedAppointment(appointments) ? `
-                        <div class="hpv-step-block hpv-step-active" id="viaRecordCard-${p.id}">
-                            <h4 class="hpv-step-title">${t('visit_step_via')}</h4>
-                            <div id="viaRecordMount-${p.id}">
-                                ${this.renderViaRecordFormBody(p, defaultViaDate)}
-                            </div>
-                        </div>` : ''}
+                        </div>
                     </div>
                 </div>`;
         },
@@ -3601,7 +3594,17 @@
 
             const via = (p.via_result || '').toLowerCase();
             const hasRecorded = viaIsRecorded(p);
-            const wf = getVisitWorkflowState(p, appointments);
+            const canRecordVia = hpvPathwayComplete(p)
+                && !hasRecorded
+                && patientHasCompletedAppointment(appointments);
+            const awaitingAttendance = hpvPathwayComplete(p)
+                && !hasRecorded
+                && patientHasConfirmedAppointment(appointments)
+                && !patientHasCompletedAppointment(appointments);
+            const completedAppt = [...(appointments || [])]
+                .filter((a) => (a.status || '').toLowerCase() === 'completed')
+                .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b))[0] || null;
+            const defaultViaDate = appointmentDateInputValue(completedAppt?.scheduled_start || '');
             const borderClass = hasRecorded
                 ? (via === 'positive' ? 'hpv-card-positive' : 'hpv-card-negative')
                 : 'hpv-card-pending';
@@ -3649,7 +3652,19 @@
                 </div>`;
             }
 
-            if (wf.active) {
+            if (awaitingAttendance) {
+                return `
+                <div class="card via-result-card hpv-card-pending" style="margin-top:1rem;" id="viaRecordCard-${p.id}">
+                    <div class="card-header">
+                        <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                    </div>
+                    <div class="hpv-result-body" style="padding:16px;">
+                        <p class="muted" style="margin:0;"><i class="fas fa-info-circle"></i> ${currentLanguage === 'sw' ? 'Weka mahudhurio (Alihudhuria) kwanza, kisha weka matokeo ya VIA.' : 'Mark attendance (Patient attended) first, then record VIA below.'}</p>
+                    </div>
+                </div>`;
+            }
+
+            if (!canRecordVia) {
                 return '';
             }
 
@@ -3657,9 +3672,11 @@
                 <div class="card via-result-card ${borderClass}" style="margin-top:1rem;" id="viaRecordCard-${p.id}">
                     <div class="card-header">
                         <div class="card-title"><i class="fas fa-eye"></i> ${t('via_result_title')}</div>
+                        <span class="badge badge-warning">${currentLanguage === 'sw' ? 'Inahitaji hatua' : 'Action needed'}</span>
                     </div>
                     <div class="hpv-result-body" id="viaRecordMount-${p.id}">
-                        ${this.renderViaRecordFormBody(p, '')}
+                        <p class="muted" style="margin:0 0 12px;font-size:0.9rem;">${t('visit_step_via')}</p>
+                        ${this.renderViaRecordFormBody(p, defaultViaDate)}
                     </div>
                 </div>`;
         },
