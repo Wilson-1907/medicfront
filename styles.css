@@ -2047,9 +2047,48 @@ body {
     background: #fff; border: 1px solid var(--gray-200); border-radius: 10px;
     padding: 10px; margin-bottom: 8px;
 }
-.clinic-roster-row.status-attended { border-left: 3px solid var(--success); }
-.clinic-roster-row.status-missed { border-left: 3px solid #dc2626; }
-.clinic-roster-row.status-waiting { border-left: 3px solid var(--warning); }
+.clinic-roster-row.status-attended {
+    background: #ecfdf5;
+    border: 1px solid #34d399;
+    border-left: 5px solid #10b981;
+}
+.clinic-roster-row.status-missed {
+    background: #fef2f2;
+    border: 1px solid #f87171;
+    border-left: 5px solid #dc2626;
+}
+.clinic-roster-row.status-waiting {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-left: 5px solid #f59e0b;
+}
+.clinic-roster-name-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.clinic-att-badge {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+}
+.clinic-att-badge.attended { background: #10b981; color: #fff; }
+.clinic-att-badge.missed { background: #dc2626; color: #fff; }
+.clinic-att-badge.waiting { background: #f59e0b; color: #fff; }
+.clinic-day-total-banner {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;
+    padding: 12px 16px; background: var(--primary-50, #eff6ff); border-radius: 12px;
+    border: 1px solid var(--primary-200, #bfdbfe);
+}
+.clinic-day-total-number {
+    font-size: 2rem; font-weight: 800; color: var(--primary-700, #1d4ed8); line-height: 1;
+}
+.clinic-day-total-text { font-size: 0.95rem; font-weight: 600; color: var(--gray-700); }
+.clinic-roster-all-list { display: flex; flex-direction: column; gap: 8px; }
+.clinic-stat-missed { background: #fee2e2; color: #991b1b; }
+.appointment-card-v2.clinic-card-attended {
+    background: #ecfdf5; border-color: #34d399; border-left: 5px solid #10b981;
+}
+.appointment-card-v2.clinic-card-missed {
+    background: #fef2f2; border-color: #f87171; border-left: 5px solid #dc2626;
+}
 .clinic-roster-main { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .clinic-roster-main .muted { font-size: 0.78rem; }
 .clinic-roster-time { font-size: 0.82rem; color: var(--gray-700); }

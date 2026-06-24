@@ -47,7 +47,11 @@
             schedule_appointment: "Schedule Appointment",
             recently_registered: "Recently Registered Patients",
             booked_appointments: "Booked Appointments",
+            clinic_day_total: "{n} appointments this day",
             clinic_day_title: "Clinic day — who came & who missed",
+            clinic_badge_attended: "Attended",
+            clinic_badge_missed: "Did not attend",
+            clinic_badge_waiting: "Not marked yet",
             clinic_day_hint: "Pick a date to see everyone scheduled that day. Mark attended or missed, and send missed messages in one click.",
             clinic_day_pick: "Clinic date",
             clinic_waiting: "Waiting / not yet marked",
@@ -343,7 +347,11 @@
             schedule_appointment: "Panga Miadi",
             recently_registered: "Wagonjwa Wapya",
             booked_appointments: "Miadi Iliyobakwa",
+            clinic_day_total: "Miadi {n} siku hii",
             clinic_day_title: "Siku ya kliniki — waliohudhuria na walikosa",
+            clinic_badge_attended: "Alihudhuria",
+            clinic_badge_missed: "Hakuja",
+            clinic_badge_waiting: "Bado haijawekwa",
             clinic_day_hint: "Chagua tarehe kuona wote walopangiwa siku hiyo. Weka alihudhuria au hakuhudhuria, na tuma ujumbe wa kukosa kwa urahisi.",
             clinic_day_pick: "Tarehe ya kliniki",
             clinic_waiting: "Wanasubiri / bado hawajawekwa",
@@ -906,8 +914,20 @@
         }
         return (appointments || []).filter((apt) => appointmentDateIso(apt) === day);
     }
+
+    function appointmentSortKey(a) {
         const ts = new Date(a?.scheduled_start || 0).getTime();
         return Number.isFinite(ts) ? ts : Number(a?.id) || 0;
+    }
+
+    function clinicAttendanceBadgeLabel(bucket) {
+        if (bucket === 'attended') {
+            return t('clinic_badge_attended');
+        }
+        if (bucket === 'missed') {
+            return t('clinic_badge_missed');
+        }
+        return t('clinic_badge_waiting');
     }
 
     function patientHasCompletedAppointment(appointments) {
@@ -2403,7 +2423,7 @@
                             <div class="stat-value">${stats.registered_today || 0}</div>
                             <div class="stat-label">${t('total_registered')} Today</div>
                         </div>
-                        <div class="stat-card" onclick="window.components.switchTab('appointments')">
+                        <div class="stat-card" onclick="window.components.openTodaysClinic()">
                             <div class="stat-icon">📅</div>
                             <div class="stat-value">${stats.appointments_today || 0}</div>
                             <div class="stat-label">${t('today_appointments')}</div>
@@ -4174,14 +4194,24 @@
             }
         },
 
+        openTodaysClinic() {
+            state.openClinicToday = true;
+            state._scrollToClinicRoster = true;
+            this.switchTab('appointments');
+        },
+
         renderClinicRosterRow(apt) {
             const pid = Number(apt.patient_id || 0);
             const pref = patientOpenRef(apt) || String(pid);
             const bucket = clinicRosterBucket(apt.status);
+            const badgeLabel = clinicAttendanceBadgeLabel(bucket);
             return `
                 <div class="clinic-roster-row status-${bucket}">
                     <div class="clinic-roster-main">
-                        <strong>${escapeHtml(apt.full_name || '—')}</strong>
+                        <div class="clinic-roster-name-row">
+                            <strong>${escapeHtml(apt.full_name || '—')}</strong>
+                            <span class="clinic-att-badge ${bucket}">${escapeHtml(badgeLabel)}</span>
+                        </div>
                         <span class="muted">${escapeHtml(patientClientLabel(apt))}</span>
                         <span class="clinic-roster-time"><i class="fas fa-clock"></i> ${formatTime(apt.scheduled_start)}</span>
                     </div>
@@ -4210,13 +4240,15 @@
 
         renderDailyClinicRoster(appointments, dateIso) {
             const day = String(dateIso || todayIsoDate()).trim();
-            const dayAppts = appointmentsForClinicDay(appointments, day);
+            const dayAppts = appointmentsForClinicDay(appointments, day)
+                .sort((a, b) => appointmentSortKey(a) - appointmentSortKey(b));
             const waiting = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'waiting');
             const attended = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'attended');
             const missed = dayAppts.filter((a) => clinicRosterBucket(a.status) === 'missed');
             const isToday = day === todayIsoDate();
+            const totalLabel = t('clinic_day_total').replace('{n}', String(dayAppts.length));
             return `
-                <div class="card clinic-roster-card" style="margin-bottom:1rem;">
+                <div class="card clinic-roster-card" style="margin-bottom:1rem;" id="dailyClinicRosterCard">
                     <div class="card-header">
                         <div class="card-title">
                             <i class="fas fa-users"></i> ${t('clinic_day_title')}
@@ -4232,25 +4264,19 @@
                     </div>
                     <div style="padding:16px;">
                         <p class="muted" style="margin:0 0 14px;font-size:0.9rem;">${t('clinic_day_hint')}</p>
+                        <div class="clinic-day-total-banner">
+                            <span class="clinic-day-total-number">${dayAppts.length}</span>
+                            <span class="clinic-day-total-text">${escapeHtml(totalLabel)}</span>
+                        </div>
                         <div class="clinic-roster-stats">
                             <span class="appt-stat-pill highlight"><strong>${waiting.length}</strong> ${t('clinic_waiting')}</span>
                             <span class="appt-stat-pill success"><strong>${attended.length}</strong> ${t('clinic_attended')}</span>
-                            <span class="appt-stat-pill" style="background:#fee2e2;color:#991b1b;"><strong>${missed.length}</strong> ${t('clinic_missed')}</span>
-                            <span class="appt-stat-pill"><strong>${dayAppts.length}</strong> total</span>
+                            <span class="appt-stat-pill clinic-stat-missed"><strong>${missed.length}</strong> ${t('clinic_missed')}</span>
                         </div>
-                        <div class="clinic-roster-columns">
-                            <section class="clinic-roster-col">
-                                <h4>${t('clinic_waiting')}</h4>
-                                ${waiting.length ? waiting.map((a) => this.renderClinicRosterRow(a)).join('') : `<p class="muted clinic-roster-empty">${t('clinic_none_waiting')}</p>`}
-                            </section>
-                            <section class="clinic-roster-col">
-                                <h4>${t('clinic_attended')}</h4>
-                                ${attended.length ? attended.map((a) => this.renderClinicRosterRow(a)).join('') : `<p class="muted clinic-roster-empty">${t('clinic_none_attended')}</p>`}
-                            </section>
-                            <section class="clinic-roster-col">
-                                <h4>${t('clinic_missed')}</h4>
-                                ${missed.length ? missed.map((a) => this.renderClinicRosterRow(a)).join('') : `<p class="muted clinic-roster-empty">${t('clinic_none_missed')}</p>`}
-                            </section>
+                        <div class="clinic-roster-all-list">
+                            ${dayAppts.length
+                                ? dayAppts.map((a) => this.renderClinicRosterRow(a)).join('')
+                                : `<p class="muted clinic-roster-empty">${t('no_appointments')}</p>`}
                         </div>
                     </div>
                 </div>`;
@@ -5232,15 +5258,20 @@
                                     <span class="count-badge">${grouped[date].length} visit${grouped[date].length !== 1 ? 's' : ''}</span>
                                 </header>
                                 <div class="appointment-cards-grid">
-                                    ${grouped[date].map(apt => `
-                                        <article class="appointment-card-v2 status-${apt.status || 'proposed'}" ${apt.patient_id ? `data-action="open-appt-visit" data-patient-id="${apt.patient_id}" role="button" tabindex="0" style="cursor:pointer"` : ''}>
+                                    ${grouped[date].map(apt => {
+                                        const bucket = clinicRosterBucket(apt.status);
+                                        const cardClass = bucket === 'attended' ? 'status-completed clinic-card-attended'
+                                            : (bucket === 'missed' ? 'status-no_show clinic-card-missed' : `status-${apt.status || 'proposed'}`);
+                                        const badge = clinicAttendanceBadgeLabel(bucket);
+                                        return `
+                                        <article class="appointment-card-v2 ${cardClass}" ${apt.patient_id ? `data-action="open-appt-visit" data-patient-id="${apt.patient_id}" role="button" tabindex="0" style="cursor:pointer"` : ''}>
                                             <div class="appt-card-top">
                                                 <div class="appointment-patient-avatar">${(apt.full_name || 'P').charAt(0).toUpperCase()}</div>
                                                 <div class="appt-card-headline">
                                                     <h4>${escapeHtml(apt.full_name || 'Unknown Patient')}</h4>
                                                     <span class="appt-id">${escapeHtml(patientClientLabel(apt))}</span>
                                                 </div>
-                                                <span class="status-badge ${apt.status || 'proposed'}">${(apt.status || 'proposed').replace('_', ' ')}</span>
+                                                <span class="clinic-att-badge ${bucket}">${escapeHtml(badge)}</span>
                                             </div>
                                             <div class="appt-time-row">
                                                 <i class="fas fa-clock"></i>
@@ -5259,8 +5290,8 @@
                                                 ${apt.patient_id ? `<button type="button" class="btn-primary btn-sm" data-action="open-appt-visit" data-patient-id="${apt.patient_id}"><i class="fas fa-clipboard-check"></i> ${t('appt_manage_visit')}</button>` : ''}
                                                 ${apt.patient_id ? `<button type="button" class="btn-secondary btn-sm" data-action="view-patient" data-patient-ref="${escapeHtml(patientOpenRef(apt) || String(apt.patient_id))}" data-patient-id="${apt.patient_id}"><i class="fas fa-user"></i> ${t('view_record')}</button>` : ''}
                                             </div>
-                                        </article>
-                                    `).join('')}
+                                        </article>`;
+                                    }).join('')}
                                 </div>
                             </div>
                         </section>`;
@@ -5276,14 +5307,17 @@
             const statsBar = document.getElementById('appointmentsStats');
             if (!content) return;
 
+            if (state.openClinicToday && filter) {
+                filter.value = 'today';
+                state.openClinicToday = false;
+            }
+
             let filtered = state.appointments || [];
-            const today = new Date().toISOString().split('T')[0];
+            const today = todayIsoDate();
             const q = (search?.value || '').trim().toLowerCase();
 
             if (filter?.value === 'today') {
-                filtered = filtered.filter(apt =>
-                    (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) === today
-                );
+                filtered = filtered.filter((apt) => appointmentDateIso(apt) === today);
             } else if (filter?.value === 'upcoming') {
                 filtered = filtered.filter(apt =>
                     (apt.scheduled_start?.split('T')[0] || apt.scheduled_start?.split(' ')[0]) >= today
@@ -5310,12 +5344,32 @@
 
             const rosterMount = document.getElementById('dailyClinicRosterMount');
             if (rosterMount) {
-                const rosterDate = document.getElementById('clinicDayPicker')?.value || todayIsoDate();
+                let rosterDate = document.getElementById('clinicDayPicker')?.value || today;
+                if (filter?.value === 'today') {
+                    rosterDate = today;
+                }
                 rosterMount.innerHTML = this.renderDailyClinicRoster(state.appointments || [], rosterDate);
                 const picker = document.getElementById('clinicDayPicker');
-                if (picker && !picker.dataset.bound) {
-                    picker.dataset.bound = '1';
-                    picker.addEventListener('change', () => this.filterAppointmentsList());
+                if (picker) {
+                    if (filter?.value === 'today') {
+                        picker.value = today;
+                    }
+                    if (!picker.dataset.bound) {
+                        picker.dataset.bound = '1';
+                        picker.addEventListener('change', () => {
+                            if (filter) {
+                                filter.value = 'all';
+                            }
+                            this.filterAppointmentsList();
+                        });
+                    }
+                }
+                if (state._scrollToClinicRoster) {
+                    state._scrollToClinicRoster = false;
+                    window.setTimeout(() => {
+                        document.getElementById('dailyClinicRosterCard')
+                            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 200);
                 }
             }
         },
