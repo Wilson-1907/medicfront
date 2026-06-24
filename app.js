@@ -195,12 +195,12 @@
             appt_attendance_hint: "Confirm whether the patient attended this booked visit (including if they came before the scheduled date).",
             appt_patient_attended: "Patient attended",
             appt_patient_missed: "Did not attend",
-            appt_attended_via_hint: "Marked as attended. Record the VIA result below.",
+            appt_attended_via_hint: "Marked as attended. Record the VIA result below — the patient is notified when you save VIA.",
             appt_missed_sent: "Marked as missed. Patient notified.",
             appt_status_completed: "Attended",
             appt_status_no_show: "Missed",
             visit_workflow_title: "Clinic visit — attendance & VIA",
-            visit_workflow_intro: "When the appointment day arrives, confirm whether the patient came, then record the VIA test result.",
+            visit_workflow_intro: "Confirm attendance when the patient arrives, then record the VIA test result. The VIA result message is sent when you save VIA.",
             visit_workflow_intro_followup: "Confirm whether the patient attended this follow-up appointment. VIA is only done at the first visit.",
             care_path_title: "Afya Rafiki care pathway",
             care_path_order_hint: "Follow in order: 1) HPV lab result → 2) Clinic visit → 3) VIA test → 4) Thermal Ablation (if VIA positive).",
@@ -455,12 +455,12 @@
             appt_attendance_hint: "Thibitisha kama mgonjwa alihudhuria (hata akija kabla ya tarehe iliyopangwa).",
             appt_patient_attended: "Alihudhuria",
             appt_patient_missed: "Hakuja",
-            appt_attended_via_hint: "Imewekwa alihudhuria. Weka matokeo ya VIA hapa chini.",
+            appt_attended_via_hint: "Imewekwa alihudhuria. Weka matokeo ya VIA hapa chini — mgonjwa atajulishwa ukihifadhi VIA.",
             appt_missed_sent: "Imewekwa hakuhudhuria. Mgonjwa amejulishwa.",
             appt_status_completed: "Alihudhuria",
             appt_status_no_show: "Hakuhudhuria",
             visit_workflow_title: "Ziara ya kliniki — mahudhurio na VIA",
-            visit_workflow_intro: "Siku ya miadi inapofika, thibitisha kama mgonjwa alifika, kisha weka matokeo ya kipimo cha VIA.",
+            visit_workflow_intro: "Thibitisha mahudhurio mgonjwa akifika, kisha weka matokeo ya VIA. Ujumbe wa matokeo ya VIA hutumwa unapohifadhi VIA.",
             visit_workflow_intro_followup: "Thibitisha kama mgonjwa alihudhuria miadi hii ya ufuatiliaji. VIA hufanywa tu katika ziara ya kwanza.",
             care_path_title: "Safari ya huduma — Afya Rafiki",
             care_path_order_hint: "Fuata mpangilio: 1) Matokeo ya HPV → 2) Ziara ya kliniki → 3) Kipimo cha VIA → 4) Thermal Ablation (ikiwa VIA ni chanya).",
@@ -915,8 +915,7 @@
             && hpvPathwayComplete(p)
             && !viaIsRecorded(p)
             && Boolean(firstCompleted)
-            && isFirstPatientAppointment(firstCompleted, list)
-            && !pendingAttendance;
+            && isFirstPatientAppointment(firstCompleted, list);
         const active = Boolean(pendingAttendance) || needsVia;
         const visitAppt = pendingAttendance || (needsVia ? firstCompleted : null);
         const isFollowUpVisit = Boolean(pendingAttendance)
@@ -3433,8 +3432,9 @@
                 return '';
             }
             const appt = wf.visitAppt;
+            const viaAppt = wf.completedVisit || appt;
             const apptWhen = `${formatDate(appt.scheduled_start, 'full')} ${formatTime(appt.scheduled_start)}`;
-            const defaultViaDate = appointmentDateInputValue(appt.scheduled_start);
+            const defaultViaDate = appointmentDateInputValue(viaAppt?.scheduled_start || appt.scheduled_start);
 
             return `
                 <div class="card visit-workflow-card hpv-card-pending" style="margin-top:1rem;border-left:4px solid var(--accent);" id="visitWorkflowCard-${p.id}">
@@ -3443,8 +3443,9 @@
                         <span class="badge badge-warning">${currentLanguage === 'sw' ? 'Inahitaji hatua' : 'Action needed'}</span>
                     </div>
                     <div class="hpv-result-body" style="padding:16px;">
-                        <p class="muted" style="margin:0 0 12px;">${t(wf.isFollowUpVisit ? 'visit_workflow_intro_followup' : 'visit_workflow_intro')}</p>
-                        <p style="margin:0 0 16px;"><strong>${t('visit_appt_on')}</strong> ${escapeHtml(apptWhen)}</p>
+                        <p class="muted" style="margin:0 0 12px;">${t(wf.isFollowUpVisit && !wf.needsVia ? 'visit_workflow_intro_followup' : 'visit_workflow_intro')}</p>
+                        ${wf.pendingAttendance ? `<p style="margin:0 0 16px;"><strong>${t('visit_appt_on')}</strong> ${escapeHtml(apptWhen)}</p>` : ''}
+                        ${wf.needsVia && wf.completedVisit ? `<p style="margin:0 0 16px;"><strong>${currentLanguage === 'sw' ? 'Ziara iliyohudhuriwa:' : 'Attended visit:'}</strong> ${escapeHtml(`${formatDate(wf.completedVisit.scheduled_start, 'full')} ${formatTime(wf.completedVisit.scheduled_start)}`)}</p>` : ''}
 
                         ${wf.pendingAttendance ? `
                         <div class="hpv-step-block hpv-step-active">
@@ -3462,7 +3463,7 @@
                             </div>
                         </div>` : ''}
 
-                        ${wf.needsVia && !wf.pendingAttendance && patientHasConfirmedAppointment(appointments) ? `
+                        ${wf.needsVia && patientHasConfirmedAppointment(appointments) ? `
                         <div class="hpv-step-block hpv-step-active" id="viaRecordCard-${p.id}">
                             <h4 class="hpv-step-title">${t('visit_step_via')}</h4>
                             <div id="viaRecordForm-${p.id}">
@@ -3764,11 +3765,11 @@
                     appointment_id: Number(appointmentId),
                 }, false);
                 showNotification(
-                    data.record_via_next ? t('appt_attended_via_hint') : t('success'),
+                    data.record_via_next || data.needs_via_record ? t('appt_attended_via_hint') : t('success'),
                     'ok'
                 );
                 await this.refreshAfterVisitAction(patientId);
-                if (data.record_via_next) {
+                if (data.record_via_next || data.needs_via_record) {
                     const visitCard = document.getElementById(`visitWorkflowCard-${patientId}`)
                         || document.getElementById(`viaRecordCard-${patientId}`);
                     if (visitCard) {
