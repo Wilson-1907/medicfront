@@ -66,7 +66,9 @@
             clinic_send_missed_all_done: "Sent to {sent} patient(s).",
             clinic_send_missed_all_done_marked: "Marked {marked} as missed and sent {sent} message(s).",
             clinic_send_missed_all_used: "Bulk missed message already sent for this day",
-            clinic_day_summary_past: "{attended} attended · {missed} missed · {rescheduled} rescheduled",
+            clinic_day_summary_past: "{attended} attended · {missed} missed · {waiting} not marked · {rescheduled} rescheduled",
+            clinic_scheduled: "Scheduled for this day",
+            clinic_not_marked: "Not marked yet",
             clinic_early_visit: "Early check-in",
             clinic_rescheduled: "Rescheduled",
             clinic_mark_attended: "Attended",
@@ -374,7 +376,9 @@
             clinic_send_missed_all_done: "Imetumwa kwa wagonjwa {sent}.",
             clinic_send_missed_all_done_marked: "Wagonjwa {marked} wamewekwa kama walikosa na ujumbe {sent} umetumwa.",
             clinic_send_missed_all_used: "Ujumbe wa kukosa kwa siku hii tayari umetumwa",
-            clinic_day_summary_past: "{attended} walihudhuria · {missed} walikosa · {rescheduled} walibadilisha miadi",
+            clinic_day_summary_past: "{attended} walihudhuria · {missed} walikosa · {waiting} hawajawekwa · {rescheduled} walibadilisha miadi",
+            clinic_scheduled: "Waliopangiwa siku hii",
+            clinic_not_marked: "Bado haijawekwa",
             clinic_early_visit: "Alihudhuria mapema",
             clinic_rescheduled: "Miadi ilibadilishwa",
             clinic_mark_attended: "Alihudhuria",
@@ -924,10 +928,6 @@
             return 'missed';
         }
         if (s === 'proposed' || s === 'confirmed') {
-            const day = String(clinicDayIso || (typeof statusOrApt === 'object' ? appointmentDateIso(statusOrApt) : '') || '').trim();
-            if (day && day < todayIsoDate()) {
-                return 'missed';
-            }
             return 'waiting';
         }
         return 'other';
@@ -2034,20 +2034,25 @@
                 } else if (action === 'book-appt-submit' && patientId) {
                     e.preventDefault();
                     components.bookPatientAppointment(patientId);
-                } else if (action === 'appt-mark-attended') {
-                    e.preventDefault();
-                    const apptId = Number(el.getAttribute('data-appointment-id') || 0);
-                    if (apptId > 0) {
-                        components.markAppointmentAttended(apptId, patientId);
-                    }
                 } else if (action === 'appt-mark-missed') {
                     e.preventDefault();
+                    e.stopPropagation();
                     const apptId = Number(el.getAttribute('data-appointment-id') || 0);
+                    const pid = Number(el.getAttribute('data-patient-id') || patientId || 0);
                     if (apptId > 0) {
-                        components.markAppointmentMissed(apptId, patientId);
+                        components.markAppointmentMissed(apptId, pid);
+                    }
+                } else if (action === 'appt-mark-attended') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const apptId = Number(el.getAttribute('data-appointment-id') || 0);
+                    const pid = Number(el.getAttribute('data-patient-id') || patientId || 0);
+                    if (apptId > 0) {
+                        components.markAppointmentAttended(apptId, pid);
                     }
                 } else if (action === 'appt-send-missed') {
                     e.preventDefault();
+                    e.stopPropagation();
                     const apptId = Number(el.getAttribute('data-appointment-id') || 0);
                     const pid = Number(el.getAttribute('data-patient-id') || patientId || 0);
                     if (apptId > 0) {
@@ -4448,7 +4453,7 @@
                         <span class="muted">${escapeHtml(patientClientLabel(apt))}</span>
                         <span class="clinic-roster-time"><i class="fas fa-clock"></i> ${formatTime(apt.scheduled_start)}</span>
                     </div>
-                    <div class="clinic-roster-actions" onclick="event.stopPropagation()">
+                    <div class="clinic-roster-actions">
                         ${canMarkMissed ? `
                         <button type="button" class="btn-primary btn-sm" data-action="appt-mark-attended" data-appointment-id="${apt.id}" data-patient-id="${pid}">
                             <i class="fas fa-check"></i> ${t('clinic_mark_attended')}
@@ -4482,15 +4487,20 @@
             const missed = dayAppts.filter((a) => clinicRosterBucket(a, day) === 'missed');
             const isToday = day === todayIsoDate();
             const isPast = day < todayIsoDate();
+            const isFuture = day > todayIsoDate();
             const totalLabel = t('clinic_day_total').replace('{n}', String(summary.total ?? dayAppts.length));
             const bulkUsed = clinicBulkWasSent(day);
             const bulkLabel = t('clinic_send_missed_all').replace('{n}', String(missed.length));
+            const waitingTitle = isPast ? t('clinic_not_marked') : t('clinic_scheduled');
             const pastSummary = isPast
                 ? t('clinic_day_summary_past')
                     .replace('{attended}', String(summary.attended ?? attended.length))
                     .replace('{missed}', String(summary.missed ?? missed.length))
+                    .replace('{waiting}', String(summary.waiting ?? waiting.length))
                     .replace('{rescheduled}', String(summary.rescheduled ?? 0))
-                : '';
+                : (isFuture || isToday
+                    ? `${summary.total ?? dayAppts.length} ${(summary.total ?? dayAppts.length) === 1 ? 'visit' : 'visits'} · ${attended.length} ${t('clinic_attended').toLowerCase()} · ${waiting.length} ${t('clinic_scheduled').toLowerCase()} · ${missed.length} ${t('clinic_missed').toLowerCase()}`
+                    : '');
             const renderCol = (title, items, emptyKey) => `
                 <div class="clinic-roster-col">
                     <h4>${escapeHtml(title)} <span class="clinic-col-count">${items.length}</span></h4>
@@ -4517,13 +4527,13 @@
                             <span class="clinic-day-total-text">${escapeHtml(totalLabel)}</span>
                         </div>
                         <div class="clinic-roster-stats">
-                            ${isToday ? `<span class="appt-stat-pill highlight"><strong>${waiting.length}</strong> ${t('clinic_waiting')}</span>` : ''}
+                            ${waiting.length ? `<span class="appt-stat-pill highlight"><strong>${waiting.length}</strong> ${isPast ? t('clinic_not_marked') : t('clinic_scheduled')}</span>` : ''}
                             <span class="appt-stat-pill success"><strong>${attended.length}</strong> ${t('clinic_attended')}</span>
                             <span class="appt-stat-pill clinic-stat-missed"><strong>${missed.length}</strong> ${t('clinic_missed')}</span>
                             ${Number(summary.rescheduled || 0) > 0 ? `<span class="appt-stat-pill"><strong>${summary.rescheduled}</strong> ${t('clinic_rescheduled')}</span>` : ''}
                         </div>
                         ${pastSummary ? `<p class="clinic-past-summary">${escapeHtml(pastSummary)}</p>` : ''}
-                        ${missed.length > 0 ? `
+                        ${missed.length > 0 && (isPast || isToday) ? `
                         <div class="clinic-bulk-actions">
                             <button type="button" class="btn-primary btn-sm clinic-bulk-send-btn"
                                 data-action="clinic-send-missed-all"
@@ -4534,9 +4544,9 @@
                             </button>
                             ${bulkUsed ? `<span class="muted clinic-bulk-used-note">${escapeHtml(t('clinic_send_missed_all_used'))}</span>` : ''}
                         </div>` : ''}
-                        ${isToday && waiting.length ? `
-                        <div class="clinic-roster-col clinic-waiting-strip">
-                            <h4>${t('clinic_waiting')} <span class="clinic-col-count">${waiting.length}</span></h4>
+                        ${waiting.length ? `
+                        <div class="clinic-roster-col clinic-waiting-strip ${isPast ? 'clinic-not-marked-strip' : ''}">
+                            <h4>${escapeHtml(waitingTitle)} <span class="clinic-col-count">${waiting.length}</span></h4>
                             ${waiting.map((a) => this.renderClinicRosterRow(a, day)).join('')}
                         </div>` : ''}
                         <div class="clinic-roster-columns clinic-roster-columns-2">
@@ -5517,10 +5527,9 @@
                             ? t('clinic_day_summary_past')
                                 .replace('{attended}', String(dayCounts.attended))
                                 .replace('{missed}', String(dayCounts.missed))
+                                .replace('{waiting}', String(dayCounts.waiting))
                                 .replace('{rescheduled}', String(dayCounts.rescheduled))
-                            : (isToday
-                                ? `${dayCounts.total} ${dayCounts.total === 1 ? 'visit' : 'visits'} · ${dayCounts.attended} attended · ${dayCounts.missed} missed · ${dayCounts.waiting} waiting`
-                                : `${dayCounts.total} ${dayCounts.total === 1 ? 'visit' : 'visits'}`);
+                            : `${dayCounts.total} ${dayCounts.total === 1 ? 'visit' : 'visits'} · ${dayCounts.attended} attended · ${dayCounts.waiting} scheduled · ${dayCounts.missed} missed`;
                         return `
                         <section class="appt-day-block ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}">
                             <div class="appt-day-marker">
@@ -5565,7 +5574,7 @@
                                             </div>
                                             ${apt.reason ? `<p class="appt-reason"><i class="fas fa-notes-medical"></i> ${escapeHtml(apt.reason)}</p>` : ''}
                                             ${this.renderReminderBadges(apt)}
-                                            <div class="appt-card-actions" onclick="event.stopPropagation()">
+                                            <div class="appt-card-actions">
                                                 ${apt.patient_id ? `<button type="button" class="btn-primary btn-sm" data-action="open-appt-visit" data-patient-id="${apt.patient_id}"><i class="fas fa-clipboard-check"></i> ${t('appt_manage_visit')}</button>` : ''}
                                                 ${apt.patient_id ? `<button type="button" class="btn-secondary btn-sm" data-action="view-patient" data-patient-ref="${escapeHtml(patientOpenRef(apt) || String(apt.patient_id))}" data-patient-id="${apt.patient_id}"><i class="fas fa-user"></i> ${t('view_record')}</button>` : ''}
                                             </div>
