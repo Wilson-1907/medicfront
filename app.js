@@ -182,10 +182,13 @@
             via_outcome_pending: "Treatment pending",
             via_treatment_date_ablation: "Date Thermal Ablation was done *",
             via_treatment_date_postponed: "Rescheduled treatment date *",
+            via_treatment_date_same_day_hint: "If ablation was done at the same visit, use the same date as the VIA test.",
             via_outcome_required: "Select the return visit outcome for VIA positive.",
             via_treatment_date_required: "Enter the treatment date.",
             via_treatment_date_past: "Thermal Ablation date must be today or earlier.",
             via_treatment_date_future: "Postponed treatment date must be in the future.",
+            via_treatment_date_before_via: "Treatment date cannot be before the VIA test date.",
+            via_treatment_date_after_via: "Postponed treatment date must be after the VIA test date.",
             book_appt_inline_title: "Book appointment",
             book_appt_inline_hint: "For HPV positive, booking sends the lab result SMS first, then the appointment confirmation. Gentle FAQ tips continue until VIA is recorded.",
             book_appt_submit: "Book & notify patient",
@@ -442,10 +445,13 @@
             via_outcome_pending: "Matibabu yanasubiri",
             via_treatment_date_ablation: "Tarehe Thermal Ablation ilifanyika *",
             via_treatment_date_postponed: "Tarehe mpya ya matibabu *",
+            via_treatment_date_same_day_hint: "Ikiwa ablation ilifanyika ziara hiyo hiyo, tumia tarehe ile ile ya kipimo cha VIA.",
             via_outcome_required: "Chagua matokeo ya ziara ya kurudi kwa VIA chanya.",
             via_treatment_date_required: "Weka tarehe ya matibabu.",
             via_treatment_date_past: "Tarehe ya Thermal Ablation lazima iwe leo au kabla.",
             via_treatment_date_future: "Tarehe ya kuahirisha matibabu lazima iwe siku zijazo.",
+            via_treatment_date_before_via: "Tarehe ya matibabu haiwezi kuwa kabla ya tarehe ya kipimo cha VIA.",
+            via_treatment_date_after_via: "Tarehe ya kuahirisha matibabu lazima iwe baada ya tarehe ya kipimo cha VIA.",
             book_appt_inline_title: "Panga miadi",
             book_appt_inline_hint: "Kwa HPV chanya, kupanga miadi hutuma matokeo ya maabara kwanza, kisha uthibitisho wa miadi. Vidokezo vya FAQ vinaendelea hadi VIA iwekwe.",
             book_appt_submit: "Panga & mjulishe mgonjwa",
@@ -1432,8 +1438,15 @@
         return '—';
     }
 
+    function localIsoDate(d = new Date()) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
     function todayIsoDate() {
-        return new Date().toISOString().slice(0, 10);
+        return localIsoDate();
     }
 
     /** Derive return-visit outcome from existing DB fields (safe for patients already on file). */
@@ -3393,7 +3406,7 @@
         },
 
         renderViaRecordFormBody(p, defaultViaDate = '') {
-            const dateVal = defaultViaDate || appointmentDateInputValue(new Date().toISOString());
+            const dateVal = defaultViaDate || todayIsoDate();
             return `
                         <p class="muted hpv-result-intro">${t('via_result_hint')}</p>
                         <input type="hidden" name="via_result" value="">
@@ -3425,6 +3438,7 @@
                             </select>
                             <div class="form-group" id="viaTreatmentDateRow-${p.id}" style="display:none;margin-top:10px;">
                                 <label class="form-label" id="viaTreatmentDateLabel-${p.id}">${t('via_treatment_date_ablation')}</label>
+                                <p class="muted" id="viaTreatmentDateHint-${p.id}" style="margin:0 0 8px;font-size:0.9rem;display:none;">${t('via_treatment_date_same_day_hint')}</p>
                                 <input type="date" name="treatment_date" class="form-input">
                             </div>
                         </div>
@@ -3867,12 +3881,17 @@
                 return;
             }
             const outcome = form.querySelector('[name="via_positive_outcome"]')?.value || '';
+            const viaDate = form.querySelector('[name="via_date"]')?.value || '';
             const dateRow = document.getElementById(`viaTreatmentDateRow-${patientId}`);
             const dateLabel = document.getElementById(`viaTreatmentDateLabel-${patientId}`);
+            const dateHint = document.getElementById(`viaTreatmentDateHint-${patientId}`);
             const dateInput = form.querySelector('[name="treatment_date"]');
             const needsDate = outcome === 'thermal_ablation' || outcome === 'treatment_postponed';
             if (dateRow) {
                 dateRow.style.display = needsDate ? '' : 'none';
+            }
+            if (dateHint) {
+                dateHint.style.display = outcome === 'thermal_ablation' ? '' : 'none';
             }
             if (dateLabel) {
                 dateLabel.textContent = outcome === 'treatment_postponed'
@@ -3881,6 +3900,8 @@
             }
             if (dateInput && !needsDate) {
                 dateInput.value = '';
+            } else if (dateInput && outcome === 'thermal_ablation' && viaDate) {
+                dateInput.value = viaDate;
             }
         },
 
@@ -3919,6 +3940,7 @@
             const form = viaRecordRoot(patientId);
             if (form) {
                 this.bindViaOutcomeSelect(form);
+                this.bindViaDateSync(form, patientId);
             }
         },
 
@@ -3936,6 +3958,27 @@
                     }
                 });
             }
+        },
+
+        bindViaDateSync(form, patientId) {
+            if (!form || form.dataset.viaDateBound === '1') {
+                return;
+            }
+            form.dataset.viaDateBound = '1';
+            const viaInput = form.querySelector('[name="via_date"]');
+            if (!viaInput) {
+                return;
+            }
+            viaInput.addEventListener('change', () => {
+                const outcome = form.querySelector('[name="via_positive_outcome"]')?.value || '';
+                if (outcome !== 'thermal_ablation') {
+                    return;
+                }
+                const treatmentInput = form.querySelector('[name="treatment_date"]');
+                if (treatmentInput) {
+                    treatmentInput.value = viaInput.value;
+                }
+            });
         },
 
         async recordViaResult(patientId) {
@@ -3975,18 +4018,33 @@
                     hasCancer = 1;
                 } else if (outcome === 'thermal_ablation' || outcome === 'treatment_postponed') {
                     treatmentDate = form.querySelector('[name="treatment_date"]')?.value || '';
+                    if (!treatmentDate && outcome === 'thermal_ablation' && viaDate) {
+                        treatmentDate = viaDate;
+                    }
                     if (!treatmentDate) {
                         showNotification(t('via_treatment_date_required'), 'error');
                         return;
                     }
                     const today = todayIsoDate();
-                    if (outcome === 'thermal_ablation' && treatmentDate > today) {
-                        showNotification(t('via_treatment_date_past'), 'error');
-                        return;
+                    if (outcome === 'thermal_ablation') {
+                        if (treatmentDate > today) {
+                            showNotification(t('via_treatment_date_past'), 'error');
+                            return;
+                        }
+                        if (viaDate && treatmentDate < viaDate) {
+                            showNotification(t('via_treatment_date_before_via'), 'error');
+                            return;
+                        }
                     }
-                    if (outcome === 'treatment_postponed' && treatmentDate <= today) {
-                        showNotification(t('via_treatment_date_future'), 'error');
-                        return;
+                    if (outcome === 'treatment_postponed') {
+                        if (treatmentDate <= today) {
+                            showNotification(t('via_treatment_date_future'), 'error');
+                            return;
+                        }
+                        if (viaDate && treatmentDate <= viaDate) {
+                            showNotification(t('via_treatment_date_after_via'), 'error');
+                            return;
+                        }
                     }
                 }
             }
