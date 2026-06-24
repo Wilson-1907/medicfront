@@ -4188,8 +4188,8 @@
         async markAppointmentMissed(appointmentId, patientId) {
             const ok = window.confirm(
                 currentLanguage === 'sw'
-                    ? 'Weka kuwa hakuhudhuria na kumjulisha mgonjwa kwa SMS/WhatsApp?'
-                    : 'Mark as missed and notify the patient by SMS/WhatsApp?'
+                    ? 'Weka kuwa hakuhudhuria na kutuma ujumbe wa kukosa miadi kwa SMS/WhatsApp?'
+                    : 'Mark as missed and send the missed-appointment message by SMS/WhatsApp?'
             );
             if (!ok) {
                 return;
@@ -4200,11 +4200,21 @@
                     action: 'mark_missed',
                     appointment_id: Number(appointmentId),
                 }, false);
-                showNotification(
-                    data.missed_message_sent ? t('appt_missed_sent') : t('success'),
-                    'ok'
-                );
+                if (data.missed_message_sent) {
+                    showNotification(t('appt_missed_sent'), 'ok');
+                } else if (data.ok) {
+                    showNotification(
+                        currentLanguage === 'sw'
+                            ? 'Imewekwa kama hakuhudhuria. Ujumbe haukutumwa — angalia nambari ya mgonjwa na idhini ya SMS/WhatsApp.'
+                            : 'Marked as missed. Message was not sent — check patient phone and SMS/WhatsApp opt-in.',
+                        'error'
+                    );
+                } else {
+                    showNotification(t('success'), 'ok');
+                }
                 await this.refreshAfterVisitAction(patientId);
+                const day = document.getElementById('clinicDayPicker')?.value || todayIsoDate();
+                await this.loadClinicDayRoster(day, true);
             } catch (err) {
                 showNotification(err.message || t('server_error'), 'error');
             }
@@ -4424,6 +4434,8 @@
             const pref = patientOpenRef(apt) || String(pid);
             const bucket = clinicRosterBucket(apt, clinicDayIso);
             const badgeLabel = clinicAttendanceBadgeLabel(bucket);
+            const statusLower = String(apt.status || '').toLowerCase();
+            const canMarkMissed = statusLower === 'proposed' || statusLower === 'confirmed';
             const early = isEarlyClinicCheckIn(apt);
             return `
                 <div class="clinic-roster-row status-${bucket}" data-patient-id="${pid}" data-patient-ref="${escapeHtml(pref)}" tabindex="0" role="button" title="${escapeHtml(t('view_record'))}">
@@ -4437,14 +4449,14 @@
                         <span class="clinic-roster-time"><i class="fas fa-clock"></i> ${formatTime(apt.scheduled_start)}</span>
                     </div>
                     <div class="clinic-roster-actions" onclick="event.stopPropagation()">
-                        ${bucket === 'waiting' ? `
+                        ${canMarkMissed ? `
                         <button type="button" class="btn-primary btn-sm" data-action="appt-mark-attended" data-appointment-id="${apt.id}" data-patient-id="${pid}">
                             <i class="fas fa-check"></i> ${t('clinic_mark_attended')}
                         </button>
                         <button type="button" class="btn-secondary btn-sm" data-action="appt-mark-missed" data-appointment-id="${apt.id}" data-patient-id="${pid}">
-                            <i class="fas fa-times"></i> ${t('clinic_mark_missed')}
+                            <i class="fas fa-paper-plane"></i> ${t('clinic_mark_missed')}
                         </button>` : ''}
-                        ${bucket === 'missed' && String(apt.status || '').toLowerCase() === 'no_show' ? `
+                        ${statusLower === 'no_show' ? `
                         <button type="button" class="btn-secondary btn-sm" data-action="appt-send-missed" data-appointment-id="${apt.id}" data-patient-id="${pid}">
                             <i class="fas fa-paper-plane"></i> ${t('clinic_send_missed')}
                         </button>` : ''}
