@@ -775,8 +775,13 @@
     }
 
     function viaRecordRoot(patientId) {
-        return document.getElementById(`viaRecordMount-${patientId}`)
-            || document.getElementById(`viaRecordForm-${patientId}`);
+        const id = Number(patientId);
+        if (id < 1) {
+            return null;
+        }
+        return document.getElementById(`viaRecordMount-${id}`)
+            || document.querySelector(`#viaRecordCard-${id} .hpv-result-body`)
+            || document.getElementById(`viaRecordForm-${id}`);
     }
 
     function appointmentDateTimeLocalValue(scheduledStart) {
@@ -1761,8 +1766,7 @@
                     components.pickViaResult(patientId, 'positive');
                 } else if (action === 'via-pick-negative' && patientId) {
                     e.preventDefault();
-                    components.pickViaResult(patientId, 'negative');
-                    components.recordViaResult(patientId);
+                    void components.recordViaNegative(patientId);
                 } else if (action === 'via-record-submit' && patientId) {
                     e.preventDefault();
                     components.recordViaResult(patientId);
@@ -3413,10 +3417,10 @@
                         <div class="hpv-step-block">
                             <h4 class="hpv-step-title">${t('via_step_record')}</h4>
                             <div class="hpv-record-actions">
-                                <button type="button" class="btn-primary" data-action="via-pick-positive" data-patient-id="${p.id}">
+                                <button type="button" class="btn-secondary" data-action="via-pick-positive" data-patient-id="${p.id}">
                                     <i class="fas fa-plus-circle"></i> ${t('via_record_positive')}
                                 </button>
-                                <button type="button" class="btn-secondary" data-action="via-pick-negative" data-patient-id="${p.id}">
+                                <button type="button" class="btn-primary" data-action="via-pick-negative" data-patient-id="${p.id}">
                                     <i class="fas fa-minus-circle"></i> ${t('via_record_negative')}
                                 </button>
                             </div>
@@ -3981,7 +3985,44 @@
             });
         },
 
-        async recordViaResult(patientId) {
+        async recordViaNegative(patientId) {
+            const id = Number(patientId);
+            const form = viaRecordRoot(id);
+            if (!form) {
+                showNotification(
+                    currentLanguage === 'sw'
+                        ? 'Fomu ya VIA haipatikani — fungua rekodi ya mgonjwa upya.'
+                        : 'VIA form not found — refresh the patient record.',
+                    'error'
+                );
+                return;
+            }
+            const negBtn = form.querySelector('[data-action="via-pick-negative"]');
+            if (negBtn?.disabled || form.dataset.viaSubmitting === '1') {
+                return;
+            }
+            let viaDate = String(form.querySelector('[name="via_date"]')?.value || '').trim();
+            if (!viaDate) {
+                viaDate = todayIsoDate();
+                const viaDateInput = form.querySelector('[name="via_date"]');
+                if (viaDateInput) {
+                    viaDateInput.value = viaDate;
+                }
+            }
+            this.pickViaResult(id, 'negative');
+            if (negBtn) {
+                negBtn.disabled = true;
+            }
+            try {
+                await this.recordViaResult(id, { viaResult: 'negative', viaDate });
+            } finally {
+                if (negBtn) {
+                    negBtn.disabled = false;
+                }
+            }
+        },
+
+        async recordViaResult(patientId, overrides = {}) {
             const form = viaRecordRoot(patientId);
             if (!form) {
                 showNotification(
@@ -3995,8 +4036,15 @@
             if (form.dataset.viaSubmitting === '1') {
                 return;
             }
-            const viaResult = form.querySelector('[name="via_result"]')?.value || '';
-            const viaDate = form.querySelector('[name="via_date"]')?.value || '';
+            const viaResult = String(overrides.viaResult || form.querySelector('[name="via_result"]')?.value || '').trim();
+            let viaDate = String(overrides.viaDate || form.querySelector('[name="via_date"]')?.value || '').trim();
+            if (!viaDate) {
+                viaDate = todayIsoDate();
+                const viaDateInput = form.querySelector('[name="via_date"]');
+                if (viaDateInput) {
+                    viaDateInput.value = viaDate;
+                }
+            }
             const outcome = form.querySelector('[name="via_positive_outcome"]')?.value || '';
             let hasCancer = 0;
             let treatmentDate = '';
@@ -4285,6 +4333,7 @@
                     <div style="padding:0 16px 16px;">
                         <p class="muted" style="margin:0 0 12px;">${t('appt_workflow_panel_hint')}</p>
                         ${wf.active ? this.renderVisitWorkflowCard(p, appointments).replace('margin-top:1rem;', 'margin-top:0;') : ''}
+                        ${this.renderViaResultCard(p, appointments).replace('margin-top:1rem;', 'margin-top:12px;')}
                         ${!wf.active && nextAppt ? `
                         <p class="muted" style="margin:0;">
                             <i class="fas fa-calendar"></i> ${t('appt_workflow_upcoming')}
