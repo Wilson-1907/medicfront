@@ -1229,8 +1229,8 @@ body {
 }
 
 .status-badge.sent {
-    background: var(--success-light);
-    color: #065f46;
+    background: var(--warning-light);
+    color: #92400e;
 }
 
 .status-badge.pending {
@@ -1244,8 +1244,8 @@ body {
 }
 
 .status-badge.delivered {
-    background: var(--info-light);
-    color: #1e40af;
+    background: var(--success-light);
+    color: #065f46;
 }
 
 .status-badge.open {
@@ -1274,6 +1274,68 @@ body {
     font-size: 0.7rem;
     color: #991b1b;
     display: inline-block;
+}
+
+.failed-messages-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.failed-message-header-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.failed-messages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.failed-message-card {
+    border: 1px solid #fecaca;
+    border-left: 4px solid var(--danger);
+    border-radius: 12px;
+    padding: 16px 18px;
+    background: #fff;
+}
+
+.failed-message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.failed-message-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.failed-message-body {
+    margin-bottom: 10px;
+}
+
+.failed-message-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.failed-message-reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
 }
 
 /* Inbound Message Bubble */
@@ -1626,6 +1688,7 @@ body {
 .alert-banner.danger { background: var(--danger-light); border-color: #fecaca; color: #991b1b; }
 .alert-banner i { font-size: 1.5rem; }
 .alert-banner p { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.9; }
+.alert-banner-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .btn-sm { padding: 8px 14px !important; font-size: 0.8rem !important; }
 .card-body { padding: 0 4px 8px; }
 .escalations-section { border: 2px solid rgba(239,68,68,0.2); }
@@ -1958,3 +2021,37 @@ body {
         justify-content: center;
     }
 }
+
+.clinic-roster-card { border-left: 4px solid var(--primary-500); }
+.clinic-roster-toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.clinic-roster-stats {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+}
+.clinic-roster-columns {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+@media (max-width: 960px) {
+    .clinic-roster-columns { grid-template-columns: 1fr; }
+}
+.clinic-roster-col {
+    background: var(--gray-50, #f8fafc); border: 1px solid var(--gray-200);
+    border-radius: 12px; padding: 12px; min-height: 120px;
+}
+.clinic-roster-col h4 {
+    margin: 0 0 10px; font-size: 0.85rem; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--gray-600);
+}
+.clinic-roster-row {
+    background: #fff; border: 1px solid var(--gray-200); border-radius: 10px;
+    padding: 10px; margin-bottom: 8px;
+}
+.clinic-roster-row.status-attended { border-left: 3px solid var(--success); }
+.clinic-roster-row.status-missed { border-left: 3px solid #dc2626; }
+.clinic-roster-row.status-waiting { border-left: 3px solid var(--warning); }
+.clinic-roster-main { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.clinic-roster-main .muted { font-size: 0.78rem; }
+.clinic-roster-time { font-size: 0.82rem; color: var(--gray-700); }
+.clinic-roster-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.clinic-roster-empty { font-size: 0.85rem; margin: 0; }
