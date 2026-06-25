@@ -2068,6 +2068,7 @@ body {
     border: 1px solid #fecaca;
 }
 .clinic-bulk-used-note { font-size: 0.82rem; }
+.clinic-bulk-hint { font-size: 0.85rem; margin: 0 0 14px; padding: 10px 12px; background: #fffbeb; border-radius: 8px; border: 1px solid #fcd34d; }
 .clinic-early-tag {
     font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
     background: #dbeafe; color: #1d4ed8;

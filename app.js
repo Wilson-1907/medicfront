@@ -65,8 +65,10 @@
             clinic_none_attended: "No attended visits yet.",
             clinic_none_missed: "No missed visits.",
             clinic_send_missed: "Send missed message",
-            clinic_send_missed_all: "Send missed message to all ({n})",
-            clinic_send_missed_all_confirm: "Send the missed-appointment message to all {n} patients who did not attend on {date}?",
+            clinic_send_missed_all: "Send missed message to unmarked after 5 PM ({n})",
+            clinic_send_missed_all_confirm: "Mark {n} patients who were not marked as attended and send the missed-appointment message? (Only after 5 PM on their appointment day.)",
+            clinic_bulk_after_5pm_hint: "Bulk send is available after 5 PM for patients not yet marked attended or missed.",
+            clinic_bulk_none_eligible: "No unmarked patients are eligible yet — bulk send opens after 5 PM.",
             clinic_send_missed_all_done: "Sent to {sent} patient(s).",
             clinic_send_missed_all_done_marked: "Marked {marked} as missed and sent {sent} message(s).",
             clinic_send_missed_all_used: "Bulk missed message already sent for this day",
@@ -379,8 +381,10 @@
             clinic_none_attended: "Hakuna waliohudhuria bado.",
             clinic_none_missed: "Hakuna walikosa.",
             clinic_send_missed: "Tuma ujumbe wa kukosa",
-            clinic_send_missed_all: "Tuma ujumbe wa kukosa kwa wote ({n})",
-            clinic_send_missed_all_confirm: "Tuma ujumbe wa kukosa kwa wagonjwa {n} ambao hawakuhudhuria tarehe {date}?",
+            clinic_send_missed_all: "Tuma ujumbe wa kukosa kwa wasio na alama baada ya saa 5 ({n})",
+            clinic_send_missed_all_confirm: "Weka wagonjwa {n} ambao hawajawekwa kama walihudhuria na kutuma ujumbe wa kukosa? (Baada ya saa 5 jioni siku ya miadi tu.)",
+            clinic_bulk_after_5pm_hint: "Tuma kwa wote inapatikana baada ya saa 5 kwa wagonjwa ambao bado hawajawekwa alihudhuria au hakuhudhuria.",
+            clinic_bulk_none_eligible: "Hakuna wagonjwa wasio na alama wanaostahili bado — tuma kwa wote huanza baada ya saa 5.",
             clinic_send_missed_all_done: "Imetumwa kwa wagonjwa {sent}.",
             clinic_send_missed_all_done_marked: "Wagonjwa {marked} wamewekwa kama walikosa na ujumbe {sent} umetumwa.",
             clinic_send_missed_all_used: "Ujumbe wa kukosa kwa siku hii tayari umetumwa",
@@ -978,9 +982,32 @@
             missed,
             waiting,
             rescheduled,
+            bulk_missed_eligible: dayAppts.filter((apt) => clinicBulkMissedEligible(apt)).length,
             is_past: day < todayIsoDate(),
             is_today: day === todayIsoDate(),
         };
+    }
+
+    /** Client fallback — server summary.bulk_missed_eligible is authoritative. */
+    function clinicBulkMissedEligible(apt) {
+        const status = String(apt?.status || '').toLowerCase();
+        if (status !== 'proposed' && status !== 'confirmed') {
+            return false;
+        }
+        const day = appointmentDateIso(apt);
+        if (!day) {
+            return false;
+        }
+        const today = todayIsoDate();
+        if (day > today) {
+            return false;
+        }
+        if (day < today) {
+            return true;
+        }
+        const now = new Date();
+        const cutoff = new Date(`${day}T17:00:00`);
+        return now >= cutoff;
     }
 
     function clinicBulkWasSent(dateIso) {
@@ -4365,7 +4392,7 @@
             const day = String(dateIso || todayIsoDate()).trim();
             const n = Number(missedCount || 0);
             if (n < 1) {
-                showNotification(t('clinic_none_missed'), 'info');
+                showNotification(t('clinic_bulk_none_eligible'), 'info');
                 return;
             }
             if (clinicBulkWasSent(day)) {
@@ -4373,8 +4400,7 @@
                 return;
             }
             const confirmText = t('clinic_send_missed_all_confirm')
-                .replace('{n}', String(n))
-                .replace('{date}', formatDate(day, 'full'));
+                .replace('{n}', String(n));
             if (!window.confirm(confirmText)) {
                 return;
             }
@@ -4554,8 +4580,9 @@
             const total = summary.total ?? dayAppts.length;
             const isToday = day === todayIsoDate();
             const isPast = day < todayIsoDate();
+            const bulkEligible = Number(summary.bulk_missed_eligible ?? dayAppts.filter((a) => clinicBulkMissedEligible(a)).length);
             const bulkUsed = clinicBulkWasSent(day);
-            const bulkLabel = t('clinic_send_missed_all').replace('{n}', String(missed.length));
+            const bulkLabel = t('clinic_send_missed_all').replace('{n}', String(bulkEligible));
             const headline = t('clinic_day_appointed_headline')
                 .replace('{n}', String(total))
                 .replace('{date}', formatDate(day, 'full'));
@@ -4590,17 +4617,18 @@
                             ${waiting.length ? `<span class="appt-stat-pill"><strong>${waiting.length}</strong> ${isPast ? t('clinic_not_marked') : t('clinic_badge_scheduled')}</span>` : ''}
                             <span class="appt-stat-pill clinic-stat-missed"><strong>${missed.length}</strong> ${t('clinic_missed')}</span>
                         </div>
-                        ${missed.length > 0 && (isPast || isToday) ? `
+                        ${bulkEligible > 0 ? `
                         <div class="clinic-bulk-actions">
                             <button type="button" class="btn-primary btn-sm clinic-bulk-send-btn"
                                 data-action="clinic-send-missed-all"
                                 data-clinic-date="${escapeHtml(day)}"
-                                data-missed-count="${missed.length}"
+                                data-missed-count="${bulkEligible}"
                                 ${bulkUsed ? 'disabled title="' + escapeHtml(t('clinic_send_missed_all_used')) + '"' : ''}>
                                 <i class="fas fa-paper-plane"></i> ${escapeHtml(bulkLabel)}
                             </button>
                             ${bulkUsed ? `<span class="muted clinic-bulk-used-note">${escapeHtml(t('clinic_send_missed_all_used'))}</span>` : ''}
-                        </div>` : ''}
+                        </div>` : (waiting.length > 0 && isToday ? `
+                        <p class="muted clinic-bulk-hint">${escapeHtml(t('clinic_bulk_after_5pm_hint'))}</p>` : '')}
                         <div class="clinic-all-appointed">
                             <h4 class="clinic-all-appointed-title">${escapeHtml(allPatientsTitle)}</h4>
                             ${dayAppts.length
