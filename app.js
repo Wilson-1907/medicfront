@@ -1235,6 +1235,7 @@
         const s = (status || '').toLowerCase();
         if (s === 'completed') return t('appt_status_completed');
         if (s === 'no_show') return t('appt_status_no_show');
+        if (s === 'cancelled') return currentLanguage === 'sw' ? 'Imefutwa' : 'Cancelled';
         if (s === 'confirmed') return currentLanguage === 'sw' ? 'Imepangwa' : 'Booked';
         if (s === 'proposed') return currentLanguage === 'sw' ? 'Imepangwa' : 'Booked';
         return escapeHtml(status || '—');
@@ -3364,7 +3365,7 @@
                             <div class="card-title"><i class="fas fa-calendar"></i> Appointments</div>
                         </div>
                         <div style="padding:16px;">
-                            ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.map(a => this.renderPatientAppointmentItem(a, p.id)).join('')}
+                            ${appointments.length === 0 ? '<p class="muted">No appointments yet.</p>' : appointments.filter((a) => (a.status || '').toLowerCase() !== 'cancelled').map(a => this.renderPatientAppointmentItem(a, p.id)).join('')}
                             ${(() => {
                                 const hpvPos = (p.hpv_screening_result || '').toLowerCase() === 'positive';
                                 const hpvRec = Boolean(p.hpv_result_recorded_at);
